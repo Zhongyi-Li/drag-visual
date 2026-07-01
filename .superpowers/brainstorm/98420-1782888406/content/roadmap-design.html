@@ -1,0 +1,30 @@
+<h2>建议开发节奏：5 周完成内部可用 MVP</h2>
+<p class="subtitle">按 2 名前端 + 1 名后端估算；若 1 人全栈，建议按 8–10 周计算。</p>
+
+<div style="display:grid;gap:12px">
+  <div style="display:grid;grid-template-columns:86px 1fr;gap:14px;align-items:start">
+    <div style="padding:12px;background:#2563eb;color:white;border-radius:8px;text-align:center"><b>第 1 周</b></div>
+    <div style="padding:12px;border-left:3px solid #60a5fa"><b>骨架与最小闭环</b><br><small>Monorepo、Project Schema v1、三栏编辑器、栅格拖拽、柱状图 + 文本、撤销/重做基础。</small><br><span style="color:#16a34a">验收：拖入组件、移动缩放、刷新后恢复。</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:86px 1fr;gap:14px;align-items:start">
+    <div style="padding:12px;background:#2563eb;color:white;border-radius:8px;text-align:center"><b>第 2 周</b></div>
+    <div style="padding:12px;border-left:3px solid #60a5fa"><b>数据闭环</b><br><small>CSV/Excel 上传解析、统一接口查询、字段类型推断、数据预览、字段到图表槽位的映射与校验。</small><br><span style="color:#16a34a">验收：一份文件和一个 API 数据集均可驱动柱状图。</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:86px 1fr;gap:14px;align-items:start">
+    <div style="padding:12px;background:#2563eb;color:white;border-radius:8px;text-align:center"><b>第 3 周</b></div>
+    <div style="padding:12px;border-left:3px solid #60a5fa"><b>组件与配置体系</b><br><small>8 个组件全部接入注册表；Schema 驱动字段/样式面板；统一主题、空态、加载态和错误态。</small><br><span style="color:#16a34a">验收：无需改编辑器主体即可注册新组件。</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:86px 1fr;gap:14px;align-items:start">
+    <div style="padding:12px;background:#2563eb;color:white;border-radius:8px;text-align:center"><b>第 4 周</b></div>
+    <div style="padding:12px;border-left:3px solid #60a5fa"><b>持久化与预览</b><br><small>项目保存/加载、自动保存、独立预览页、Schema 版本迁移、接口权限透传和查询超时处理。</small><br><span style="color:#16a34a">验收：编辑态与预览态渲染结果一致。</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:86px 1fr;gap:14px;align-items:start">
+    <div style="padding:12px;background:#2563eb;color:white;border-radius:8px;text-align:center"><b>第 5 周</b></div>
+    <div style="padding:12px;border-left:3px solid #60a5fa"><b>稳定性与试用</b><br><small>核心 E2E、性能基线、1 万行数据验证、异常恢复、埋点、内部用户试用与缺陷收口。</small><br><span style="color:#16a34a">验收：核心路径通过，P0/P1 缺陷清零。</span></div>
+  </div>
+</div>
+
+<div class="pros-cons" style="margin-top:18px">
+  <div class="pros"><h4>技术栈</h4><ul><li>pnpm + Turborepo</li><li>React / Vite / TypeScript</li><li>Ant Design + ECharts</li><li>react-grid-layout + Zustand</li><li>TanStack Query + Zod</li></ul></div>
+  <div class="pros"><h4>服务端与质量</h4><ul><li>NestJS + Fastify</li><li>Prisma + PostgreSQL</li><li>Vitest + Testing Library</li><li>Playwright E2E</li><li>OpenAPI + 统一错误码</li></ul></div>
+</div>

@@ -1,0 +1,57 @@
+<h2>画布布局方式：你更接近哪一种？</h2>
+<p class="subtitle">两种方案都支持拖入图表和调整尺寸，但底层模型、交付体验与开发成本不同。</p>
+
+<div class="cards">
+  <div class="card" data-choice="grid" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f6f8fb">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:210px">
+        <div style="grid-column:1 / 3;background:#fff;border:2px solid #3b82f6;border-radius:8px;padding:12px">
+          <div style="height:12px;width:35%;background:#dbeafe;border-radius:3px;margin-bottom:12px"></div>
+          <div style="display:flex;align-items:flex-end;gap:8px;height:80px">
+            <div style="height:45%;flex:1;background:#93c5fd"></div><div style="height:80%;flex:1;background:#60a5fa"></div><div style="height:60%;flex:1;background:#3b82f6"></div><div style="height:90%;flex:1;background:#2563eb"></div>
+          </div>
+        </div>
+        <div style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:12px"></div>
+        <div style="background:#fff;border:1px solid #cbd5e1;border-radius:8px;padding:12px"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · 栅格布局（推荐 MVP）</h3>
+      <p>组件沿行列吸附，自动避让和重排。更像数据大屏/报表编辑器，稳定、响应式友好。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="freeform" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background-color:#f6f8fb;background-image:radial-gradient(#cbd5e1 1px,transparent 1px);background-size:14px 14px;min-height:210px;position:relative">
+      <div style="position:absolute;left:24px;top:24px;width:62%;height:115px;background:#fff;border:2px solid #3b82f6;border-radius:8px;padding:10px;transform:rotate(-1deg)">
+        <div style="height:10px;width:40%;background:#dbeafe;border-radius:3px"></div>
+      </div>
+      <div style="position:absolute;right:22px;bottom:22px;width:45%;height:85px;background:#fff;border:1px solid #94a3b8;border-radius:8px;padding:10px;transform:rotate(2deg)"></div>
+      <div style="position:absolute;left:42%;top:80px;width:70px;height:55px;background:#eff6ff;border:1px dashed #2563eb;border-radius:6px"></div>
+    </div>
+    <div class="card-body">
+      <h3>B · 自由画布</h3>
+      <p>组件按像素坐标任意摆放、叠层和对齐。更像 Figma/PPT，表达力强，但响应式与冲突处理复杂。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f6f8fb;min-height:210px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;position:relative">
+        <div style="height:80px;background:#fff;border:1px solid #cbd5e1;border-radius:8px"></div>
+        <div style="height:80px;background:#fff;border:1px solid #cbd5e1;border-radius:8px"></div>
+        <div style="grid-column:1 / 3;height:95px;background:#fff;border:2px solid #3b82f6;border-radius:8px"></div>
+        <div style="position:absolute;right:16px;top:60px;width:92px;height:58px;background:#eff6ff;border:1px dashed #2563eb;border-radius:6px"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C · 混合模式</h3>
+      <p>主体走栅格，少量元素允许悬浮定位。能力全面，但规则最难解释，首版容易把边界做乱。</p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros"><h4>我的建议</h4><ul><li>MVP 先做栅格布局</li><li>数据报表场景更稳定</li><li>后续可基于组件协议扩展自由画布</li></ul></div>
+  <div class="cons"><h4>需要取舍</h4><ul><li>栅格牺牲像素级自由度</li><li>自由画布会显著增加响应式和保存模型复杂度</li></ul></div>
+</div>
