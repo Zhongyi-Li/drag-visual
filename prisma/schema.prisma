@@ -1,0 +1,19 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../apps/api/src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model DashboardRecord {
+  id              String   @id @default(cuid())
+  name            String
+  revision        Int      @default(1)
+  draftSchema     Json
+  publishedSchema Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}

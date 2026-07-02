@@ -1,2 +1,2 @@
-export * from "./dashboard";
-export * from "./dataset";
+export * from "./dashboard.js";
+export * from "./dataset.js";
