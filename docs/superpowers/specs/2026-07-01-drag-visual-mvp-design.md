@@ -1,9 +1,9 @@
 # Drag Visual 内部 BI 看板 MVP 设计方案
 
 - 日期：2026-07-01
-- 状态：已确认，待书面复核
+- 状态：2026-07-02 协作方式变更，待书面复核
 - 目标用户：公司内部单组织用户
-- 开发资源：1 名全栈开发，1 名数据同事协作
+- 开发资源：1 名前端开发、1 名 Java/Spring Boot 后端开发、1 名数据同事协作
 - 视觉参考：用户提供的三栏式 BI 看板编辑器截图
 
 ## 1. 目标
@@ -34,7 +34,7 @@ MVP 成功标准：内部用户可在 10 分钟内完成一张包含指标卡、
 - 看板主题色、背景和基础页面设置。
 - 手动保存、自动保存、未保存状态提示。
 - 预览、发布快照和重新发布。
-- 接入公司现有内部身份体系或反向代理身份，不自建账号体系。
+- 部署在公司内网、VPN 或现有网关之后；应用本身不提供登录、账号、角色和看板级权限。
 
 ### 2.2 不包含
 
@@ -43,6 +43,7 @@ MVP 成功标准：内部用户可在 10 分钟内完成一张包含指标卡、
 - 用户配置任意 REST URL、请求头或凭据。
 - SQL 编辑器、跨表关联、计算字段和复杂数据转换。
 - 多租户、计费、复杂 RBAC、多人实时协作和评论。
+- 登录页、用户表、JWT、Session、验证码、角色权限和操作审计。
 - 发布历史、版本回滚和审批流。
 - 自由像素画布、任意叠层、连线和数据流节点编排。
 - 图表市场、插件市场和移动端编辑。
@@ -50,9 +51,9 @@ MVP 成功标准：内部用户可在 10 分钟内完成一张包含指标卡、
 
 ## 3. 方案选择
 
-采用 TypeScript 模块化单体：一个 React Web 应用、一个 NestJS API、一个 PostgreSQL 数据库。代码使用 pnpm Workspace 组织，共享 Schema、组件注册表和渲染器，但不引入 Turborepo。
+采用契约优先的前后端分工：本仓库主要交付 React Web、TypeScript 领域契约、OpenAPI 和可执行 MSW Mock；生产后端由独立 Java/Spring Boot 项目实现，使用 PostgreSQL。已经完成的 NestJS/Prisma 代码保留为参考实现和契约验证样例，但不再继续扩展，也不是生产交付物。
 
-没有采用纯前端直连业务接口，因为鉴权、接口结构、查询限制和发布快照会与前端强耦合。没有拆分微服务，因为单人开发阶段的部署、监控和服务通信成本超过收益。
+前端不等待 Java 接口完成：所有功能先基于同一 OpenAPI 契约通过 MSW 开发和测试，Java 后端按阶段接收明确的 Controller、DTO、数据库、错误码和验收任务。没有采用“前端先调用 NestJS、后续再替换 Java”的方式，避免两套后端行为产生二次联调。
 
 ## 4. 总体架构
 
@@ -62,14 +63,19 @@ React Web
   ├─ 预览页 /preview/:dashboardId
   └─ 发布页 /view/:dashboardId
             │
-            ▼
-NestJS API
-  ├─ Dashboard Module
-  ├─ Publish Module
-  └─ Dataset Gateway ──> 统一业务接口
+            ├─ 开发/测试 ─> MSW Mock
             │
-            ▼
-       PostgreSQL
+            └─ 联调/生产 ─> Java Spring Boot API
+                              ├─ Dashboard Module ─> PostgreSQL
+                              ├─ Publish Module ───> PostgreSQL
+                              └─ Dataset Gateway ─> 统一业务接口
+
+OpenAPI + 示例 JSON + 稳定错误码
+  ├─ 约束前端 API Client 与 MSW
+  └─ 约束 Spring Boot Controller 与 DTO
+
+NestJS/Prisma Reference
+  └─ 只保留现有代码，不作为后续开发依赖
 ```
 
 编辑器、预览页和发布页使用同一套 `Dashboard Schema`、组件注册表和渲染器。编辑器只增加选中态、拖拽外壳和配置面板，避免编辑态与发布态出现两套渲染逻辑。
@@ -87,13 +93,22 @@ NestJS API
 | 服务端状态 | TanStack Query |
 | 表单 | React Hook Form |
 | Schema 校验 | Zod |
-| API | NestJS、Fastify |
-| 持久化 | PostgreSQL、Prisma |
+| 前端接口模拟 | MSW |
+| 生产 API | Java、Spring Boot（由后端同事在独立项目实现） |
+| 持久化 | PostgreSQL（由后端项目管理） |
 | 接口契约 | OpenAPI |
 | 测试 | Vitest、Testing Library、Playwright |
 | 仓库 | pnpm Workspace |
 
 Vite 只负责 TypeScript 转译，CI 必须独立运行 `tsc --noEmit`。依赖版本在初始化时锁定，升级应单独验证 react-grid-layout、dnd-kit 和 ECharts 的交互回归。
+
+### 5.1 前后端协作边界
+
+- `packages/contracts` 是前端运行时校验和 TypeScript 类型来源。
+- `openapi/bi-mvp.yaml` 是跨语言接口事实源；TypeScript 与 Java 字段名、必填性、枚举、状态码必须与其一致。
+- `apps/web/src/mocks` 提供 MSW handlers 和固定测试数据，覆盖成功、空数据、超时、字段变化、保存冲突和发布失败。
+- Java 后端不得要求前端直接调用统一业务接口，也不得向浏览器返回服务端凭据。
+- 每个前端阶段同时更新对应的 `docs/backend-handoff/*.md`；后端可独立开发，不阻塞下一阶段前端。
 
 ## 6. 前端模块
 
@@ -254,7 +269,7 @@ GET    /datasets/:datasetId/schema
 POST   /datasets/:datasetId/query
 ```
 
-所有请求复用公司内部身份。Dashboard API 校验用户是否具有内部访问权限；Dataset Gateway 将用户身份或服务端身份按公司约定透传，浏览器不保存长期服务端凭据。
+MVP 不提供应用内登录和用户身份。Web 与 API 仅部署在公司内网、VPN 或现有网关之后，所有内部访问者暂时拥有相同能力。Dataset Gateway 使用服务端环境变量或公司内部服务身份调用统一业务接口，浏览器不保存长期服务端凭据。
 
 ## 12. 错误处理
 
@@ -287,7 +302,8 @@ POST   /datasets/:datasetId/query
 
 ### 14.2 集成测试
 
-- Dataset Gateway 的成功、超时、权限错误和异常响应。
+- MSW 契约场景：成功、空数据、超时、异常响应和字段版本变化。
+- Java 后端上线前使用同一 OpenAPI 示例运行契约验收。
 - 栅格布局变化到 Dashboard Schema 的同步。
 - Inspector 表单到组件配置的同步。
 - 草稿保存、自动保存和发布事务。
@@ -302,18 +318,31 @@ POST   /datasets/:datasetId/query
 
 | 周次 | 重点 | 退出条件 |
 | --- | --- | --- |
-| 第 1 周 | Workspace、React、NestJS、PostgreSQL、Schema 和数据契约 | 可创建并读取空看板 |
+| 第 1 周 | Workspace、React、Schema、OpenAPI、MSW 与看板 CRUD Mock | 前端可创建并读取 Mock 看板；后端获得 CRUD 交接文档 |
 | 第 2 周 | 三栏编辑器、栅格画布、基础编辑命令 | 可添加、移动、缩放和恢复占位组件 |
-| 第 3 周 | Dataset Gateway、数据集选择、字段和预览 | 可选择真实数据集并看到字段和前 100 行 |
+| 第 3 周 | 数据集 Mock、数据集选择、字段和预览 | 前端可选择数据集并看到字段和前 100 行；后端获得 Dataset Gateway 文档 |
 | 第 4 周 | 组件注册表、字段槽位、柱状图闭环 | 柱状图可绑定维度和指标并正确渲染 |
 | 第 5 周 | 其余五类组件、字段和样式面板 | 六类组件均可合理配置 |
 | 第 6 周 | 撤销、复制、保存、自动保存和异常恢复 | 刷新不丢数据，保存失败不覆盖编辑态 |
-| 第 7 周 | 预览、发布快照、重新发布和内部身份接入 | 发布页与编辑器渲染一致 |
+| 第 7 周 | 预览、发布快照、重新发布和 Java API 联调 | 发布页与编辑器渲染一致；后端完成发布接口 |
 | 第 8 周 | E2E、性能、安全、内部试用和缺陷收口 | 核心流程通过，P0/P1 缺陷清零 |
 
 功能开发以第 6 周完成为目标，第 7 至 8 周不再增加新的组件类型。
 
-## 16. 数据同事协作事项
+## 16. 后端与数据协作事项
+
+后端交接文档固定放置于：
+
+```text
+docs/backend-handoff/
+  00-overview-and-contract.md
+  01-dashboard-crud.md
+  02-dataset-query-gateway.md
+  03-publish-and-preview.md
+  04-integration-acceptance.md
+```
+
+每份文档必须包含：Spring Boot Controller 路由、请求/响应 DTO、字段约束、数据库表或索引、事务与并发规则、稳定错误码、示例 JSON、服务端安全限制和可执行验收用例。Java 包名和项目内部目录由后端同事按其现有工程规范决定，本仓库不强制生成 Java 源码。
 
 数据同事应在前两周完成：
 
@@ -323,7 +352,7 @@ POST   /datasets/:datasetId/query
 - 明确超时、权限错误和业务错误格式。
 - 明确聚合、分页、最大行数和字段变更策略。
 
-若第 2 周末真实接口尚未稳定，全栈开发使用同一 OpenAPI 契约的 Mock Server 继续推进，不让前端等待数据接口完成。
+真实接口未稳定时，前端始终使用同一 OpenAPI 契约的 MSW handlers 推进。联调时只替换 API base URL，不修改组件、状态模型或业务流程。
 
 ## 17. 主要风险
 
@@ -336,11 +365,15 @@ POST   /datasets/:datasetId/query
 | 自动保存覆盖新内容 | revision 乐观锁和 409 冲突处理 |
 | 单人开发范围失控 | 固定六类组件，第 6 周后停止新增功能 |
 | 数据接口延期 | 第 1 周锁定 OpenAPI，第 2 周准备契约 Mock |
+| Java 与前端字段或错误码不一致 | OpenAPI 作为唯一跨语言契约，交接文档附验收样例 |
+| 前端被后端进度阻塞 | 所有阶段先由 MSW 完成，Java API 通过 base URL 切换接入 |
 
 ## 18. 交付物
 
 - 可运行的内部 BI 看板 Web 应用。
-- NestJS API 和 PostgreSQL 数据库迁移。
+- 可执行 MSW Mock、固定场景数据和前端 API Client。
+- OpenAPI 契约及分阶段 Spring Boot 后端交接文档。
+- 现有 NestJS/Prisma 参考代码保留，但不继续扩展、不作为生产交付物。
 - 六类组件及字段、样式配置。
 - 统一业务接口数据链路。
 - Dashboard Schema、OpenAPI 和组件注册协议。
