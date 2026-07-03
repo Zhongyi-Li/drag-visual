@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.3.2",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/utilities": "^3.2.2",
     "@drag-visual/component-registry": "workspace:*",
     "@drag-visual/contracts": "workspace:*",
     "@drag-visual/editor-core": "workspace:*",
@@ -20,6 +22,8 @@
     "antd": "^6.5.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
+    "react-grid-layout": "^2.2.3",
+    "react-resizable": "^3.2.0",
     "react-router-dom": "^7.18.1",
     "zustand": "^5.0.8"
   },

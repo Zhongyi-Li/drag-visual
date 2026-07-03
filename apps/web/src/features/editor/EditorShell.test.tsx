@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { EditorShell } from "./EditorShell.js";
 import { createEditorStore } from "./store/editorStore.js";
@@ -32,7 +32,7 @@ describe("EditorShell", () => {
     expect(screen.getByText("柱/条图")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "添加柱图" })).toBeEnabled();
     expect(screen.getByText("尚未选择组件")).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(screen.getByRole("status", { name: "保存状态" })).toHaveAttribute("aria-live", "polite");
     expect(screen.getByRole("complementary", { name: "图表组件" })).toHaveClass("editor-panel-scroll");
     expect(screen.getByRole("complementary", { name: "配置面板" })).toHaveClass("editor-panel-scroll");
   });
@@ -58,6 +58,23 @@ describe("EditorShell", () => {
     expect(undo).toBeEnabled();
     await userEvent.click(undo);
     expect(redo).toBeEnabled();
+  });
+
+  it("keeps keyboard activation as an accessible add path", async () => {
+    const store = createEditorStore(initial);
+    render(<EditorShell store={store} createComponentId={() => "bar-keyboard"} />);
+    const add = screen.getByRole("button", { name: "添加柱图" });
+    add.focus();
+    await userEvent.keyboard("{Enter}");
+    expect(store.getState().history.present.components[0]).toMatchObject({ id: "bar-keyboard", type: "bar" });
+  });
+
+  it("wires editor shortcuts through the shell", () => {
+    const store = createEditorStore(initial);
+    const save = vi.fn();
+    render(<EditorShell store={store} onSave={save} />);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true }));
+    expect(save).toHaveBeenCalledOnce();
   });
 
   it("shows honest unavailable persistence actions", () => {

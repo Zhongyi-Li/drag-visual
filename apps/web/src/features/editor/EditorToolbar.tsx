@@ -37,7 +37,7 @@ export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart 
           <span className="editor-product-mark" aria-hidden="true"><BarChartOutlined /></span>
           <div className="editor-title-block">
             <strong>{dashboard.name}</strong>
-            <span role="status" aria-live="polite"><CloudOutlined /> {dirty ? "有未保存更改" : "已保存"}</span>
+            <span role="status" aria-label="保存状态" aria-live="polite"><CloudOutlined /> {dirty ? "有未保存更改" : "已保存"}</span>
           </div>
           <div className="editor-history-actions">
             <Tooltip title="撤销">
@@ -65,7 +65,7 @@ export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart 
         <Tooltip title="添加查询控件即将开放">
           <span><Button type="text" disabled aria-label="添加查询控件（即将开放）">添加查询控件</Button></span>
         </Tooltip>
-        <span className="editor-tools__hint">画布与图表渲染将在下一阶段开放</span>
+        <span className="editor-tools__hint">拖动组件标题可调整位置</span>
       </nav>
     </header>
   );

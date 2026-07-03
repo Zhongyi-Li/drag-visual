@@ -1,10 +1,14 @@
 import { AppstoreOutlined, FilterOutlined, SearchOutlined } from "@ant-design/icons";
+import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { createDefaultRegistry, type ComponentRegistry } from "@drag-visual/component-registry";
 import type { ComponentType } from "@drag-visual/contracts";
 import { Button, Input, Tabs, Tooltip } from "antd";
-import { useState } from "react";
+import { useState, type KeyboardEvent } from "react";
 
 import type { EditorStore } from "./store/editorStore.js";
+import { addRegistryComponent } from "./componentActions.js";
+import { getPaletteDragData } from "./paletteDrag.js";
 
 interface ComponentPaletteProps {
   store: EditorStore;
@@ -14,17 +18,42 @@ interface ComponentPaletteProps {
 
 const defaultRegistry = createDefaultRegistry();
 
+const DraggablePaletteCard = ({ type, title, onAdd }: { type: ComponentType; title: string; onAdd: () => void }) => {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `palette:${type}`,
+    data: getPaletteDragData(type),
+  });
+  const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      event.stopPropagation();
+      onAdd();
+      return;
+    }
+    listeners?.onKeyDown?.(event);
+  };
+  return (
+    <button
+      ref={setNodeRef}
+      className={`palette-card${isDragging ? " palette-card--dragging" : ""}`}
+      type="button"
+      aria-label={`添加${title}`}
+      style={transform ? { transform: CSS.Translate.toString(transform) } : undefined}
+      onClick={() => { if (!isDragging) onAdd(); }}
+      {...listeners}
+      {...attributes}
+      onKeyDown={onKeyDown}
+    >
+      <AppstoreOutlined className="palette-card__icon" />
+      <span>{title}</span>
+    </button>
+  );
+};
+
 export const ComponentPalette = ({ store, createComponentId, registry = defaultRegistry }: ComponentPaletteProps) => {
   const [search, setSearch] = useState("");
   const addDefinition = (type: ComponentType) => {
-    const definition = registry.get(type);
-    const id = createComponentId();
-    store.getState().dispatch({
-      type: "component.add",
-      component: { id, type, title: definition.title, props: definition.createDefaults() },
-      layout: { i: id, x: 0, y: 0, ...definition.defaultLayout },
-    });
-    store.getState().select(id);
+    addRegistryComponent(store, registry, createComponentId, type);
   };
   const query = search.trim().toLocaleLowerCase("zh-CN");
   const visibleDefinitions = registry.list().filter((definition) =>
@@ -51,10 +80,7 @@ export const ComponentPalette = ({ store, createComponentId, registry = defaultR
             <h2 id={headingId}>{category}</h2>
             <div className="palette-grid">
               {definitions.map((definition) => (
-                <button className="palette-card" key={definition.type} type="button" aria-label={`添加${definition.title}`} onClick={() => addDefinition(definition.type)}>
-                  <AppstoreOutlined className="palette-card__icon" />
-                  <span>{definition.title}</span>
-                </button>
+                <DraggablePaletteCard key={definition.type} type={definition.type} title={definition.title} onAdd={() => addDefinition(definition.type)} />
               ))}
             </div>
           </section>
