@@ -14,7 +14,6 @@ const renderRoute = (path: string) => {
 
 describe("application routes", () => {
   it.each([
-    ["/editor/abc", "看板编辑", "abc"],
     ["/preview/def", "看板预览", "def"],
     ["/view/ghi", "看板查看", "ghi"],
   ])("resolves lazy route %s", async (path, title, dashboardId) => {

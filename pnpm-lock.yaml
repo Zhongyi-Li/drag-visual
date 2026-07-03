@@ -90,9 +90,15 @@ importers:
       '@ant-design/icons':
         specifier: ^6.3.2
         version: 6.3.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      '@drag-visual/component-registry':
+        specifier: workspace:*
+        version: link:../../packages/component-registry
       '@drag-visual/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@drag-visual/editor-core':
+        specifier: workspace:*
+        version: link:../../packages/editor-core
       '@tanstack/react-query':
         specifier: ^5.101.2
         version: 5.101.2(react@19.2.7)
@@ -108,6 +114,9 @@ importers:
       react-router-dom:
         specifier: ^7.18.1
         version: 7.18.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      zustand:
+        specifier: ^5.0.8
+        version: 5.0.14(@types/react@19.2.17)(react@19.2.7)
     devDependencies:
       '@readme/openapi-parser':
         specifier: ^5.0.1
@@ -148,6 +157,22 @@ importers:
       yaml:
         specifier: ^2.8.1
         version: 2.9.0
+
+  packages/component-registry:
+    dependencies:
+      '@drag-visual/contracts':
+        specifier: workspace:*
+        version: link:../contracts
+      zod:
+        specifier: ^4.1.12
+        version: 4.4.3
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.9
+        version: 4.1.9(@types/node@26.1.0)(jsdom@28.1.0)(msw@2.14.6(@types/node@26.1.0)(typescript@6.0.3))(vite@8.1.2(@types/node@26.1.0)(esbuild@0.27.7)(jiti@2.7.0)(tsx@4.21.1)(yaml@2.9.0))
 
   packages/contracts:
     dependencies:
@@ -2578,6 +2603,24 @@ packages:
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
+  zustand@5.0.14:
+    resolution: {integrity: sha512-/8tAspM5LMPr28b3fwLYrtdj77ECpfZviaP75CMTnwO8ISyaE4GDIG/9rDDYq/cH9D2Xw2A2RXglLInmVBQB/g==}
+    engines: {node: '>=12.20.0'}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      immer: '>=9.0.6'
+      react: '>=18.0.0'
+      use-sync-external-store: '>=1.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+      use-sync-external-store:
+        optional: true
+
 snapshots:
 
   '@acemir/cssom@0.9.31': {}
@@ -4868,3 +4911,8 @@ snapshots:
       graphmatch: 1.1.1
 
   zod@4.4.3: {}
+
+  zustand@5.0.14(@types/react@19.2.17)(react@19.2.7):
+    optionalDependencies:
+      '@types/react': 19.2.17
+      react: 19.2.7

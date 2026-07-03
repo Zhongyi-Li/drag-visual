@@ -1,0 +1,59 @@
+.editor-app,
+.editor-app * { box-sizing: border-box; }
+
+.editor-app {
+  min-width: 1024px;
+  height: 100vh;
+  min-height: 640px;
+  overflow: auto;
+  color: #262626;
+  background: #f5f6f8;
+  font-size: 13px;
+}
+
+.editor-header { min-width: 1280px; height: 96px; background: #fff; border-bottom: 1px solid #e8e8e8; }
+.editor-header__primary { height: 56px; padding: 0 20px 0 16px; display: flex; align-items: center; justify-content: space-between; }
+.editor-header__identity { display: flex; align-items: center; min-width: 0; gap: 12px; }
+.editor-icon-link { width: 28px; height: 28px; color: #595959; display: inline-flex; align-items: center; justify-content: center; border-radius: 4px; }
+.editor-icon-link:hover, .editor-icon-link:focus-visible { color: #1677ff; background: #f0f5ff; }
+.editor-product-mark { width: 22px; height: 22px; display: inline-flex; align-items: center; justify-content: center; color: #fff; background: #1677ff; border-radius: 3px; }
+.editor-title-block { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.editor-title-block strong { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 500; }
+.editor-title-block span { color: #8c8c8c; font-size: 11px; }
+.editor-history-actions { margin-left: 8px; display: flex; padding-left: 8px; border-left: 1px solid #f0f0f0; }
+.editor-header__tools { height: 40px; display: flex; align-items: center; gap: 2px; padding: 0 16px; border-top: 1px solid #f0f0f0; }
+.editor-header__tools .ant-btn { height: 32px; font-size: 13px; }
+.editor-tools__hint { margin-left: auto; color: #bfbfbf; font-size: 12px; }
+
+.editor-workbench { width: 100%; min-width: 1280px; height: calc(100vh - 96px); min-height: 544px; display: grid; grid-template-columns: 240px minmax(720px, 1fr) 320px; }
+.editor-palette, .editor-inspector { min-width: 0; background: #fff; }
+.editor-panel-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; }
+.editor-palette { border-right: 1px solid #e8e8e8; }
+.editor-palette .ant-tabs-nav { margin: 0; padding: 0 16px; }
+.palette-content { padding: 12px; }
+.palette-search { display: flex; align-items: center; gap: 4px; margin-bottom: 18px; }
+.palette-content h2 { margin: 0 0 10px; font-size: 13px; font-weight: 500; }
+.palette-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.palette-card { min-height: 76px; padding: 8px 4px; border: 1px solid transparent; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; background: #fff; color: #595959; cursor: pointer; font: inherit; }
+.palette-card:hover, .palette-card:focus-visible { border-color: #91caff; color: #1677ff; background: #f0f5ff; outline: none; }
+.palette-card__icon { color: #4c8ffb; font-size: 28px; }
+.palette-card span:last-child { font-size: 12px; }
+.palette-no-results { grid-column: 1 / -1; margin: 18px 0; color: #8c8c8c; text-align: center; font-size: 12px; }
+.palette-empty { padding: 32px 12px; text-align: center; color: #8c8c8c; }
+
+.editor-canvas { min-width: 720px; overflow: auto; padding: 28px; background: #f5f6f8; }
+.editor-canvas__stage { width: 100%; min-width: 408px; height: 100%; min-height: 440px; border: 1px dashed #d9d9d9; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #8c8c8c; background: #fafafa; }
+.editor-canvas__stage > .anticon { color: #bfbfbf; font-size: 30px; }
+.editor-canvas__stage strong { color: #595959; font-size: 14px; font-weight: 500; }
+.editor-canvas__stage span { font-size: 12px; }
+
+.editor-inspector { border-left: 1px solid #e8e8e8; }
+.inspector-heading { height: 40px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #f0f0f0; }
+.inspector-heading strong { font-size: 14px; font-weight: 500; }
+.editor-inspector .ant-tabs-nav { margin: 0; padding: 0 16px; }
+.editor-inspector .ant-empty { margin-top: 88px; }
+.inspector-selected { padding: 16px; }
+.inspector-selected h2 { margin: 0 0 8px; font-size: 14px; font-weight: 500; }
+.inspector-selected p { margin: 0 0 16px; color: #8c8c8c; font-size: 12px; }
+.editor-route-state { min-width: 1024px; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f5f6f8; }
+.editor-route-state h1 { margin: 0; font-size: 24px; }
