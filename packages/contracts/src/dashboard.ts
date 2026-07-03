@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { safeJsonRecord, safeRecord } from "./safe-record.js";
+
 const nonEmptyString = z.string().min(1);
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
@@ -20,30 +22,28 @@ export const GridItem = z.object({
   y: z.number().int().nonnegative(),
   w: z.number().int().positive(),
   h: z.number().int().positive(),
-});
+}).strict();
 
 export type GridItem = z.infer<typeof GridItem>;
 
 export const FieldBinding = z.object({
   fieldKey: nonEmptyString,
-});
+}).strict();
 
 export type FieldBinding = z.infer<typeof FieldBinding>;
 
 export const DataBinding = z.object({
   datasetId: nonEmptyString,
-  slots: z.record(
-    z.string(),
-    z.union([FieldBinding, z.array(FieldBinding)]),
-  ),
+  slots: safeRecord(z.union([FieldBinding, z.array(FieldBinding)])),
   sort: z
     .object({
       fieldKey: nonEmptyString,
       direction: z.enum(["asc", "desc"]),
     })
+    .strict()
     .optional(),
   limit: z.number().int().positive().max(10_000).optional(),
-});
+}).strict();
 
 export type DataBinding = z.infer<typeof DataBinding>;
 
@@ -51,33 +51,36 @@ export const ComponentInstance = z.object({
   id: nonEmptyString,
   type: ComponentType,
   title: z.string().optional(),
-  props: z.record(z.string(), z.unknown()),
+  props: safeJsonRecord,
   binding: DataBinding.optional(),
-});
+}).strict();
 
 export type ComponentInstance = z.infer<typeof ComponentInstance>;
 
-export const Dashboard = z
+export const DashboardSchema = z
   .object({
-    version: z.literal(1),
-    id: z.string().min(1).max(100),
+    schemaVersion: z.literal(1),
+    id: z.uuid(),
     name: z.string().min(1).max(100),
-    theme: z.object({
-      primaryColor: hexColor,
-      backgroundColor: hexColor,
-    }),
-    layout: z.array(GridItem),
-    components: z.array(ComponentInstance),
+    theme: z
+      .object({
+        primaryColor: hexColor,
+        backgroundColor: hexColor,
+      })
+      .strict(),
+    layout: z.array(GridItem).max(100),
+    components: z.array(ComponentInstance).max(100),
     datasets: z.array(
       z.object({
         datasetId: nonEmptyString,
         schemaVersion: nonEmptyString,
-        parameters: z.record(z.string(), z.unknown()),
-      }),
-    ),
+        parameters: safeJsonRecord,
+      }).strict(),
+    ).max(20),
     revision: z.number().int().positive(),
     updatedAt: z.iso.datetime(),
   })
+  .strict()
   .superRefine((dashboard, context) => {
     const datasetIds = new Set<string>();
     dashboard.datasets.forEach((dataset, index) => {
@@ -142,4 +145,7 @@ export const Dashboard = z
     });
   });
 
-export type Dashboard = z.infer<typeof Dashboard>;
+/** @deprecated Prefer DashboardSchema for runtime validation. */
+export const Dashboard = DashboardSchema;
+
+export type Dashboard = z.infer<typeof DashboardSchema>;

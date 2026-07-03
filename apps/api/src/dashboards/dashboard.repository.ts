@@ -1,4 +1,4 @@
-import { Dashboard as DashboardSchema, type Dashboard } from "@drag-visual/contracts";
+import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
 
 export const DASHBOARD_REPOSITORY = Symbol("DASHBOARD_REPOSITORY");
 

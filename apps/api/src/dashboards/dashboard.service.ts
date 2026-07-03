@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { Dashboard as DashboardSchema, type Dashboard } from "@drag-visual/contracts";
+import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
 import { Inject, Injectable } from "@nestjs/common";
 
 import {
@@ -29,10 +29,10 @@ export class DashboardService {
     private readonly repository: DashboardRepository,
   ) {}
 
-  async create(name: string): Promise<Dashboard> {
-    const trimmedName = name.trim() || "未命名看板";
+  async create(name?: string | null): Promise<Dashboard> {
+    const trimmedName = name?.trim() || "未命名看板";
     const dashboard = DashboardSchema.parse({
-      version: 1,
+      schemaVersion: 1,
       id: randomUUID(),
       name: trimmedName,
       theme: {
@@ -57,7 +57,11 @@ export class DashboardService {
   async save(dashboard: Dashboard): Promise<Dashboard> {
     const validDashboard = DashboardSchema.parse(dashboard);
     const saved = await this.repository.updateIfRevision(validDashboard);
-    if (!saved) throw new RevisionConflictError(validDashboard.id);
+    if (!saved) {
+      const current = await this.repository.find(validDashboard.id);
+      if (!current) throw new DashboardNotFoundError(validDashboard.id);
+      throw new RevisionConflictError(validDashboard.id);
+    }
     return saved;
   }
 }

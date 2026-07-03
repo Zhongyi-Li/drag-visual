@@ -5,9 +5,20 @@ import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fa
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 
 import { AppModule } from "./app.module.js";
+import {
+  dashboardErrorEnvelopeHook,
+  safeJsonFastifyOptions,
+} from "./fastify-options.js";
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule, new FastifyAdapter({ logger: true }));
+  const app = await NestFactory.create<NestFastifyApplication>(
+    AppModule,
+    new FastifyAdapter({ ...safeJsonFastifyOptions, logger: true }),
+  );
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .addHook("onSend", dashboardErrorEnvelopeHook as never);
   const openApiConfig = new DocumentBuilder().setTitle("Drag Visual API").setVersion("1.0").build();
   const openApiDocument = SwaggerModule.createDocument(app, openApiConfig);
 

@@ -6,13 +6,15 @@
     "node": ">=22.12"
   },
   "scripts": {
+    "predev": "pnpm --filter @drag-visual/contracts build",
     "dev": "pnpm --parallel --filter @drag-visual/web --filter @drag-visual/api dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
-    "pretest": "pnpm --filter @drag-visual/api prisma:generate",
+    "pretest": "pnpm --filter @drag-visual/contracts build && pnpm --filter @drag-visual/api prisma:generate",
     "test": "vitest run",
-    "pretest:watch": "pnpm --filter @drag-visual/api prisma:generate",
+    "pretest:watch": "pnpm --filter @drag-visual/contracts build && pnpm --filter @drag-visual/api prisma:generate",
     "test:watch": "vitest",
+    "test:api-start": "pnpm --filter @drag-visual/api smoke:start",
     "lint": "pnpm -r lint"
   },
   "devDependencies": {

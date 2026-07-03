@@ -1,4 +1,4 @@
-import { Dashboard as DashboardSchema, type Dashboard } from "@drag-visual/contracts";
+import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
 import { describe, expect, it } from "vitest";
 import { ZodError } from "zod";
 
@@ -10,7 +10,7 @@ import {
 } from "./dashboard.service.js";
 
 const dashboard = (overrides: Partial<Dashboard> = {}): Dashboard => ({
-  version: 1,
+  schemaVersion: 1,
   id: "645615f9-cddb-468e-a11d-91b477a4e2ac",
   name: "销售看板",
   theme: {
@@ -34,7 +34,7 @@ describe("DashboardService", () => {
 
     expect(DashboardSchema.parse(created)).toEqual(created);
     expect(created).toMatchObject({
-      version: 1,
+      schemaVersion: 1,
       name: "销售看板",
       theme: {
         primaryColor: "#1677ff",

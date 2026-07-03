@@ -1,4 +1,4 @@
-import { Dashboard as DashboardSchema, type Dashboard } from "@drag-visual/contracts";
+import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
 import { Injectable } from "@nestjs/common";
 
 import { Prisma } from "../generated/prisma/client.js";
@@ -7,38 +7,60 @@ import type { DashboardRepository } from "./dashboard.repository.js";
 
 const toNestedInputJson = (
   value: unknown,
+  ancestors: WeakSet<object>,
 ): Prisma.InputJsonValue | null => {
   if (value === null) return null;
   if (
     typeof value === "string" ||
-    typeof value === "number" ||
     typeof value === "boolean"
   ) {
     return value;
   }
-  if (Array.isArray(value)) return value.map(toNestedInputJson);
-  if (typeof value === "object") return objectToInputJson(value);
+  if (typeof value === "number") {
+    if (Number.isFinite(value)) return value;
+    throw new TypeError("Dashboard JSON contains a non-finite number");
+  }
+  if (Array.isArray(value)) {
+    if (ancestors.has(value)) {
+      throw new TypeError("Dashboard JSON contains a circular value");
+    }
+    ancestors.add(value);
+    const result = value.map((entry) => toNestedInputJson(entry, ancestors));
+    ancestors.delete(value);
+    return result;
+  }
+  if (typeof value === "object") return objectToInputJson(value, ancestors);
   throw new TypeError("Dashboard JSON contains an unsupported value");
 };
 
-const objectToInputJson = (value: object): Prisma.InputJsonObject => {
+const objectToInputJson = (
+  value: object,
+  ancestors: WeakSet<object>,
+): Prisma.InputJsonObject => {
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError("Dashboard JSON contains a non-plain object");
+  }
+  if (ancestors.has(value)) {
+    throw new TypeError("Dashboard JSON contains a circular value");
+  }
+  ancestors.add(value);
   const result: Record<string, Prisma.InputJsonValue | null> = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (entry !== undefined) {
-      Object.defineProperty(result, key, {
-        value: toNestedInputJson(entry),
-        enumerable: true,
-        configurable: true,
-        writable: true,
-      });
-    }
+    Object.defineProperty(result, key, {
+      value: toNestedInputJson(entry, ancestors),
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
   }
+  ancestors.delete(value);
   return result;
 };
 
 export const dashboardToPrismaJson = (
   dashboard: Dashboard,
-): Prisma.InputJsonObject => objectToInputJson(dashboard);
+): Prisma.InputJsonObject => objectToInputJson(dashboard, new WeakSet());
 
 @Injectable()
 export class PrismaDashboardRepository implements DashboardRepository {
