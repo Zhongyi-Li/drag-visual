@@ -1,0 +1,28 @@
+{
+  "name": "@drag-visual/web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@drag-visual/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "@readme/openapi-parser": "^5.0.1",
+    "@types/node": "^26.1.0",
+    "msw": "^2.4.9",
+    "typescript": "^6.0.3",
+    "vite": "^8.1.2",
+    "vitest": "^4.1.9",
+    "yaml": "^2.8.1"
+  },
+  "msw": {
+    "workerDirectory": [
+      "public"
+    ]
+  }
+}

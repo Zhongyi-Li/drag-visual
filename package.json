@@ -15,9 +15,11 @@
     "pretest:watch": "pnpm --filter @drag-visual/contracts build && pnpm --filter @drag-visual/api prisma:generate",
     "test:watch": "vitest",
     "test:api-start": "pnpm --filter @drag-visual/api smoke:start",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "lint:openapi": "redocly lint openapi/bi-mvp.yaml"
   },
   "devDependencies": {
+    "@redocly/cli": "^2.36.0",
     "@types/node": "^26.1.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.9"

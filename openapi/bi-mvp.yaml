@@ -1,0 +1,580 @@
+openapi: 3.1.0
+info:
+  title: Drag Visual BI MVP API
+  version: 1.0.0
+  description: Cross-language contract for dashboard drafts, publishing, and the dataset gateway.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: http://localhost:3000
+security: []
+tags:
+  - name: Dashboards
+    description: Stateful dashboard draft and published-snapshot operations.
+  - name: Datasets
+    description: Allow-listed dataset discovery, schemas, and normalized queries.
+
+x-examples:
+  dashboard: &dashboardExample
+    schemaVersion: 1
+    id: 6c614d7a-386b-4f36-a9ad-f9305b255b4f
+    name: 销售看板
+    theme:
+      primaryColor: '#1677ff'
+      backgroundColor: '#f5f7fa'
+    layout:
+      - i: revenue-chart
+        x: 0
+        y: 0
+        w: 6
+        h: 4
+    components:
+      - id: revenue-chart
+        type: bar
+        title: 月度收入
+        props:
+          legend: true
+        binding:
+          datasetId: sales
+          slots:
+            dimension:
+              fieldKey: month
+            measures:
+              - fieldKey: revenue
+          sort:
+            fieldKey: revenue
+            direction: desc
+          limit: 100
+    datasets:
+      - datasetId: sales
+        schemaVersion: v1
+        parameters:
+          year: 2026
+          fromDate: '2026-01-01'
+    revision: 1
+    updatedAt: '2026-07-02T08:00:00.000Z'
+  dashboardUpdated: &dashboardUpdatedExample
+    schemaVersion: 1
+    id: 6c614d7a-386b-4f36-a9ad-f9305b255b4f
+    name: 销售看板
+    theme:
+      primaryColor: '#1677ff'
+      backgroundColor: '#f5f7fa'
+    layout:
+      - i: revenue-chart
+        x: 0
+        y: 0
+        w: 6
+        h: 4
+    components:
+      - id: revenue-chart
+        type: bar
+        title: 月度收入
+        props:
+          legend: true
+        binding:
+          datasetId: sales
+          slots:
+            dimension:
+              fieldKey: month
+            measures:
+              - fieldKey: revenue
+          sort:
+            fieldKey: revenue
+            direction: desc
+          limit: 100
+    datasets:
+      - datasetId: sales
+        schemaVersion: v1
+        parameters:
+          year: 2026
+          fromDate: '2026-01-01'
+    revision: 2
+    updatedAt: '2026-07-02T08:00:01.000Z'
+  datasetSummaries: &datasetSummariesExample
+    - id: sales
+      name: 销售数据
+      schemaVersion: v1
+    - id: inventory
+      name: 库存数据
+      schemaVersion: v3
+  dataset: &datasetExample
+    id: sales
+    name: 销售数据
+    fields:
+      - { key: month, label: 月份, type: string, nullable: false }
+      - { key: businessDate, label: 业务日期, type: date, nullable: false }
+      - { key: revenue, label: 收入, type: number, nullable: false }
+      - { key: discount, label: 折扣, type: number, nullable: true }
+    parameters:
+      - { key: year, label: 年份, type: number, required: true }
+      - { key: fromDate, label: 开始日期, type: date, required: true }
+      - { key: region, label: 区域, type: string, required: false }
+    schemaVersion: v1
+  queryRequest: &queryRequestExample
+    parameters:
+      year: 2026
+      fromDate: '2026-01-01'
+  queryResult: &queryResultExample
+    columns:
+      - { key: month, label: 月份, type: string, nullable: false }
+      - { key: businessDate, label: 业务日期, type: date, nullable: false }
+      - { key: revenue, label: 收入, type: number, nullable: false }
+      - { key: discount, label: 折扣, type: number, nullable: true }
+    rows:
+      - month: 1月
+        businessDate: '2026-01-15'
+        revenue: 120000
+        discount: null
+    total: 1
+    sampledAt: '2026-07-02T08:00:00.000Z'
+
+x-responses:
+  dashboardSchemaInvalid: &dashboardSchemaInvalid
+    description: Dashboard path, body, or size constraint is invalid.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        example: { code: DASHBOARD_SCHEMA_INVALID, message: Dashboard schema is invalid }
+  dashboardNotFound: &dashboardNotFound
+    description: Dashboard draft was not found.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        example: { code: DASHBOARD_NOT_FOUND, message: Dashboard was not found }
+  publishedNotFound: &publishedNotFound
+    description: Published snapshot was not found.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        example: { code: PUBLISHED_DASHBOARD_NOT_FOUND, message: Published dashboard was not found }
+  dashboardConflict: &dashboardConflict
+    description: Dashboard ID mismatch or optimistic revision conflict.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        examples:
+          idMismatch:
+            value: { code: DASHBOARD_ID_MISMATCH, message: Dashboard ID does not match request path }
+          staleRevision:
+            value: { code: DASHBOARD_VERSION_CONFLICT, message: Dashboard revision is stale }
+  internalError: &internalError
+    description: Stored data is corrupt or an unexpected internal failure occurred.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        example: { code: INTERNAL_ERROR, message: Internal server error }
+  datasetNotFound: &datasetNotFound
+    description: Dataset is not in the server allow-list.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        example: { code: DATASET_NOT_FOUND, message: Dataset was not found }
+  datasetQueryInvalid: &datasetQueryInvalid
+    description: Query parameters are missing, unknown, null, or have an invalid type/value.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        example: { code: DATASET_QUERY_INVALID, message: Dataset query is invalid }
+  datasetBadGateway: &datasetBadGateway
+    description: Upstream failed or returned an invalid/oversized result.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        examples:
+          invalidResponse:
+            value: { code: DATASET_INVALID_RESPONSE, message: Dataset response is invalid }
+          responseLimit:
+            value: { code: DATASET_INVALID_RESPONSE, message: Dataset response exceeds the supported limit }
+          upstreamError:
+            value: { code: DATASET_UPSTREAM_ERROR, message: Dataset upstream request failed }
+  datasetTimeout: &datasetTimeout
+    description: Dataset upstream exceeded the ten-second deadline.
+    content:
+      application/json:
+        schema: { $ref: '#/components/schemas/ErrorResponse' }
+        example: { code: DATASET_TIMEOUT, message: Dataset request timed out }
+
+paths:
+  /dashboards:
+    post:
+      tags: [Dashboards]
+      operationId: createDashboard
+      summary: Create an empty dashboard draft
+      requestBody:
+        required: true
+        x-maxUtf8Bytes: 2097152
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateDashboardRequest' }
+            example: { name: 销售看板 }
+      responses:
+        '201':
+          description: Dashboard created.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+              example: *dashboardExample
+        '400': *dashboardSchemaInvalid
+  /dashboards/{dashboardId}:
+    parameters:
+      - $ref: '#/components/parameters/DashboardId'
+    get:
+      tags: [Dashboards]
+      operationId: getDashboard
+      summary: Get a dashboard draft
+      responses:
+        '200':
+          description: Current dashboard draft.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+              example: *dashboardExample
+        '400': *dashboardSchemaInvalid
+        '404': *dashboardNotFound
+        '500': *internalError
+    put:
+      tags: [Dashboards]
+      operationId: updateDashboard
+      summary: Save a complete dashboard draft using optimistic revision
+      requestBody:
+        required: true
+        x-maxUtf8Bytes: 2097152
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Dashboard' }
+            example: *dashboardExample
+      responses:
+        '200':
+          description: Saved dashboard with revision incremented exactly once.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+              example: *dashboardUpdatedExample
+        '400': *dashboardSchemaInvalid
+        '404': *dashboardNotFound
+        '409': *dashboardConflict
+        '500': *internalError
+  /dashboards/{dashboardId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/DashboardId'
+    post:
+      tags: [Dashboards]
+      operationId: publishDashboard
+      summary: Publish an immutable copy of the current draft
+      description: Has no request body. Corrupt drafts and persistence failures retain the prior snapshot.
+      responses:
+        '200':
+          description: Newly published dashboard snapshot.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+              example: *dashboardExample
+        '400': *dashboardSchemaInvalid
+        '404': *dashboardNotFound
+        '500':
+          description: Corrupt stored draft or transactional persistence failure; old snapshot is retained.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+              examples:
+                corruptDraft:
+                  value: { code: INTERNAL_ERROR, message: Internal server error }
+                persistenceFailure:
+                  value: { code: PUBLISH_FAILED, message: Dashboard publish failed }
+  /published-dashboards/{dashboardId}:
+    parameters:
+      - $ref: '#/components/parameters/DashboardId'
+    get:
+      tags: [Dashboards]
+      operationId: getPublishedDashboard
+      summary: Get the last successful published snapshot
+      responses:
+        '200':
+          description: Published dashboard snapshot.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dashboard' }
+              example: *dashboardExample
+        '400': *dashboardSchemaInvalid
+        '404': *publishedNotFound
+        '500': *internalError
+  /datasets:
+    get:
+      tags: [Datasets]
+      operationId: listDatasets
+      summary: List allow-listed datasets without upstream details
+      responses:
+        '200':
+          description: Dataset summaries without a wrapper.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/DatasetSummary' }
+              example: *datasetSummariesExample
+        '500': *internalError
+  /datasets/{datasetId}/schema:
+    parameters:
+      - $ref: '#/components/parameters/DatasetId'
+    get:
+      tags: [Datasets]
+      operationId: getDatasetSchema
+      summary: Get fields and query parameters for a dataset
+      responses:
+        '200':
+          description: Dataset schema.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dataset' }
+              example: *datasetExample
+        '404': *datasetNotFound
+        '502': *datasetBadGateway
+  /datasets/{datasetId}/query:
+    parameters:
+      - $ref: '#/components/parameters/DatasetId'
+    post:
+      tags: [Datasets]
+      operationId: queryDataset
+      summary: Query an allow-listed dataset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DatasetQueryRequest' }
+            example: *queryRequestExample
+      responses:
+        '200':
+          description: Normalized result, limited to 10,000 rows and 5 MiB UTF-8 JSON.
+          x-maxUtf8Bytes: 5242880
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DatasetQueryResult' }
+              example: *queryResultExample
+        '400': *datasetQueryInvalid
+        '404': *datasetNotFound
+        '502': *datasetBadGateway
+        '504': *datasetTimeout
+
+components:
+  parameters:
+    DashboardId:
+      name: dashboardId
+      in: path
+      required: true
+      description: Server-generated dashboard UUID.
+      schema: { type: string, format: uuid }
+      example: 6c614d7a-386b-4f36-a9ad-f9305b255b4f
+    DatasetId:
+      name: datasetId
+      in: path
+      required: true
+      description: Stable opaque allow-list ID; it is not required to be a UUID.
+      schema: { type: string, minLength: 1 }
+      example: sales
+  schemas:
+    JsonValue:
+      description: A recursive JSON-only value.
+      anyOf:
+        - type: 'null'
+        - type: boolean
+        - type: number
+        - type: string
+        - type: array
+          items: { $ref: '#/components/schemas/JsonValue' }
+        - type: object
+          additionalProperties: { $ref: '#/components/schemas/JsonValue' }
+    CreateDashboardRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: [string, 'null']
+          maxLength: 100
+          description: Missing, null, or trim-blank becomes 未命名看板.
+    Theme:
+      type: object
+      additionalProperties: false
+      required: [primaryColor, backgroundColor]
+      properties:
+        primaryColor: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+        backgroundColor: { type: string, pattern: '^#[0-9A-Fa-f]{6}$' }
+    GridItem:
+      type: object
+      additionalProperties: false
+      required: [i, x, y, w, h]
+      properties:
+        i: { type: string, minLength: 1 }
+        x: { type: integer, minimum: 0 }
+        y: { type: integer, minimum: 0 }
+        w: { type: integer, minimum: 1 }
+        h: { type: integer, minimum: 1 }
+    FieldBinding:
+      type: object
+      additionalProperties: false
+      required: [fieldKey]
+      properties:
+        fieldKey: { type: string, minLength: 1 }
+    SortBinding:
+      type: object
+      additionalProperties: false
+      required: [fieldKey, direction]
+      properties:
+        fieldKey: { type: string, minLength: 1 }
+        direction: { type: string, enum: [asc, desc] }
+    DataBinding:
+      type: object
+      additionalProperties: false
+      required: [datasetId, slots]
+      properties:
+        datasetId: { type: string, minLength: 1 }
+        slots:
+          type: object
+          additionalProperties:
+            oneOf:
+              - $ref: '#/components/schemas/FieldBinding'
+              - type: array
+                items: { $ref: '#/components/schemas/FieldBinding' }
+        sort: { $ref: '#/components/schemas/SortBinding' }
+        limit: { type: integer, minimum: 1, maximum: 10000 }
+    ComponentInstance:
+      type: object
+      additionalProperties: false
+      required: [id, type, props]
+      properties:
+        id: { type: string, minLength: 1 }
+        type: { type: string, enum: [bar, line, pie, kpi, table, text] }
+        title: { type: string }
+        props:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/JsonValue' }
+        binding: { $ref: '#/components/schemas/DataBinding' }
+    DashboardDataset:
+      type: object
+      additionalProperties: false
+      required: [datasetId, schemaVersion, parameters]
+      properties:
+        datasetId: { type: string, minLength: 1 }
+        schemaVersion: { type: string, minLength: 1 }
+        parameters:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/JsonValue' }
+    Dashboard:
+      type: object
+      additionalProperties: false
+      x-maxUtf8Bytes: 2097152
+      description: Component IDs, layout IDs, and dataset IDs are unique; each component has one matching layout item and bindings reference declared datasets.
+      required: [schemaVersion, id, name, theme, layout, components, datasets, revision, updatedAt]
+      properties:
+        schemaVersion: { type: integer, const: 1 }
+        id: { type: string, format: uuid }
+        name: { type: string, minLength: 1, maxLength: 100 }
+        theme: { $ref: '#/components/schemas/Theme' }
+        layout:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/GridItem' }
+        components:
+          type: array
+          maxItems: 100
+          items: { $ref: '#/components/schemas/ComponentInstance' }
+        datasets:
+          type: array
+          maxItems: 20
+          items: { $ref: '#/components/schemas/DashboardDataset' }
+        revision: { type: integer, minimum: 1 }
+        updatedAt: { type: string, format: date-time }
+      example: *dashboardExample
+    DatasetField:
+      type: object
+      additionalProperties: false
+      required: [key, label, type, nullable]
+      properties:
+        key: { type: string, minLength: 1 }
+        label: { type: string, minLength: 1 }
+        type: { type: string, enum: [string, number, date, boolean] }
+        nullable: { type: boolean }
+    QueryParameter:
+      type: object
+      additionalProperties: false
+      required: [key, label, type, required]
+      properties:
+        key: { type: string, minLength: 1 }
+        label: { type: string, minLength: 1 }
+        type: { type: string, enum: [string, number, date, boolean] }
+        required: { type: boolean }
+    DatasetSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name, schemaVersion]
+      properties:
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        schemaVersion: { type: string, minLength: 1 }
+    Dataset:
+      type: object
+      additionalProperties: false
+      description: Field keys and query-parameter keys are unique within their respective arrays.
+      required: [id, name, fields, parameters, schemaVersion]
+      properties:
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        fields:
+          type: array
+          items: { $ref: '#/components/schemas/DatasetField' }
+        parameters:
+          type: array
+          items: { $ref: '#/components/schemas/QueryParameter' }
+        schemaVersion: { type: string, minLength: 1 }
+      example: *datasetExample
+    DatasetQueryRequest:
+      type: object
+      additionalProperties: false
+      description: Required parameters must be present and non-null; optional parameters may be omitted but cannot be null. Date values are calendar-valid YYYY-MM-DD strings and unknown parameters are rejected.
+      required: [parameters]
+      properties:
+        parameters:
+          type: object
+          additionalProperties: { $ref: '#/components/schemas/JsonValue' }
+      example: *queryRequestExample
+    DatasetQueryResult:
+      type: object
+      additionalProperties: false
+      x-maxUtf8Bytes: 5242880
+      required: [columns, rows, sampledAt]
+      properties:
+        columns:
+          type: array
+          items: { $ref: '#/components/schemas/DatasetField' }
+        rows:
+          type: array
+          maxItems: 10000
+          items:
+            type: object
+            additionalProperties: { $ref: '#/components/schemas/JsonValue' }
+        total: { type: integer, minimum: 0 }
+        sampledAt: { type: string, format: date-time }
+      description: Date values are calendar-valid YYYY-MM-DD strings; null is permitted only for nullable columns.
+      example: *queryResultExample
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          enum:
+            - DASHBOARD_SCHEMA_INVALID
+            - DASHBOARD_NOT_FOUND
+            - PUBLISHED_DASHBOARD_NOT_FOUND
+            - DASHBOARD_ID_MISMATCH
+            - DASHBOARD_VERSION_CONFLICT
+            - DATASET_QUERY_INVALID
+            - DATASET_NOT_FOUND
+            - DATASET_INVALID_RESPONSE
+            - DATASET_UPSTREAM_ERROR
+            - DATASET_TIMEOUT
+            - PUBLISH_FAILED
+            - INTERNAL_ERROR
+        message: { type: string, minLength: 1 }
