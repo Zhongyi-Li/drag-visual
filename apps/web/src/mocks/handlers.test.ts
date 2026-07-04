@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { ApiError } from "../api/ApiError.js";
 import { createApiClient } from "../api/client.js";
+import { datasetFixtures, datasetSummaryFixtures, salesQueryResultFixture } from "./fixtures.js";
 
 const client = createApiClient("http://api.test");
 
@@ -125,9 +126,32 @@ describe("stateful dashboard mock contract", () => {
 describe("dataset gateway mock contract", () => {
   it("executes list, schema, and query endpoints through shared schemas", async () => {
     const summaries = DatasetSummary.array().parse(await request("datasets"));
-    expect(summaries.map(({ id }) => id)).toEqual(["sales", "inventory"]);
-    Dataset.parse(await request("datasets/sales/schema"));
-    DatasetQueryResult.parse(await request("datasets/sales/query", jsonRequest("POST", { parameters: { year: 2026, fromDate: "2026-01-01" } })));
+    expect(summaries).toEqual(datasetSummaryFixtures);
+    expect(await request("datasets/sales/schema")).toEqual(datasetFixtures[0]);
+    const result = DatasetQueryResult.parse(await request("datasets/sales/query", jsonRequest("POST", { parameters: { year: 2026, fromDate: "2026-01-01" } })));
+    expect(result.rows).toHaveLength(1_000);
+    expect(result.rows[0]).toEqual(salesQueryResultFixture.rows[0]);
+    expect(result.rows[999]).toEqual({
+      month: "4月",
+      businessDate: "2026-04-20",
+      revenue: 120_999,
+      discount: 19,
+    });
+  });
+
+  it("returns an empty result scenario", async () => {
+    const result = DatasetQueryResult.parse(await request("datasets/sales/query", jsonRequest("POST", {
+      parameters: { year: 2026, fromDate: "2026-01-01" },
+    }, { "x-msw-scenario": "empty" })));
+    expect(result).toMatchObject({ rows: [], total: 0 });
+  });
+
+  it("serves schema v2 with the bound revenue field removed", async () => {
+    const schema = Dataset.parse(await request("datasets/sales/schema", {
+      headers: { "x-msw-scenario": "schema-v2" },
+    }));
+    expect(schema.schemaVersion).toBe("v2");
+    expect(schema.fields.map(({ key }) => key)).not.toContain("revenue");
   });
 
   it.each([
@@ -147,9 +171,11 @@ describe("dataset gateway mock contract", () => {
       ["upstream-error", 502, "DATASET_UPSTREAM_ERROR"],
       ["timeout", 504, "DATASET_TIMEOUT"],
       ["invalid-response", 502, "DATASET_INVALID_RESPONSE"],
+      ["malformed-response", 502, "DATASET_INVALID_RESPONSE"],
       ["non-nullable-null", 502, "DATASET_INVALID_RESPONSE"],
       ["too-many-rows", 502, "DATASET_INVALID_RESPONSE"],
       ["first-byte-over", 502, "DATASET_INVALID_RESPONSE"],
+      ["over-5-mib", 502, "DATASET_INVALID_RESPONSE"],
     ] as const) {
       try {
         await request("datasets/sales/query", jsonRequest("POST", { parameters: { year: 2026, fromDate: "2026-01-01" } }, { "x-msw-scenario": scenario }));
@@ -167,6 +193,11 @@ describe("dataset gateway mock contract", () => {
     const result = DatasetQueryResult.parse(await request("datasets/sales/query", jsonRequest("POST", { parameters }, { "x-msw-scenario": "max-rows" })));
     expect(result.rows).toHaveLength(10_000);
     await expect(request("datasets/sales/query", jsonRequest("POST", { parameters }, { "x-msw-scenario": "too-many-rows" }))).rejects.toMatchObject({ status: 502, code: "DATASET_INVALID_RESPONSE" });
+    await expect(request("datasets/sales/query", jsonRequest("POST", { parameters }, { "x-msw-scenario": "10001-rows" }))).rejects.toMatchObject({
+      status: 502,
+      code: "DATASET_INVALID_RESPONSE",
+      message: "Dataset response exceeds the supported limit",
+    });
   });
 
   it("accepts exactly 5 MiB normalized JSON and rejects the next byte", async () => {

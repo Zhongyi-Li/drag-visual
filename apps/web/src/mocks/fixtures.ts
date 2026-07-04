@@ -41,3 +41,20 @@ export const salesQueryResultFixture: DatasetQueryResult = {
   total: 1,
   sampledAt: "2026-07-02T08:00:00.000Z",
 };
+
+const twoDigits = (value: number): string => String(value).padStart(2, "0");
+
+export const salesRowsFixture: DatasetQueryResult["rows"] = Array.from(
+  { length: 1_000 },
+  (_, index) => {
+    if (index === 0) return structuredClone(salesQueryResultFixture.rows[0]!);
+    const month = (index % 12) + 1;
+    const day = (index % 28) + 1;
+    return {
+      month: `${month}月`,
+      businessDate: `2026-${twoDigits(month)}-${twoDigits(day)}`,
+      revenue: 120_000 + index,
+      discount: index % 10 === 0 ? null : index % 20,
+    };
+  },
+);

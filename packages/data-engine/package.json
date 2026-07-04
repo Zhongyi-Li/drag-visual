@@ -1,0 +1,29 @@
+{
+  "name": "@drag-visual/data-engine",
+  "private": true,
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "prebuild": "pnpm --filter @drag-visual/contracts build",
+    "build": "tsc -p tsconfig.build.json",
+    "pretypecheck": "pnpm --filter @drag-visual/contracts build",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "pretest": "pnpm --filter @drag-visual/contracts build",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@drag-visual/contracts": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  }
+}

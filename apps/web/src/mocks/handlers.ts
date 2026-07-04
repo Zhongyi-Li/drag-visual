@@ -12,6 +12,7 @@ import {
   datasetFixtures,
   datasetSummaryFixtures,
   salesQueryResultFixture,
+  salesRowsFixture,
 } from "./fixtures.js";
 
 const DASHBOARD_BODY_LIMIT = 2_097_152;
@@ -188,11 +189,17 @@ export const handlers: RequestHandler[] = [
 
   http.get("*/datasets", () => HttpResponse.json(clone(datasetSummaryFixtures))),
 
-  http.get("*/datasets/:datasetId/schema", ({ params }) => {
+  http.get("*/datasets/:datasetId/schema", ({ params, request }) => {
     const dataset = findDataset(String(params.datasetId ?? ""));
-    return dataset === undefined
-      ? apiError(404, "DATASET_NOT_FOUND")
-      : HttpResponse.json(clone(dataset));
+    if (dataset === undefined) return apiError(404, "DATASET_NOT_FOUND");
+    if (request.headers.get("x-msw-scenario") === "schema-v2" && dataset.id === "sales") {
+      return HttpResponse.json({
+        ...clone(dataset),
+        fields: dataset.fields.filter((field) => field.key !== "revenue"),
+        schemaVersion: "v2",
+      });
+    }
+    return HttpResponse.json(clone(dataset));
   }),
 
   http.post("*/datasets/:datasetId/query", async ({ params, request }) => {
@@ -210,25 +217,31 @@ export const handlers: RequestHandler[] = [
     if (scenario === "upstream-error") return apiError(502, "DATASET_UPSTREAM_ERROR");
     if (scenario === "timeout") return apiError(504, "DATASET_TIMEOUT");
     let result: unknown = dataset.id === "sales"
-      ? clone(salesQueryResultFixture)
+      ? { ...clone(salesQueryResultFixture), rows: clone(salesRowsFixture), total: salesRowsFixture.length }
       : {
           columns: clone(dataset.fields),
           rows: [{ sku: "SKU-001", quantity: 42 }],
           total: 1,
           sampledAt: salesQueryResultFixture.sampledAt,
         };
+    if (scenario === "empty" && dataset.id === "sales") {
+      result = { ...clone(salesQueryResultFixture), rows: [], total: 0 };
+    }
     if (scenario === "invalid-response" && dataset.id === "sales") {
       result = { ...clone(salesQueryResultFixture), rows: [{ ...salesQueryResultFixture.rows[0], businessDate: "2026-02-29" }] };
+    }
+    if (scenario === "malformed-response" && dataset.id === "sales") {
+      result = { ...clone(salesQueryResultFixture), rows: "not-an-array" };
     }
     if (scenario === "non-nullable-null" && dataset.id === "sales") {
       result = { ...clone(salesQueryResultFixture), rows: [{ ...salesQueryResultFixture.rows[0], revenue: null }] };
     }
-    if ((scenario === "max-rows" || scenario === "too-many-rows") && dataset.id === "sales") {
+    if ((scenario === "max-rows" || scenario === "too-many-rows" || scenario === "10001-rows") && dataset.id === "sales") {
       const count = scenario === "max-rows" ? 10_000 : 10_001;
       result = { ...clone(salesQueryResultFixture), rows: Array.from({ length: count }, () => clone(salesQueryResultFixture.rows[0]!)), total: count };
     }
     if (
-      (scenario === "max-bytes" || scenario === "first-byte-over" || scenario === "oversized-response") &&
+      (scenario === "max-bytes" || scenario === "first-byte-over" || scenario === "oversized-response" || scenario === "over-5-mib") &&
       dataset.id === "sales"
     ) {
       const template = {
