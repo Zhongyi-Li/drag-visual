@@ -15,14 +15,8 @@ test("creates, saves, and publishes a dashboard to a read-only page", async ({ p
   await expect(publishedLink).toBeVisible();
   const publishedPath = await publishedLink.getAttribute("href");
   expect(publishedPath).toMatch(/^\/view\//);
-  await publishedLink.evaluate((link, path) => {
-    link.addEventListener("click", (event) => {
-      event.preventDefault();
-      window.history.pushState(null, "", path);
-      window.dispatchEvent(new PopStateEvent("popstate"));
-    }, { once: true });
-    (link as HTMLElement).click();
-  }, publishedPath);
+  await publishedLink.click();
+  await expect(page).toHaveURL(/\/view\/[^/]+$/);
 
   await expect(page.getByRole("heading", { name: "未命名看板" })).toBeVisible();
   await expect(page.getByRole("button", { name: /删除/ })).toHaveCount(0);

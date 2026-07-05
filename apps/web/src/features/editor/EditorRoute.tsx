@@ -2,7 +2,7 @@ import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Result, Spin } from "antd";
 import { useCallback, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
 import { useStore } from "zustand";
 
@@ -127,7 +127,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
           type="success"
           showIcon
           message="发布成功"
-          action={<Button href={`/view/${publishedId}`} type="link">打开发布页</Button>}
+          action={<Link to={`/view/${publishedId}`}><Button type="link">打开发布页</Button></Link>}
           style={{ position: "fixed", zIndex: 20, top: 16, right: 16 }}
         />
       )}
