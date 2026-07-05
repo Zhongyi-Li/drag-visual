@@ -8,6 +8,17 @@ import {
 } from "./index.js";
 
 describe("component registry", () => {
+  it("registers all six MVP component types", () => {
+    expect(createDefaultRegistry().list().map((definition) => definition.type).sort()).toEqual([
+      "bar",
+      "kpi",
+      "line",
+      "pie",
+      "table",
+      "text",
+    ]);
+  });
+
   it("exposes the Chinese bar definition and validates its props", () => {
     expect(barDefinition.type).toBe("bar");
     expect(barDefinition.title).toBe("柱图");
