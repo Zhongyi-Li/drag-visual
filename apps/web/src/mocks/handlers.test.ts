@@ -14,6 +14,78 @@ const jsonRequest = (method: string, body: unknown, headers?: HeadersInit): Requ
   body: JSON.stringify(body),
 });
 
+const seededDashboard = () => DashboardSchema.parse({
+  schemaVersion: 1,
+  id: "6c614d7a-386b-4f36-a9ad-f9305b255b40",
+  name: "Seeded dashboard",
+  theme: { primaryColor: "#1677ff", backgroundColor: "#f5f7fa" },
+  layout: [],
+  components: [],
+  datasets: [],
+  revision: 1,
+  updatedAt: "2026-01-01T00:00:00.000Z",
+});
+
+describe("browser-test mock controls", () => {
+  it("sets a deterministic scenario and applies it to the next matching request", async () => {
+    const control = await fetch("http://api.test/__mock/scenario", jsonRequest("POST", {
+      scenario: "dataset-timeout",
+    }));
+    expect(control.status).toBe(204);
+
+    await expect(request("datasets/sales/query", jsonRequest("POST", {
+      parameters: { year: 2026, fromDate: "2026-01-01" },
+    }))).rejects.toMatchObject({ status: 504, code: "DATASET_TIMEOUT" });
+  });
+
+  it("returns a stable error for an invalid scenario", async () => {
+    await expect(request("__mock/scenario", jsonRequest("POST", { scenario: "surprise" }))).rejects.toMatchObject({
+      status: 400,
+      code: "MOCK_SCENARIO_INVALID",
+      message: "Mock scenario is invalid",
+    });
+  });
+
+  it("seeds a validated dashboard clone for browser tests", async () => {
+    const dashboard = seededDashboard();
+    const response = await fetch("http://api.test/__mock/dashboards", jsonRequest("POST", dashboard));
+    expect(response.status).toBe(201);
+    expect(await response.json()).toEqual(dashboard);
+
+    dashboard.name = "mutated outside store";
+    expect(await request(`dashboards/${dashboard.id}`)).toMatchObject({ name: "Seeded dashboard" });
+  });
+
+  it("rejects invalid dashboard seeds with a stable schema error", async () => {
+    await expect(request("__mock/dashboards", jsonRequest("POST", { id: "invalid" }))).rejects.toMatchObject({
+      status: 400,
+      code: "DASHBOARD_SCHEMA_INVALID",
+    });
+  });
+
+  it("applies revision conflict, publish failure, and schema v2 controls", async () => {
+    const dashboard = seededDashboard();
+    await request("__mock/dashboards", jsonRequest("POST", dashboard));
+
+    await request("__mock/scenario", jsonRequest("POST", { scenario: "revision-conflict" }));
+    await expect(request(`dashboards/${dashboard.id}`, jsonRequest("PUT", dashboard))).rejects.toMatchObject({
+      status: 409,
+      code: "DASHBOARD_VERSION_CONFLICT",
+    });
+
+    await request("__mock/scenario", jsonRequest("POST", { scenario: "publish-failure" }));
+    await expect(request(`dashboards/${dashboard.id}/publish`, { method: "POST" })).rejects.toMatchObject({
+      status: 500,
+      code: "PUBLISH_FAILED",
+    });
+
+    await request("__mock/scenario", jsonRequest("POST", { scenario: "schema-v2" }));
+    const schema = Dataset.parse(await request("datasets/sales/schema"));
+    expect(schema).toMatchObject({ schemaVersion: "v2" });
+    expect(schema.fields.map(({ key }) => key)).not.toContain("revenue");
+  });
+});
+
 describe("stateful dashboard mock contract", () => {
   it.each([{}, { name: null }, { name: "   " }])("creates a complete default dashboard from %j", async (body) => {
     const dashboard = await request("dashboards", jsonRequest("POST", body));

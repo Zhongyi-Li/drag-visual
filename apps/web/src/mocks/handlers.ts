@@ -14,6 +14,7 @@ import {
   salesQueryResultFixture,
   salesRowsFixture,
 } from "./fixtures.js";
+import { getMockScenario, resetMockScenario, setMockScenario } from "./scenarios.js";
 
 const DASHBOARD_BODY_LIMIT = 2_097_152;
 const DATASET_BODY_LIMIT = 5_242_880;
@@ -101,6 +102,34 @@ const validDatasetResult = (value: unknown): value is DatasetQueryResult => {
 };
 
 export const handlers: RequestHandler[] = [
+  http.post("*/__mock/scenario", async ({ request }) => {
+    try {
+      const body = await readJson(request, null);
+      if (typeof body !== "object" || body === null || Array.isArray(body)) throw new Error("schema");
+      const keys = Object.keys(body);
+      if (keys.length !== 1 || keys[0] !== "scenario") throw new Error("schema");
+      const scenario = (body as { scenario?: unknown }).scenario;
+      if (typeof scenario !== "string") throw new Error("schema");
+      setMockScenario(scenario);
+      return new HttpResponse(null, { status: 204 });
+    } catch {
+      return HttpResponse.json(
+        { code: "MOCK_SCENARIO_INVALID", message: "Mock scenario is invalid" },
+        { status: 400 },
+      );
+    }
+  }),
+
+  http.post("*/__mock/dashboards", async ({ request }) => {
+    try {
+      const dashboard = DashboardSchema.parse(await readJson(request));
+      drafts.set(dashboard.id, clone(dashboard));
+      return HttpResponse.json(clone(dashboard), { status: 201 });
+    } catch {
+      return apiError(400, "DASHBOARD_SCHEMA_INVALID");
+    }
+  }),
+
   http.post("*/dashboards", async ({ request }) => {
     try {
       const body = await readJson(request);
@@ -152,6 +181,7 @@ export const handlers: RequestHandler[] = [
     if (!drafts.has(id)) return apiError(404, "DASHBOARD_NOT_FOUND");
     const current = DashboardSchema.safeParse(drafts.get(id));
     if (!current.success) return apiError(500, "INTERNAL_ERROR");
+    if (getMockScenario() === "revision-conflict") return apiError(409, "DASHBOARD_VERSION_CONFLICT");
     if (current.data.revision !== incoming.revision) return apiError(409, "DASHBOARD_VERSION_CONFLICT");
     const next = DashboardSchema.parse({
       ...incoming,
@@ -172,7 +202,9 @@ export const handlers: RequestHandler[] = [
       : drafts.get(id);
     const parsed = DashboardSchema.safeParse(candidate);
     if (!parsed.success) return apiError(500, "INTERNAL_ERROR");
-    if (scenario === "persistence-failure") return apiError(500, "PUBLISH_FAILED");
+    if (scenario === "persistence-failure" || getMockScenario() === "publish-failure") {
+      return apiError(500, "PUBLISH_FAILED");
+    }
     const snapshot = clone(parsed.data);
     published.set(id, snapshot);
     return HttpResponse.json(clone(snapshot));
@@ -192,7 +224,10 @@ export const handlers: RequestHandler[] = [
   http.get("*/datasets/:datasetId/schema", ({ params, request }) => {
     const dataset = findDataset(String(params.datasetId ?? ""));
     if (dataset === undefined) return apiError(404, "DATASET_NOT_FOUND");
-    if (request.headers.get("x-msw-scenario") === "schema-v2" && dataset.id === "sales") {
+    if (
+      (request.headers.get("x-msw-scenario") === "schema-v2" || getMockScenario() === "schema-v2") &&
+      dataset.id === "sales"
+    ) {
       return HttpResponse.json({
         ...clone(dataset),
         fields: dataset.fields.filter((field) => field.key !== "revenue"),
@@ -215,7 +250,9 @@ export const handlers: RequestHandler[] = [
 
     const scenario = request.headers.get("x-msw-scenario");
     if (scenario === "upstream-error") return apiError(502, "DATASET_UPSTREAM_ERROR");
-    if (scenario === "timeout") return apiError(504, "DATASET_TIMEOUT");
+    if (scenario === "timeout" || getMockScenario() === "dataset-timeout") {
+      return apiError(504, "DATASET_TIMEOUT");
+    }
     let result: unknown = dataset.id === "sales"
       ? { ...clone(salesQueryResultFixture), rows: clone(salesRowsFixture), total: salesRowsFixture.length }
       : {
@@ -274,4 +311,5 @@ export const handlers: RequestHandler[] = [
 export const resetMockStore = (): void => {
   drafts.clear();
   published.clear();
+  resetMockScenario();
 };
