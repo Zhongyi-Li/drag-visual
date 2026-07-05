@@ -4,7 +4,13 @@ import { describe, expect, it } from "vitest";
 
 import { createApiClient } from "../../api/client.js";
 import { server } from "../../mocks/server.js";
-import { createDashboard, getDashboard } from "./dashboardApi.js";
+import {
+  createDashboard,
+  getDashboard,
+  getPublishedDashboard,
+  publishDashboard,
+  saveDashboard,
+} from "./dashboardApi.js";
 
 const dashboard = {
   schemaVersion: 1 as const,
@@ -46,5 +52,26 @@ describe("dashboardApi", () => {
     server.use(http.get(`http://localhost/dashboards/${dashboard.id}`, () => HttpResponse.json({ ...dashboard, revision: 0 })));
 
     await expect(getDashboard(dashboard.id, createApiClient("http://localhost"))).rejects.toThrow();
+  });
+
+  it("saves a dashboard with PUT and parses the incremented revision", async () => {
+    let body: unknown;
+    server.use(http.put(`http://localhost/dashboards/${dashboard.id}`, async ({ request }) => {
+      body = await request.json();
+      return HttpResponse.json({ ...dashboard, revision: 2 });
+    }));
+
+    await expect(saveDashboard(dashboard, createApiClient("http://localhost"))).resolves.toMatchObject({ revision: 2 });
+    expect(body).toEqual(dashboard);
+  });
+
+  it("publishes and reads the published dashboard snapshot", async () => {
+    server.use(
+      http.post(`http://localhost/dashboards/${dashboard.id}/publish`, () => HttpResponse.json(dashboard)),
+      http.get(`http://localhost/published-dashboards/${dashboard.id}`, () => HttpResponse.json({ ...dashboard, name: "发布快照" })),
+    );
+
+    await expect(publishDashboard(dashboard.id, createApiClient("http://localhost"))).resolves.toEqual(dashboard);
+    await expect(getPublishedDashboard(dashboard.id, createApiClient("http://localhost"))).resolves.toMatchObject({ name: "发布快照" });
   });
 });

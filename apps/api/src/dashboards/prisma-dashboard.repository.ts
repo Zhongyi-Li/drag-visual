@@ -1,4 +1,4 @@
-import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
+import { DashboardSchema, migrateDashboard, type Dashboard } from "@drag-visual/contracts";
 import { Injectable } from "@nestjs/common";
 
 import { Prisma } from "../generated/prisma/client.js";
@@ -75,14 +75,14 @@ export class PrismaDashboardRepository implements DashboardRepository {
         draftSchema: dashboardToPrismaJson(dashboard),
       },
     });
-    return DashboardSchema.parse(record.draftSchema);
+    return migrateDashboard(record.draftSchema);
   }
 
   async find(id: string): Promise<Dashboard | null> {
     const record = await this.prisma.dashboardRecord.findUnique({
       where: { id },
     });
-    return record ? DashboardSchema.parse(record.draftSchema) : null;
+    return record ? migrateDashboard(record.draftSchema) : null;
   }
 
   async updateIfRevision(dashboard: Dashboard): Promise<Dashboard | null> {
