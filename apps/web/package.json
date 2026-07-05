@@ -3,12 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "prebuild": "pnpm --filter @drag-visual/component-registry build && pnpm --filter @drag-visual/editor-core build",
+    "prebuild": "pnpm --filter @drag-visual/component-registry build && pnpm --filter @drag-visual/data-engine build && pnpm --filter @drag-visual/editor-core build && pnpm --filter @drag-visual/chart-renderer build",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "lint": "tsc -p tsconfig.json --noEmit",
-    "pretest": "pnpm --filter @drag-visual/component-registry build && pnpm --filter @drag-visual/editor-core build",
+    "pretest": "pnpm --filter @drag-visual/component-registry build && pnpm --filter @drag-visual/data-engine build && pnpm --filter @drag-visual/editor-core build && pnpm --filter @drag-visual/chart-renderer build",
     "test": "vitest run",
-    "pretypecheck": "pnpm --filter @drag-visual/component-registry build && pnpm --filter @drag-visual/editor-core build",
+    "pretypecheck": "pnpm --filter @drag-visual/component-registry build && pnpm --filter @drag-visual/data-engine build && pnpm --filter @drag-visual/editor-core build && pnpm --filter @drag-visual/chart-renderer build",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
@@ -17,6 +17,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@drag-visual/component-registry": "workspace:*",
     "@drag-visual/contracts": "workspace:*",
+    "@drag-visual/chart-renderer": "workspace:*",
+    "@drag-visual/data-engine": "workspace:*",
     "@drag-visual/editor-core": "workspace:*",
     "@tanstack/react-query": "^5.101.2",
     "antd": "^6.5.0",

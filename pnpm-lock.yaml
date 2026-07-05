@@ -96,12 +96,18 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
+      '@drag-visual/chart-renderer':
+        specifier: workspace:*
+        version: link:../../packages/chart-renderer
       '@drag-visual/component-registry':
         specifier: workspace:*
         version: link:../../packages/component-registry
       '@drag-visual/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@drag-visual/data-engine':
+        specifier: workspace:*
+        version: link:../../packages/data-engine
       '@drag-visual/editor-core':
         specifier: workspace:*
         version: link:../../packages/editor-core
