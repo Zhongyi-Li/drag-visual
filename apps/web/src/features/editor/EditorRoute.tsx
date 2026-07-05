@@ -126,8 +126,8 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
         <Alert
           type="success"
           showIcon
-          message="发布成功"
-          action={<Link to={`/view/${publishedId}`}><Button type="link">打开发布页</Button></Link>}
+          title="发布成功"
+          action={<Link to={`/view/${publishedId}`}>打开发布页</Link>}
           style={{ position: "fixed", zIndex: 20, top: 16, right: 16 }}
         />
       )}
