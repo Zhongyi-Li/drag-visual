@@ -59,7 +59,7 @@ export const DashboardViewer = ({ dashboard, mode = "published", currentDatasets
                     <Alert
                       type="warning"
                       showIcon
-                      message="数据绑定需要检查"
+                      title="数据绑定需要检查"
                       description={<ul>{drift.messages.map((message) => <li key={message}>{message}</li>)}</ul>}
                       style={{ marginBottom: 12 }}
                     />
@@ -69,6 +69,12 @@ export const DashboardViewer = ({ dashboard, mode = "published", currentDatasets
                     componentType={component.type}
                     title={component.title ?? component.type}
                     mode={mode}
+                    resetKey={JSON.stringify({
+                      id: component.id,
+                      props: component.props,
+                      binding: component.binding,
+                      schemaVersion: component.binding ? currentDatasets?.get(component.binding.datasetId)?.schemaVersion : undefined,
+                    })}
                   >
                     <ViewerComponent
                       component={component}

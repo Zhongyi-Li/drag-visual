@@ -22,7 +22,7 @@ const ResolvedComponent = ({ component, dataset, rows }: ResolvedComponentProps)
   const definition = createDefaultRegistry().get(component.type);
   const validation = validateBinding(component.binding, dataset.fields, definition.dataSlots);
   if (!validation.valid) {
-    return <Alert type="warning" showIcon message="数据绑定无效" description={validation.messages.join("；")} />;
+    return <Alert type="warning" showIcon title="数据绑定无效" description={validation.messages.join("；")} />;
   }
   const transformed = applyTransforms(rows, component.binding, dataset.fields);
   return <DashboardComponentRenderer component={component} rows={transformed} />;
@@ -41,8 +41,8 @@ const BoundViewerComponent = ({ component, savedDataset }: ViewerComponentProps)
   });
 
   if (schema.isPending || data.isPending) return <Spin size="small" aria-label={`正在加载${component.title ?? component.type}`} />;
-  if (schema.isError) return <Alert type="error" showIcon message="加载数据集失败" />;
-  if (data.isError) return <Alert type="error" showIcon message="查询组件数据失败" />;
+  if (schema.isError) return <Alert type="error" showIcon title="加载数据集失败" />;
+  if (data.isError) return <Alert type="error" showIcon title="查询组件数据失败" />;
   if (data.data.rows.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />;
   return <ResolvedComponent component={component} savedDataset={savedDataset} dataset={schema.data} rows={data.data.rows} />;
 };

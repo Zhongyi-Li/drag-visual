@@ -7,6 +7,7 @@ interface ComponentErrorBoundaryProps {
   readonly componentType: string;
   readonly title: string;
   readonly mode: "editor" | "preview" | "published";
+  readonly resetKey?: string | undefined;
 }
 
 interface ComponentErrorBoundaryState {
@@ -32,6 +33,12 @@ export class ComponentErrorBoundary extends Component<
     });
   }
 
+  override componentDidUpdate(previous: ComponentErrorBoundaryProps): void {
+    if (previous.resetKey !== this.props.resetKey && this.state.error !== null) {
+      this.setState((state) => ({ error: null, retryKey: state.retryKey + 1 }));
+    }
+  }
+
   retry = (): void => {
     this.setState((state) => ({ error: null, retryKey: state.retryKey + 1 }));
   };
@@ -39,15 +46,15 @@ export class ComponentErrorBoundary extends Component<
   override render(): ReactNode {
     if (this.state.error) {
       if (this.props.mode === "published") {
-        return <Alert type="warning" showIcon message="组件暂不可用" />;
+        return <Alert type="warning" showIcon title="组件暂不可用" />;
       }
       return (
         <Alert
           type="error"
           showIcon
-          message={`${this.props.title}渲染失败`}
+          title={`${this.props.title}渲染失败`}
           description={(
-            <Space direction="vertical">
+            <Space orientation="vertical">
               <span>该组件发生错误，其他组件不受影响。</span>
               <Button size="small" onClick={this.retry} aria-label={`重试${this.props.title}`}>重试</Button>
             </Space>

@@ -41,3 +41,25 @@ it("hides error details in published mode", () => {
   expect(screen.queryByText(/secret/)).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "重试坏图表" })).not.toBeInTheDocument();
 });
+
+it("recovers when the component configuration reset key changes", () => {
+  vi.spyOn(console, "error").mockImplementation(() => undefined);
+  const MaybeBroken = ({ broken }: { broken: boolean }) => {
+    if (broken) throw new Error("boom");
+    return <div>修复后的图表</div>;
+  };
+  const { rerender } = render(
+    <ComponentErrorBoundary componentId="chart" componentType="bar" title="图表" mode="preview" resetKey="v1">
+      <MaybeBroken broken />
+    </ComponentErrorBoundary>,
+  );
+  expect(screen.getByText("图表渲染失败")).toBeInTheDocument();
+
+  rerender(
+    <ComponentErrorBoundary componentId="chart" componentType="bar" title="图表" mode="preview" resetKey="v2">
+      <MaybeBroken broken={false} />
+    </ComponentErrorBoundary>,
+  );
+
+  expect(screen.getByText("修复后的图表")).toBeInTheDocument();
+});
