@@ -5,6 +5,7 @@ import { getPaletteDragData, resolvePaletteDrop } from "./paletteDrag.js";
 describe("palette drag", () => {
   it("carries the registry component type as dnd-kit active data", () => {
     expect(getPaletteDragData("bar")).toEqual({ type: "bar" });
+    expect(getPaletteDragData("line", "趋势分析")).toEqual({ type: "line", title: "趋势分析" });
   });
 
   it("resolves a drop point inside the canvas and ignores an outside drop", () => {

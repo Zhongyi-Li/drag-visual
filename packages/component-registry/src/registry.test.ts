@@ -35,6 +35,11 @@ describe("component registry", () => {
     expect(barDefinition.propsSchema.safeParse({ color: "blue", showLegend: true }).success).toBe(false);
   });
 
+  it("keeps table entries wide without occupying the full row", () => {
+    const tableDefinition = createDefaultRegistry().get("table");
+    expect(tableDefinition.defaultLayout).toEqual({ w: 9, h: 6 });
+  });
+
   it("requires exactly one measure binding", () => {
     const binding = (measure: unknown) => ({
       datasetId: "sales",

@@ -30,6 +30,27 @@ it("renders component titles without editor controls", () => {
   expect(screen.queryByRole("button", { name: /复制/ })).not.toBeInTheDocument();
 });
 
+it("positions preview cards with the saved editor grid coordinates", () => {
+  const positioned = dashboard({
+    layout: [
+      { i: "table-1", x: 0, y: 0, w: 9, h: 6 },
+      { i: "kpi-1", x: 9, y: 0, w: 3, h: 3 },
+      { i: "bar-1", x: 3, y: 6, w: 6, h: 5 },
+    ],
+    components: [
+      { id: "table-1", type: "table", title: "交叉表", props: { pageSize: 20, striped: false } },
+      { id: "kpi-1", type: "kpi", title: "指标看板", props: { aggregation: "first", prefix: "", suffix: "", decimals: 0 } },
+      { id: "bar-1", type: "bar", title: "柱图", props: { color: "#1677ff", showLegend: true } },
+    ],
+  });
+
+  render(<DashboardViewer dashboard={positioned} mode="preview" />);
+
+  expect(screen.getByText("交叉表").closest(".ant-card")).toHaveStyle({ gridColumn: "1 / span 9", gridRow: "1 / span 6" });
+  expect(screen.getByText("指标看板").closest(".ant-card")).toHaveStyle({ gridColumn: "10 / span 3", gridRow: "1 / span 3" });
+  expect(screen.getByText("柱图").closest(".ant-card")).toHaveStyle({ gridColumn: "4 / span 6", gridRow: "7 / span 5" });
+});
+
 it("shows an empty read-only state", () => {
   render(<DashboardViewer dashboard={dashboard({ layout: [], components: [] })} />);
 

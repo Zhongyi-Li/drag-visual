@@ -33,7 +33,10 @@ describe("GridCanvas", () => {
     expect(received?.width).toBe(900);
     expect(received?.gridConfig).toEqual({ cols: 12, rowHeight: 44, margin: [12, 12], containerPadding: [12, 12] });
     expect(received?.layout).toEqual([{ i: "bar-1", x: 0, y: 0, w: 6, h: 5, minW: 6, minH: 5 }]);
-    expect(received?.dragConfig).toMatchObject({ handle: ".component-frame__drag-handle", bounded: true });
+    expect(received?.compactor).toMatchObject({ type: null, allowOverlap: false, preventCollision: true });
+    expect(received?.dragConfig).toMatchObject({ enabled: true, cancel: ".component-frame__actions, .react-resizable-handle" });
+    expect(received?.dragConfig).not.toHaveProperty("bounded");
+    expect(received?.dragConfig).not.toHaveProperty("handle");
   });
 
   it("dispatches one clamped layout change only on drag stop", () => {

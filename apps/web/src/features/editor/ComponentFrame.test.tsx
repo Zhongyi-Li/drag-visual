@@ -23,12 +23,12 @@ const ShortcutFrame = ({ store, onSave }: { store: ReturnType<typeof createEdito
 };
 
 describe("ComponentFrame", () => {
-  it("selects by click and exposes an accessible drag handle", async () => {
+  it("selects by click without rendering a separate drag handle", async () => {
     const store = createEditorStore(dashboard);
     render(<ComponentFrame component={dashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
     await userEvent.click(screen.getByRole("group", { name: "销售额" }));
     expect(store.getState().selectedComponentId).toBe("bar-1");
-    expect(screen.getByRole("button", { name: "拖动销售额" })).toHaveClass("component-frame__drag-handle");
+    expect(screen.queryByRole("button", { name: "拖动销售额" })).not.toBeInTheDocument();
   });
 
   it("duplicates once to a safe position, selects the copy, and does not bubble the control click", async () => {
@@ -60,24 +60,26 @@ describe("ComponentFrame", () => {
     expect(screen.getByTestId("component-placeholder")).toHaveAttribute("data-interacting", "true");
   });
 
-  it.each(["拖动销售额", "复制销售额", "删除销售额"])("lets undo and save bubble from the %s control", async (label) => {
+  it.each(["销售额", "复制销售额", "删除销售额"])("lets undo and save bubble from the %s focus target", async (label) => {
     const store = createEditorStore(dashboard);
     const undo = vi.spyOn(store.getState(), "undo");
     const save = vi.fn();
     render(<ShortcutFrame store={store} onSave={save} />);
-    screen.getByRole("button", { name: label }).focus();
+    const target = label === "销售额" ? screen.getByRole("group", { name: label }) : screen.getByRole("button", { name: label });
+    target.focus();
     await userEvent.keyboard("{Control>}z{/Control}");
     await userEvent.keyboard("{Meta>}s{/Meta}");
     expect(undo).toHaveBeenCalledOnce();
     expect(save).toHaveBeenCalledOnce();
   });
 
-  it.each(["拖动销售额", "复制销售额", "删除销售额"])("lets Delete remove the selected component from the %s control without activating it", async (label) => {
+  it.each(["销售额", "复制销售额", "删除销售额"])("lets Delete remove the selected component from the %s focus target without activating it", async (label) => {
     const store = createEditorStore(dashboard);
     store.getState().select("bar-1");
     const dispatch = vi.spyOn(store.getState(), "dispatch");
     render(<ShortcutFrame store={store} />);
-    screen.getByRole("button", { name: label }).focus();
+    const target = label === "销售额" ? screen.getByRole("group", { name: label }) : screen.getByRole("button", { name: label });
+    target.focus();
     await userEvent.keyboard("{Delete}");
     expect(dispatch).toHaveBeenCalledOnce();
     expect(dispatch).toHaveBeenCalledWith({ type: "component.remove", componentId: "bar-1" });

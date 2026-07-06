@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver the complete React BI dashboard MVP against an executable MSW contract, while freezing the existing NestJS/Prisma code as a non-production reference and enabling a separate Spring Boot team to implement the same OpenAPI.
+**Goal:** Deliver the complete React BI dashboard MVP against an executable MSW contract, while continuing the real backend in `apps/api` with NestJS + Prisma against the same OpenAPI.
 
 **Architecture:** `apps/web` owns editor, preview, viewer, typed API client, and MSW handlers. Shared domain rules stay in dependency-light packages; `openapi/bi-mvp.yaml` is the cross-language contract. Production integration changes only `VITE_API_BASE_URL`, never editor or chart logic.
 
@@ -13,9 +13,9 @@
 ## Locked scope
 
 - Do not add login, users, JWT, Session, RBAC, audit, CSV/Excel, database direct-connect, arbitrary REST configuration, SQL editor, joins, formulas, collaboration, or version history.
-- Before freezing `apps/api`, align its public boundary to top-level `schemaVersion: 1` and ensure every stable error is `{code,message}`; then do not extend NestJS or Prisma further.
-- Every network feature must work with MSW before Java integration.
-- Every phase updates the applicable file under `docs/backend-handoff/` and the OpenAPI contract.
+- Align `apps/api` public boundary to top-level `schemaVersion: 1` and ensure every stable error is `{code,message}` before real API联调.
+- Every network feature must work with MSW before real backend integration.
+- Every phase updates the applicable file under `docs/backend-contract/` and the OpenAPI contract.
 
 ## File map
 
@@ -122,7 +122,7 @@ Keep an in-memory `Map<string, Dashboard>` and published map. Implement POST/GET
 
 - [ ] **Step 4: Write the complete OpenAPI paths and schemas**
 
-Include all eight endpoints from `docs/backend-handoff/00-overview-and-contract.md`, Dashboard v1 (`schemaVersion: 1`), `DatasetSummary[]`, Dataset schema/result/request, and ErrorResponse. Dashboard IDs are UUIDs; malformed Dashboard path UUID examples return exact 400 `DASHBOARD_SCHEMA_INVALID`. Component/dataset/field/parameter IDs are non-empty stable strings. Create `name` is optional and nullable. Fixed objects reject unknown properties. Open JSON maps `props`, dashboard/dataset query `parameters`, and row objects preserve arbitrary own string keys with recursively JSON-only values; `slots` preserves arbitrary own keys but each value remains a strict `FieldBinding | FieldBinding[]`. Declare the 2 MiB/100 component/100 layout/20 dataset limits.
+Include all eight endpoints from `docs/backend-contract/00-overview-and-contract.md`, Dashboard v1 (`schemaVersion: 1`), `DatasetSummary[]`, Dataset schema/result/request, and ErrorResponse. Dashboard IDs are UUIDs; malformed Dashboard path UUID examples return exact 400 `DASHBOARD_SCHEMA_INVALID`. Component/dataset/field/parameter IDs are non-empty stable strings. Create `name` is optional and nullable. Fixed objects reject unknown properties. Open JSON maps `props`, dashboard/dataset query `parameters`, and row objects preserve arbitrary own string keys with recursively JSON-only values; `slots` preserves arbitrary own keys but each value remains a strict `FieldBinding | FieldBinding[]`. Declare the 2 MiB/100 component/100 layout/20 dataset limits.
 
 Add request, success-response, and applicable error examples for every operation: 400, both 404 variants, both 409 variants, 500 `PUBLISH_FAILED`/`INTERNAL_ERROR`, 502 variants, and 504. Publish documents `INTERNAL_ERROR` for a corrupt persisted draft and `PUBLISH_FAILED` only for transaction/persistence failure; both retain the old snapshot. The publish operation explicitly has no `requestBody` and its example call sends an empty body. Every error example is exactly `{code,message}`.
 
@@ -289,13 +289,13 @@ First scaffold the workspace package with build/typecheck/test scripts, project 
 
 - [ ] **Step 2: Add dataset MSW scenarios**
 
-Fixtures: the exact `DatasetSummary[]` and `sales` examples from the handoff, with string/number/date/null, required year and required date parameters, an optional parameter, and 1000 deterministic rows. Every date parameter and date row value is a calendar-valid `YYYY-MM-DD` string. Required parameters reject missing and `null`; optional parameters may be omitted but reject `null` when present. A row may contain `null` only for a column whose `nullable` is true. Scenario overrides: empty, timeout, upstream error, malformed response, 10001 rows, over 5 MiB, and schema v2 removing a bound field. The 10001-row and over-5-MiB cases return `502 DATASET_INVALID_RESPONSE`; all errors are exactly `{code,message}`.
+Fixtures: the exact `DatasetSummary[]` and `sales` examples from the contract docs, with string/number/date/null, required year and required date parameters, an optional parameter, and 1000 deterministic rows. Every date parameter and date row value is a calendar-valid `YYYY-MM-DD` string. Required parameters reject missing and `null`; optional parameters may be omitted but reject `null` when present. A row may contain `null` only for a column whose `nullable` is true. Scenario overrides: empty, timeout, upstream error, malformed response, 10001 rows, over 5 MiB, and schema v2 removing a bound field. The 10001-row and over-5-MiB cases return `502 DATASET_INVALID_RESPONSE`; all errors are exactly `{code,message}`.
 
 - [ ] **Step 3: Implement query UI**
 
 Generate Input/InputNumber/DatePicker/Switch from QueryParameter. DatePicker serializes a strict calendar-valid `YYYY-MM-DD`; required controls block missing/`null`, while blank optional controls are omitted rather than submitted as `null`. Unknown parameters never submit. Preview slices to 100 rows and labels truncation, and treats a row `null` as valid only when the matching column declares `nullable: true`.
 
-- [ ] **Step 4: Update backend handoff and verify**
+- [ ] **Step 4: Update backend contract and verify**
 
 Ensure `02-dataset-query-gateway.md` examples equal MSW fixtures. Run tests/typecheck; commit `feat: add dataset workspace and binding engine`.
 
@@ -383,7 +383,7 @@ Reload requires explicit confirmation. Copy creates a new dashboard and saves lo
 
 Preview reads draft, view reads published snapshot only, both mount `DashboardRuntime` and use the same query grouping/cache and renderer as the editor; neither includes editor controls. Published configuration stays fixed until republish, while live Dataset Gateway results may change between visits.
 
-- [ ] **Step 4: Update handoff and verify**
+- [ ] **Step 4: Update backend contract and verify**
 
 Check `01-dashboard-crud.md` and `03-publish-and-preview.md` against handlers; commit `feat: add dashboard persistence and publishing UX`.
 
@@ -409,29 +409,29 @@ Core: create → dataset → chart → bind → style → save → publish → v
 
 - [ ] **Step 4: Prove the frontend release gate with MSW**
 
-Run the complete core and failure E2E suite with `VITE_USE_MOCKS=true`. This MSW run, together with unit/type/build checks, is the blocking frontend MVP release gate; Java availability is not required.
+Run the complete core and failure E2E suite with `VITE_USE_MOCKS=true`. This MSW run, together with unit/type/build checks, is the blocking frontend MVP release gate; real backend availability is not required.
 
 - [ ] **Step 5: Final verification and commit**
 
 Run `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test`, `pnpm build`, `VITE_USE_MOCKS=true pnpm test:e2e`, then commit `test: complete frontend MVP release gates`.
 
-## Task 11: Non-blocking Java integration gate (after Java is ready)
+## Task 11: Non-blocking real backend integration gate
 
 **Files:**
-- Update: `docs/backend-handoff/04-integration-acceptance.md`
-- Add integration evidence under the backend handoff directory
+- Update: `docs/backend-contract/04-integration-acceptance.md`
+- Add integration evidence under the backend contract directory
 
-- [ ] **Step 1: Receive the Java test base URL and backend evidence**
+- [ ] **Step 1: Prepare the `apps/api` test base URL and backend evidence**
 
-Do not start this gate until the Java team marks its staged checklist ready. Task 10 remains the definition of frontend MVP completion.
+Do not start this gate until `apps/api` marks its staged checklist ready. Task 10 remains the definition of frontend MVP completion.
 
-- [ ] **Step 2: Run the same E2E against Java**
+- [ ] **Step 2: Run the same E2E against `apps/api`**
 
-Run the Task 10 E2E with `VITE_USE_MOCKS=false` and the Java base URL. No feature code, fixture-specific branch, or DTO mapping may change between MSW and Java runs.
+Run the Task 10 E2E with `VITE_USE_MOCKS=false` and the `apps/api` base URL. No feature code, fixture-specific branch, or DTO mapping may change between MSW and real backend runs.
 
 - [ ] **Step 3: Record integration gaps without reopening frontend completion**
 
-Track contract deviations in `docs/backend-handoff/04-integration-acceptance.md`; fix the owning side, rerun the affected test, and attach evidence. This is a production-integration follow-up gate, not a blocker for the MSW-backed frontend MVP commit.
+Track contract deviations in `docs/backend-contract/04-integration-acceptance.md`; fix the owning side, rerun the affected test, and attach evidence. This is a production-integration follow-up gate, not a blocker for the MSW-backed frontend MVP commit.
 
 ## Execution order and gates
 
@@ -439,6 +439,6 @@ Track contract deviations in `docs/backend-handoff/04-integration-acceptance.md`
 2. Tasks 3–5: editor usable without real charts.
 3. Tasks 6–8: data-to-chart configuration loop.
 4. Tasks 9–10: persistence, publishing, reliability, and the MSW-backed frontend MVP release.
-5. Task 11: Java integration after its environment is available; non-blocking for frontend MVP completion.
+5. Task 11: real backend integration after `apps/api` is ready; non-blocking for frontend MVP completion.
 
 After every task: implementer self-review → spec compliance review → code quality review. Do not advance with open Critical or Important findings.

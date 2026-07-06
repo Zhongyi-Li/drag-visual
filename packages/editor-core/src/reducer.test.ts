@@ -300,6 +300,42 @@ describe("applyCommand", () => {
     });
   });
 
+  it("upserts a dashboard dataset reference", () => {
+    const updated = applyCommand(emptyDashboard(), {
+      type: "dashboard.dataset.upsert",
+      dataset: {
+        datasetId: "sales",
+        schemaVersion: "v1",
+        parameters: { year: 0, fromDate: "2026-01-01" },
+      },
+    });
+
+    expect(updated.datasets).toContainEqual({
+      datasetId: "sales",
+      schemaVersion: "v1",
+      parameters: { year: 0, fromDate: "2026-01-01" },
+    });
+  });
+
+  it("replaces an existing dashboard dataset reference", () => {
+    const withDataset: Dashboard = {
+      ...emptyDashboard(),
+      datasets: [{ datasetId: "sales", schemaVersion: "old", parameters: {} }],
+    };
+    const updated = applyCommand(withDataset, {
+      type: "dashboard.dataset.upsert",
+      dataset: {
+        datasetId: "sales",
+        schemaVersion: "v1",
+        parameters: { year: 0 },
+      },
+    });
+
+    expect(updated.datasets).toEqual([
+      { datasetId: "sales", schemaVersion: "v1", parameters: { year: 0 } },
+    ]);
+  });
+
   it("wraps result schema failures in a stable command error", () => {
     expectCode(
       () =>

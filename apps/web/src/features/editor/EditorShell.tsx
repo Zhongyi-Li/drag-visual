@@ -77,7 +77,8 @@ export const EditorShell = ({
     }
     if (!point) return;
     const drop = resolvePaletteDrop(parsedType.data, point, rect);
-    if (drop) addRegistryComponent(store, registry, createComponentId, drop.type, drop);
+    const title = typeof event.active.data.current?.title === "string" ? event.active.data.current.title : undefined;
+    if (drop) addRegistryComponent(store, registry, createComponentId, drop.type, drop, title);
   };
   return (
     <div className="editor-app">
@@ -92,7 +93,7 @@ export const EditorShell = ({
         <div className="editor-workbench">
           <ComponentPalette store={store} createComponentId={createComponentId} registry={registry} />
           <GridCanvas store={store} registry={registry} createComponentId={createComponentId} />
-          <InspectorPanel store={store} />
+          <InspectorPanel store={store} registry={registry} />
         </div>
         <DragOverlay>{activeTitle ? <Card size="small" className="palette-drag-overlay">{activeTitle}</Card> : null}</DragOverlay>
       </DndContext>

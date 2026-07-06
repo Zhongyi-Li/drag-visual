@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 
 import { DashboardSchema } from "@drag-visual/contracts";
-import { ComponentRegistry, barDefinition } from "@drag-visual/component-registry";
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
+import type { ReactElement } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { AppProviders } from "../../app/AppProviders.js";
 import { describe, expect, it, vi } from "vitest";
 
 import { EditorShell } from "./EditorShell.js";
@@ -22,15 +23,27 @@ const webRoot = basename(process.cwd()) === "web"
   : resolve(process.cwd(), "apps/web");
 const editorCss = readFileSync(resolve(webRoot, "src/features/editor/editor.css"), "utf8");
 
+const renderShell = (ui: ReactElement) => render(<AppProviders>{ui}</AppProviders>);
+
 describe("EditorShell", () => {
   it("renders three editor columns and registry-driven palette", () => {
-    render(<EditorShell store={createEditorStore(initial)} />);
+    renderShell(<EditorShell store={createEditorStore(initial)} />);
     expect(screen.getByRole("banner")).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "图表组件" })).toBeInTheDocument();
     expect(screen.getByRole("main", { name: "看板画布" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "配置面板" })).toBeInTheDocument();
+    expect(screen.queryByText("官方")).not.toBeInTheDocument();
+    expect(screen.queryByText("自定义")).not.toBeInTheDocument();
+    expect(screen.getByText("表格")).toBeInTheDocument();
+    expect(screen.getByText("指标")).toBeInTheDocument();
+    expect(screen.getByText("线/面积图")).toBeInTheDocument();
     expect(screen.getByText("柱/条图")).toBeInTheDocument();
+    expect(screen.getByText("饼/环形")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "添加交叉表" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "添加指标看板" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "添加线图" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "添加柱图" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "添加饼图" })).toBeEnabled();
     expect(screen.getByText("尚未选择组件")).toBeInTheDocument();
     expect(screen.getByRole("status", { name: "保存状态" })).toHaveAttribute("aria-live", "polite");
     expect(screen.getByRole("complementary", { name: "图表组件" })).toHaveClass("editor-panel-scroll");
@@ -47,7 +60,7 @@ describe("EditorShell", () => {
 
   it("adds and selects a bar, then wires undo and redo", async () => {
     const store = createEditorStore(initial);
-    render(<EditorShell store={store} createComponentId={() => "bar-1"} />);
+    renderShell(<EditorShell store={store} createComponentId={() => "bar-1"} />);
     const undo = screen.getByRole("button", { name: "撤销" });
     const redo = screen.getByRole("button", { name: "重做" });
     expect(undo).toBeDisabled();
@@ -55,6 +68,7 @@ describe("EditorShell", () => {
     await userEvent.click(screen.getByRole("button", { name: "添加柱图" }));
     expect(store.getState().selectedComponentId).toBe("bar-1");
     expect(screen.getByText("柱图配置")).toBeInTheDocument();
+    expect(await screen.findByRole("combobox", { name: "数据集" })).toBeInTheDocument();
     expect(undo).toBeEnabled();
     await userEvent.click(undo);
     expect(redo).toBeEnabled();
@@ -62,7 +76,7 @@ describe("EditorShell", () => {
 
   it("keeps keyboard activation as an accessible add path", async () => {
     const store = createEditorStore(initial);
-    render(<EditorShell store={store} createComponentId={() => "bar-keyboard"} />);
+    renderShell(<EditorShell store={store} createComponentId={() => "bar-keyboard"} />);
     const add = screen.getByRole("button", { name: "添加柱图" });
     add.focus();
     await userEvent.keyboard("{Enter}");
@@ -72,20 +86,20 @@ describe("EditorShell", () => {
   it("wires editor shortcuts through the shell", () => {
     const store = createEditorStore(initial);
     const save = vi.fn();
-    render(<EditorShell store={store} onSave={save} />);
+    renderShell(<EditorShell store={store} onSave={save} />);
     window.dispatchEvent(new KeyboardEvent("keydown", { key: "s", ctrlKey: true, bubbles: true }));
     expect(save).toHaveBeenCalledOnce();
   });
 
   it("shows honest unavailable persistence actions", () => {
-    render(<EditorShell store={createEditorStore(initial)} />);
+    renderShell(<EditorShell store={createEditorStore(initial)} />);
     expect(screen.getByRole("button", { name: "保存" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "预览" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "发布" })).toBeDisabled();
   });
 
   it("filters definitions by title and exposes unavailable filter honestly", async () => {
-    render(<EditorShell store={createEditorStore(initial)} />);
+    renderShell(<EditorShell store={createEditorStore(initial)} />);
     const search = screen.getByRole("searchbox", { name: "搜索图表" });
     await userEvent.type(search, "不存在");
     expect(screen.queryByRole("button", { name: "添加柱图" })).not.toBeInTheDocument();
@@ -98,21 +112,17 @@ describe("EditorShell", () => {
   });
 
   it("focuses palette search from the enabled toolbar action", async () => {
-    render(<EditorShell store={createEditorStore(initial)} />);
+    renderShell(<EditorShell store={createEditorStore(initial)} />);
     await userEvent.click(screen.getByRole("button", { name: "添加图表" }));
     expect(screen.getByRole("searchbox", { name: "搜索图表" })).toHaveFocus();
   });
 
-  it("adds the type belonging to each injected registry definition", async () => {
-    const registry = new ComponentRegistry()
-      .register(barDefinition)
-      .register({ ...barDefinition, type: "line", title: "折线图", category: "趋势图" });
+  it("adds a curated palette entry with its mapped component type and visible title", async () => {
     const store = createEditorStore(initial);
-    render(<EditorShell store={store} registry={registry} createComponentId={() => "line-1"} />);
-    expect(screen.getByRole("heading", { name: "趋势图" })).toBeInTheDocument();
-    await userEvent.type(screen.getByRole("searchbox", { name: "搜索图表" }), "趋势图");
+    renderShell(<EditorShell store={store} createComponentId={() => "line-1"} />);
+    await userEvent.type(screen.getByRole("searchbox", { name: "搜索图表" }), "趋势分析");
     expect(screen.queryByRole("button", { name: "添加柱图" })).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "添加折线图" }));
-    expect(store.getState().history.present.components[0]).toMatchObject({ id: "line-1", type: "line" });
+    await userEvent.click(screen.getByRole("button", { name: "添加趋势分析" }));
+    expect(store.getState().history.present.components[0]).toMatchObject({ id: "line-1", type: "line", title: "趋势分析" });
   });
 });

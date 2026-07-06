@@ -8,17 +8,21 @@ GET  /dashboards/{dashboardId}
 PUT  /dashboards/{dashboardId}
 ```
 
-## Spring Boot DTO
+## 请求与错误结构
 
-```java
-public record CreateDashboardRequest(
-    @Nullable @Size(max = 100) String name
-) {}
+创建请求：
 
-public record ErrorResponse(String code, String message) {}
+```json
+{ "name": "销售看板" }
 ```
 
-Dashboard 主体可使用 `JsonNode` 接收，但进入 Service 前必须执行完整 Schema v1 校验；不能只校验顶层字段。建议把校验器封装为 `DashboardSchemaValidator`，Controller 不直接操作数据库。
+错误响应：
+
+```json
+{ "code": "DASHBOARD_NOT_FOUND", "message": "Dashboard was not found" }
+```
+
+Dashboard 主体可先以 JSON 结构接收，但进入 Service 前必须执行完整 Schema v1 校验；不能只校验顶层字段。建议在 Service/Repository 边界前统一使用 `DashboardSchema` 校验，Controller 不直接操作 Prisma。
 
 固定结构 DTO 拒绝未知字段；`props` 和 `parameters` 是递归 JSON-only 开放映射，`slots` 只开放 key、值仍严格为 `FieldBinding | FieldBinding[]`；三者都必须在嵌套层安全保留任意自有字符串 key。Dashboard 请求体最大 2 MiB（2,097,152 UTF-8 bytes），`components` 与 `layout` 各最多 100 项，`datasets` 最多 20 项。请求体超限可能在 Controller 前发生，必须由全局异常处理器转换为同结构的 `400 DASHBOARD_SCHEMA_INVALID`。
 

@@ -10,9 +10,11 @@ import {
   useSensor,
   useSensors,
 } from "@dnd-kit/core";
+import type { ReactElement } from "react";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { AppProviders } from "../../app/AppProviders.js";
 import { EditorShell } from "./EditorShell.js";
 import { createEditorStore } from "./store/editorStore.js";
 
@@ -84,6 +86,8 @@ const KeyboardDndHarness = ({ onDrop }: { onDrop: (overId: string | null) => voi
   );
 };
 
+const renderEditorShell = (ui: ReactElement) => render(<AppProviders>{ui}</AppProviders>);
+
 describe("editor canvas library integration", () => {
   beforeEach(() => {
     // jsdom has no layout engine. These browser-boundary shims give RGL and dnd-kit
@@ -110,16 +114,16 @@ describe("editor canvas library integration", () => {
   it("runs a real react-grid-layout drag and resize through one stop command each", () => {
     const store = createEditorStore(populated);
     const dispatch = vi.spyOn(store.getState(), "dispatch");
-    render(<EditorShell store={store} createComponentId={() => "unused"} />);
+    renderEditorShell(<EditorShell store={store} createComponentId={() => "unused"} />);
     expect(document.querySelector(".react-grid-layout")).toBeInTheDocument();
 
-    const handle = screen.getByRole("button", { name: "拖动销售额" });
-    fireEvent.mouseDown(handle, { clientX: 270, clientY: 120, button: 0 });
+    const frame = screen.getByRole("group", { name: "销售额" });
+    fireEvent.mouseDown(frame, { clientX: 270, clientY: 120, button: 0 });
     fireEvent.mouseMove(document, { clientX: 420, clientY: 176, buttons: 1 });
     expect(screen.getByTestId("component-placeholder")).toHaveAttribute("data-interacting", "true");
     fireEvent.mouseUp(document, { clientX: 420, clientY: 176, button: 0 });
     expect(dispatch).toHaveBeenCalledTimes(1);
-    expect(store.getState().history.present.layout[0]).toMatchObject({ x: 4, y: 0 });
+    expect(store.getState().history.present.layout[0]).toMatchObject({ x: 4, y: 3 });
 
     dispatch.mockClear();
     const resizeHandle = document.querySelector(".react-resizable-handle-se");
@@ -131,16 +135,18 @@ describe("editor canvas library integration", () => {
     expect(store.getState().history.present.layout[0]).toMatchObject({ w: 6, h: 5 });
   });
 
-  it("keeps the real react-grid-layout result free of overlap after a collision", () => {
+  it("blocks a real react-grid-layout drag into an occupied slot", () => {
     const store = createEditorStore(colliding);
     const dispatch = vi.spyOn(store.getState(), "dispatch");
-    render(<EditorShell store={store} createComponentId={() => "unused"} />);
-    const handle = screen.getByRole("button", { name: "拖动销售额" });
-    fireEvent.mouseDown(handle, { clientX: 270, clientY: 120, button: 0 });
+    renderEditorShell(<EditorShell store={store} createComponentId={() => "unused"} />);
+    const frame = screen.getByRole("group", { name: "销售额" });
+    fireEvent.mouseDown(frame, { clientX: 270, clientY: 120, button: 0 });
     fireEvent.mouseMove(document, { clientX: 700, clientY: 120, buttons: 1 });
     fireEvent.mouseUp(document, { clientX: 700, clientY: 120, button: 0 });
-    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).not.toHaveBeenCalled();
     const [first, second] = store.getState().history.present.layout;
+    expect(first).toMatchObject({ i: "bar-1", x: 0, y: 0 });
+    expect(second).toMatchObject({ i: "bar-2", x: 6, y: 0 });
     expect(first && second && (
       first.x + first.w <= second.x || second.x + second.w <= first.x ||
       first.y + first.h <= second.y || second.y + second.h <= first.y
@@ -150,7 +156,7 @@ describe("editor canvas library integration", () => {
   it("runs real dnd-kit pointer drops inside and ignores drops outside", () => {
     const ids = ["inside", "outside"];
     const store = createEditorStore(empty);
-    render(<EditorShell store={store} createComponentId={() => ids.shift()!} />);
+    renderEditorShell(<EditorShell store={store} createComponentId={() => ids.shift()!} />);
     const palette = screen.getByRole("button", { name: "添加柱图" });
 
     fireEvent.pointerDown(palette, { clientX: 130, clientY: 150, pointerId: 1, button: 0, isPrimary: true });
@@ -181,7 +187,7 @@ describe("editor canvas library integration", () => {
 
   it("mounts the actual editor palette KeyboardSensor through activation, movement, and canvas over state", async () => {
     const store = createEditorStore(empty);
-    render(<EditorShell store={store} createComponentId={() => "keyboard-editor"} />);
+    renderEditorShell(<EditorShell store={store} createComponentId={() => "keyboard-editor"} />);
     const palette = screen.getByRole("button", { name: "添加柱图" });
     palette.focus();
     fireEvent.keyDown(palette, { code: "Space", key: " " });
@@ -207,7 +213,7 @@ describe("editor canvas library integration", () => {
       disconnect(): void {}
     }
     globalThis.ResizeObserver = ControlledResizeObserver;
-    render(<EditorShell store={createEditorStore(populated)} createComponentId={() => "unused"} />);
+    renderEditorShell(<EditorShell store={createEditorStore(populated)} createComponentId={() => "unused"} />);
     const item = document.querySelector<HTMLElement>(".react-grid-item");
     expect(item).toBeInTheDocument();
     const initialWidth = item!.style.width;

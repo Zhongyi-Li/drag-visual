@@ -12,6 +12,7 @@ export const addRegistryComponent = (
   createComponentId: () => string,
   type: ComponentType,
   point: GridPoint = { x: 0, y: 0 },
+  title?: string,
 ): string => {
   const definition = registry.get(type);
   const id = createComponentId();
@@ -22,7 +23,7 @@ export const addRegistryComponent = (
   const layout = findAvailableLayout(store.getState().history.present.layout, candidate);
   store.getState().dispatch({
     type: "component.add",
-    component: { id, type, title: definition.title, props: definition.createDefaults() },
+    component: { id, type, title: title ?? definition.title, props: definition.createDefaults() },
     layout,
   });
   store.getState().select(id);

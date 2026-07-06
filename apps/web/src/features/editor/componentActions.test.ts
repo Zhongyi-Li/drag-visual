@@ -33,4 +33,10 @@ describe("addRegistryComponent", () => {
     addRegistryComponent(store, createDefaultRegistry(), () => "bar-1", "bar", { x: 11, y: 3 });
     expect(store.getState().history.present.layout[0]).toEqual({ i: "bar-1", x: 6, y: 3, w: 6, h: 5 });
   });
+
+  it("keeps the selected palette entry title when provided", () => {
+    const store = createEditorStore(empty);
+    addRegistryComponent(store, createDefaultRegistry(), () => "line-1", "line", { x: 0, y: 0 }, "趋势分析");
+    expect(store.getState().history.present.components[0]).toMatchObject({ id: "line-1", type: "line", title: "趋势分析" });
+  });
 });

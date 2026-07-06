@@ -12,52 +12,54 @@ POST /datasets/{datasetId}/query
 
 ## DTO
 
-```java
-public record DatasetFieldDto(
-    String key,
-    String label,
-    FieldType type,
-    boolean nullable
-) {}
+```ts
+type FieldType = "string" | "number" | "date" | "boolean";
 
-public record DatasetSummaryDto(
-    String id,
-    String name,
-    String schemaVersion
-) {}
+interface DatasetFieldDto {
+  key: string;
+  label: string;
+  type: FieldType;
+  nullable: boolean;
+}
 
-public enum FieldType { string, number, date, boolean }
+interface DatasetSummaryDto {
+  id: string;
+  name: string;
+  schemaVersion: string;
+}
 
-public record QueryParameterDto(
-    String key,
-    String label,
-    FieldType type,
-    boolean required
-) {}
+interface QueryParameterDto {
+  key: string;
+  label: string;
+  type: FieldType;
+  required: boolean;
+}
 
-public record DatasetSchemaDto(
-    String id,
-    String name,
-    List<DatasetFieldDto> fields,
-    List<QueryParameterDto> parameters,
-    String schemaVersion
-) {}
+interface DatasetSchemaDto {
+  id: string;
+  name: string;
+  fields: DatasetFieldDto[];
+  parameters: QueryParameterDto[];
+  schemaVersion: string;
+}
 
-public record DatasetQueryRequest(Map<String, Object> parameters) {}
+interface DatasetQueryRequest {
+  parameters: Record<string, unknown>;
+}
 
-public record DatasetQueryResultDto(
-    List<DatasetFieldDto> columns,
-    List<Map<String, Object>> rows,
-    Long total,
-    Instant sampledAt
-) {}
+interface DatasetQueryResultDto {
+  columns: DatasetFieldDto[];
+  rows: Array<Record<string, unknown>>;
+  total: number;
+  sampledAt: string;
+}
 ```
 
 字段、参数和返回列的 key 必须各自唯一。
 
 值语义固定如下：
 
-- `date` 参数和 `date` 列值一律使用严格、日历有效的 `YYYY-MM-DD` 字符串（例如 `2026-07-02`）；不得发送时间戳、时区后缀或 JavaScript/Java 日期对象的默认字符串。
+- `date` 参数和 `date` 列值一律使用严格、日历有效的 `YYYY-MM-DD` 字符串（例如 `2026-07-02`）；不得发送时间戳、时区后缀或日期对象的默认字符串。
 - `required: true` 的参数缺失或为 `null` 都是 400；`required: false` 的参数可以省略，但只要出现就不能为 `null`。
 - 行中字段为 `null` 仅当对应返回列 `nullable: true`；`nullable: false` 的列出现 `null` 必须判为上游响应非法。
 

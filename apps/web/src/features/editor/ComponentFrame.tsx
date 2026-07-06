@@ -1,4 +1,4 @@
-import { CopyOutlined, DeleteOutlined, DragOutlined } from "@ant-design/icons";
+import { CopyOutlined, DeleteOutlined } from "@ant-design/icons";
 import type { ComponentInstance } from "@drag-visual/contracts";
 import { Button, Tooltip } from "antd";
 import type { MouseEvent } from "react";
@@ -43,9 +43,6 @@ export const ComponentFrame = ({ component, store, createComponentId, isInteract
       onFocus={(event) => { if (event.target === event.currentTarget) select(); }}
     >
       <header className="component-frame__header">
-        <button className="component-frame__drag-handle" type="button" aria-label={`拖动${title}`} onClick={stopControlEvent}>
-          <DragOutlined />
-        </button>
         <strong>{title}</strong>
         <span className="component-frame__actions">
           <Tooltip title="复制">

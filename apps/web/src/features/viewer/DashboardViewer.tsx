@@ -40,6 +40,7 @@ export const DashboardViewer = ({ dashboard, mode = "published", currentDatasets
             style={{
               display: "grid",
               gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+              gridAutoRows: 44,
               gap: 12,
             }}
           >
@@ -52,8 +53,11 @@ export const DashboardViewer = ({ dashboard, mode = "published", currentDatasets
                   key={component.id}
                   title={component.title ?? component.type}
                   style={{
-                    gridColumn: item ? `span ${Math.min(12, Math.max(1, item.w))}` : "span 6",
-                    minHeight: item ? Math.max(160, item.h * 44) : 220,
+                    gridColumn: item
+                      ? `${Math.min(12, Math.max(0, item.x)) + 1} / span ${Math.min(12, Math.max(1, item.w))}`
+                      : "span 6",
+                    gridRow: item ? `${Math.max(0, item.y) + 1} / span ${Math.max(1, item.h)}` : undefined,
+                    minHeight: item ? Math.max(160, item.h * 44 + Math.max(0, item.h - 1) * 12) : 220,
                   }}
                 >
                   {drift && (

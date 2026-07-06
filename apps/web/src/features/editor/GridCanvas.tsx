@@ -3,7 +3,9 @@ import { useDroppable } from "@dnd-kit/core";
 import type { ComponentRegistry } from "@drag-visual/component-registry";
 import type { GridItem as DashboardGridItem } from "@drag-visual/contracts";
 import ReactGridLayout, {
+  getCompactor,
   useContainerWidth,
+  type Compactor,
   type EventCallback,
   type Layout,
   type LayoutItem,
@@ -32,6 +34,8 @@ interface GridCanvasProps {
 
 const toDashboardItem = (item: LayoutItem, minimum: { w: number; h: number }): DashboardGridItem =>
   clampLayoutItem({ i: item.i, x: item.x, y: item.y, w: item.w, h: item.h }, minimum);
+
+const fixedGridCompactor: Compactor = getCompactor(null, false, true);
 
 export const GridCanvas = ({ store, registry, createComponentId, gridWidth, GridRenderer = ReactGridLayout }: GridCanvasProps) => {
   const dashboard = useStore(store, editorSelectors.dashboard);
@@ -87,8 +91,9 @@ export const GridCanvas = ({ store, registry, createComponentId, gridWidth, Grid
           <GridRenderer
           width={width}
           layout={layout}
+          compactor={fixedGridCompactor}
           gridConfig={{ cols: GRID_COLUMNS, rowHeight: GRID_ROW_HEIGHT, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: [GRID_PADDING, GRID_PADDING] }}
-          dragConfig={{ enabled: true, bounded: true, handle: ".component-frame__drag-handle", cancel: ".component-frame__actions", threshold: 3 }}
+          dragConfig={{ enabled: true, cancel: ".component-frame__actions, .react-resizable-handle", threshold: 3 }}
           resizeConfig={{ enabled: true, handles: ["se"] }}
           onDragStart={startInteraction}
           onDrag={startInteraction}

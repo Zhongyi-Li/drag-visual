@@ -13,6 +13,7 @@ import {
   publishDashboard,
   saveDashboard,
 } from "../dashboards/dashboardApi.js";
+import { writePreviewSnapshot } from "../preview/previewSnapshotStore.js";
 import { EditorShell } from "./EditorShell.js";
 import { RevisionConflictModal } from "./RevisionConflictModal.js";
 import { useAutosave } from "./useAutosave.js";
@@ -57,8 +58,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
   const currentWritableDashboard = DashboardSchema.parse(currentDashboard);
   const savingPromise = useRef<Promise<Dashboard> | null>(null);
 
-  const save = useCallback(async (snapshot: Dashboard) => {
-    if (savingPromise.current) return savingPromise.current;
+  const saveSnapshot = useCallback(async (snapshot: Dashboard) => {
     store.getState().markSaving();
     const request = (async () => {
       const saved = await saveDashboard(snapshot);
@@ -70,7 +70,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
       return await request;
     } catch (error: unknown) {
       store.getState().markSaveFailed();
-      if (error instanceof ApiError && error.status === 409 && error.code === "DASHBOARD_VERSION_CONFLICT") {
+      if (error instanceof ApiError && error.status === 409) {
         setConflictOpen(true);
       }
       throw error;
@@ -78,6 +78,23 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
       if (savingPromise.current === request) savingPromise.current = null;
     }
   }, [store]);
+
+  const save = useCallback(async (_snapshot: Dashboard) => {
+    if (savingPromise.current) await savingPromise.current;
+    const latest = DashboardSchema.parse(editorSelectors.dashboard(store.getState()));
+    if (!store.getState().dirty) return latest;
+    return saveSnapshot(latest);
+  }, [saveSnapshot, store]);
+
+  const ensureLatestSaved = useCallback(async (): Promise<Dashboard> => {
+    while (true) {
+      if (savingPromise.current) await savingPromise.current;
+      const snapshot = DashboardSchema.parse(editorSelectors.dashboard(store.getState()));
+      if (!store.getState().dirty) return snapshot;
+      const saved = await saveSnapshot(snapshot);
+      if (!store.getState().dirty) return saved;
+    }
+  }, [saveSnapshot, store]);
 
   useAutosave({ dashboard: currentWritableDashboard, dirty, save });
 
@@ -87,10 +104,9 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
 
   const onPublish = useCallback(() => {
     void (async () => {
-      const snapshot = DashboardSchema.parse(editorSelectors.dashboard(store.getState()));
       let saved: Dashboard;
       try {
-        saved = store.getState().dirty ? await save(snapshot) : snapshot;
+        saved = await ensureLatestSaved();
       } catch {
         return;
       }
@@ -102,15 +118,13 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
         setPublishFailed(true);
       }
     })();
-  }, [save, store]);
+  }, [ensureLatestSaved]);
 
   const onPreview = useCallback(() => {
-    void (async () => {
-      const snapshot = DashboardSchema.parse(editorSelectors.dashboard(store.getState()));
-      const saved = store.getState().dirty ? await save(snapshot) : snapshot;
-      window.open(`/preview/${saved.id}`, "_blank", "noopener,noreferrer");
-    })().catch(() => undefined);
-  }, [save, store]);
+    const snapshot = DashboardSchema.parse(editorSelectors.dashboard(store.getState()));
+    writePreviewSnapshot(snapshot);
+    window.open(`/preview/${snapshot.id}`, "_blank", "noopener,noreferrer");
+  }, [store]);
 
   const onReloadServerVersion = useCallback(() => {
     window.location.reload();

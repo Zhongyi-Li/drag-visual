@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deliver a frontend-only release gate with deterministic MSW scenarios, Playwright coverage, CI automation, and honest release documentation while leaving Java implementation to its separate owner.
+**Goal:** Deliver a frontend-only release gate with deterministic MSW scenarios, Playwright coverage, CI automation, and honest release documentation while keeping real backend completion as separate `apps/api` work.
 
-**Architecture:** Vite runs the React application with `VITE_USE_MOCKS=true`; MSW implements the same OpenAPI/Zod contract that the future Java service will provide. Playwright controls only browser-visible frontend behavior, and CI runs without PostgreSQL or a Java/Node dataset backend.
+**Architecture:** Vite runs the React application with `VITE_USE_MOCKS=true`; MSW implements the same OpenAPI/Zod contract that `apps/api` will provide. Playwright controls only browser-visible frontend behavior, and CI runs without PostgreSQL or the real dataset backend.
 
 **Tech Stack:** React 19, Vite 8, MSW 2, Playwright, Vitest, Zod, pnpm 10, GitHub Actions.
 
@@ -17,9 +17,9 @@
 - `playwright.config.ts`: Vite/MSW web server and browser-test settings.
 - `e2e/frontend-flow.spec.ts`: core frontend workflow.
 - `e2e/frontend-failures.spec.ts`: timeout, schema drift, conflict, publish failure, and reload recovery.
-- `.github/workflows/ci.yml`: frontend release commands without Java or PostgreSQL.
-- `README.md`: exact local frontend commands and Java ownership boundary.
-- `docs/release/frontend-mvp-checklist.md`: automated evidence, backend handoff items, and pending manual acceptance.
+- `.github/workflows/ci.yml`: frontend release commands without PostgreSQL or real backend startup.
+- `README.md`: exact local frontend commands and real backend integration boundary.
+- `docs/release/frontend-mvp-checklist.md`: automated evidence, backend integration items, and pending manual acceptance.
 
 ### Task 1: Add Deterministic Browser-Test Mock Controls
 
@@ -270,7 +270,7 @@ git commit -m "test: cover frontend failure recovery"
 - Create: `README.md`
 - Create: `docs/release/frontend-mvp-checklist.md`
 
-- [ ] **Step 1: Add CI without Java or PostgreSQL**
+- [ ] **Step 1: Add CI without PostgreSQL or real backend startup**
 
 ```yaml
 name: ci
@@ -315,7 +315,7 @@ pnpm lint:openapi
 pnpm test:e2e
 
 ## Backend integration boundary
-The Java service is implemented by a separate owner. Implement the routes and fields in `openapi/bi-mvp.yaml`; frontend mock behavior lives in `apps/web/src/mocks/handlers.ts`.
+The real backend is implemented in `apps/api`. Implement the routes and fields in `openapi/bi-mvp.yaml`; frontend mock behavior lives in `apps/web/src/mocks/handlers.ts`.
 ```
 
 Document `VITE_API_BASE_URL` and `VITE_USE_MOCKS`; do not include credentials or internal URLs.
@@ -325,7 +325,7 @@ Document `VITE_API_BASE_URL` and `VITE_USE_MOCKS`; do not include credentials or
 The checklist contains three sections:
 
 1. Automated frontend gates with command, date, and result fields.
-2. Java integration handoff items: contract conformance, internal identity, real dataset timeout/error mapping, and environment configuration, all assigned to the backend owner and initially unchecked.
+2. Real backend integration items: contract conformance, internal identity, real dataset timeout/error mapping, and environment configuration, all initially unchecked.
 3. Manual acceptance evidence: reviewer, browser, elapsed time, dashboard ID, defects, P0/P1 count, and approval, initially marked pending.
 
 - [ ] **Step 4: Run the complete frontend gate**
@@ -341,7 +341,7 @@ Run:
 /usr/local/bin/pnpm test:e2e -- --repeat-each=2
 ```
 
-Expected: every command exits 0. Update only the automated section with real evidence; leave Java integration and manual acceptance pending.
+Expected: every command exits 0. Update only the automated section with real evidence; leave real backend integration and manual acceptance pending.
 
 - [ ] **Step 5: Commit CI and documentation**
 
@@ -369,4 +369,4 @@ Expected: no whitespace errors, browser traces, screenshots, test reports, or de
 
 - [ ] **Step 3: Report the actual boundary**
 
-Report frontend automated gate results, link the OpenAPI and mock handler files, and state that Java integration and named manual acceptance remain pending. Do not label the organization-wide release complete.
+Report frontend automated gate results, link the OpenAPI and mock handler files, and state that real backend integration and named manual acceptance remain pending. Do not label the organization-wide release complete.

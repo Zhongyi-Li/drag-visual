@@ -4,7 +4,13 @@ import { pointToGrid } from "./canvasLayout.js";
 
 export const PALETTE_DROP_ID = "editor-canvas-drop-zone";
 
-export const getPaletteDragData = (type: ComponentType): { type: ComponentType } => ({ type });
+export interface PaletteDragData {
+  readonly type: ComponentType;
+  readonly title?: string;
+}
+
+export const getPaletteDragData = (type: ComponentType, title?: string): PaletteDragData =>
+  title === undefined ? { type } : { type, title };
 
 interface DropRect {
   readonly left: number;

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "../../app/AppProviders.js";
 import { appRoutes } from "../../app/router.js";
 import { server } from "../../mocks/server.js";
+import { clearPreviewSnapshot, readPreviewSnapshot } from "../preview/previewSnapshotStore.js";
 
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const dashboard = {
@@ -26,6 +27,7 @@ const secondId = "223e4567-e89b-42d3-a456-426614174001";
 
 describe("EditorRoute", () => {
   afterEach(() => {
+    clearPreviewSnapshot(id);
     vi.restoreAllMocks();
   });
 
@@ -162,14 +164,14 @@ describe("EditorRoute", () => {
     expect(screen.queryByText("sensitive upstream detail")).not.toBeInTheDocument();
   });
 
-  it("saves before opening preview", async () => {
+  it("opens preview from the current local snapshot without saving", async () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
-    let saved = false;
+    let saveRequests = 0;
     server.use(
       http.get(`http://localhost/dashboards/${id}`, () => HttpResponse.json(dashboard)),
       http.put(`http://localhost/dashboards/${id}`, async ({ request }) => {
+        saveRequests += 1;
         const body = await request.json();
-        saved = true;
         return HttpResponse.json({ ...(body as object), revision: 2, updatedAt: "2026-07-03T09:00:00.000Z" });
       }),
     );
@@ -177,13 +179,49 @@ describe("EditorRoute", () => {
     expect(await screen.findByText("经营看板")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "添加柱图" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "预览" }));
+    fireEvent.click(screen.getByRole("button", { name: "预览" }));
 
-    expect(open).toHaveBeenCalledWith(`/preview/${id}`, "_blank", "noopener,noreferrer");
-    expect(saved).toBe(true);
+    await waitFor(() => expect(open).toHaveBeenCalledWith(`/preview/${id}`, "_blank", "noopener,noreferrer"));
+    expect(saveRequests).toBe(0);
+    expect(readPreviewSnapshot(id)).toMatchObject({ components: [{ type: "bar" }] });
   });
 
-  it("does not open preview when saving the dirty draft fails", async () => {
+  it("opens preview immediately with later edits while a save is in flight", async () => {
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    let releaseFirstSave: (() => void) | undefined;
+    const savedBodies: unknown[] = [];
+    server.use(
+      http.get(`http://localhost/dashboards/${id}`, () => HttpResponse.json(dashboard)),
+      http.put(`http://localhost/dashboards/${id}`, async ({ request }) => {
+        const body = await request.json();
+        savedBodies.push(body);
+        if (savedBodies.length === 1) {
+          await new Promise<void>((resolve) => { releaseFirstSave = resolve; });
+        }
+        return HttpResponse.json({
+          ...(body as object),
+          revision: savedBodies.length + 1,
+          updatedAt: `2026-07-03T09:00:0${savedBodies.length}.000Z`,
+        });
+      }),
+    );
+    renderEditor();
+    expect(await screen.findByText("经营看板")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "添加柱图" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存" }));
+    await waitFor(() => expect(savedBodies).toHaveLength(1));
+
+    await userEvent.click(screen.getByRole("button", { name: "添加指标看板" }));
+    fireEvent.click(screen.getByRole("button", { name: "预览" }));
+    expect(open).toHaveBeenCalledWith(`/preview/${id}`, "_blank", "noopener,noreferrer");
+    expect((readPreviewSnapshot(id) as { components: unknown[] }).components).toHaveLength(2);
+    releaseFirstSave?.();
+
+    await waitFor(() => expect(savedBodies).toHaveLength(1));
+    expect(savedBodies[0]).toMatchObject({ components: [{ type: "bar" }] });
+  });
+
+  it("opens preview from the local snapshot even when saving would fail", async () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     server.use(
       http.get(`http://localhost/dashboards/${id}`, () => HttpResponse.json(dashboard)),
@@ -196,8 +234,8 @@ describe("EditorRoute", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "预览" }));
 
-    await screen.findByText("保存失败");
-    expect(open).not.toHaveBeenCalled();
+    expect(open).toHaveBeenCalledWith(`/preview/${id}`, "_blank", "noopener,noreferrer");
+    expect(readPreviewSnapshot(id)).toMatchObject({ components: [{ type: "bar" }] });
   });
 
   it("does not publish when saving the dirty draft fails", async () => {

@@ -68,7 +68,7 @@ export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart 
         <Tooltip title="添加查询控件即将开放">
           <span><Button type="text" disabled aria-label="添加查询控件（即将开放）">添加查询控件</Button></span>
         </Tooltip>
-        <span className="editor-tools__hint">拖动组件标题可调整位置</span>
+        <span className="editor-tools__hint">拖动组件可调整位置</span>
       </nav>
     </header>
   );

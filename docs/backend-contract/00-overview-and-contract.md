@@ -1,8 +1,10 @@
-# BI 看板 MVP：Spring Boot 后端总览与契约
+# BI 看板 MVP：NestJS + Prisma 后端总览与契约
+
+> 当前后端技术栈固定为仓库内 `apps/api` 的 NestJS + Fastify + Prisma + PostgreSQL。本文档作为接口契约和边界用例参考；实际实施路线请看 [自研后端工作规划](../backend-self-build/00-roadmap.md)。
 
 ## 目标
 
-后端为公司内部单组织 BI 看板提供三类能力：看板草稿 CRUD、统一数据集查询网关、发布快照。前端通过 OpenAPI 和固定示例独立开发；Java 后端实现必须保持字段名、枚举、HTTP 状态码和错误码一致。
+后端为公司内部单组织 BI 看板提供三类能力：看板草稿 CRUD、统一数据集查询网关、发布快照。`apps/api` 实现必须保持字段名、枚举、HTTP 状态码和错误码一致，前端可通过 OpenAPI 和固定示例独立开发。
 
 ## MVP 明确不做
 
@@ -16,11 +18,11 @@
 
 ## 技术建议
 
-- Java 21 或团队当前受支持版本。
-- Spring Boot、Spring Web、Bean Validation。
+- NestJS + Fastify，保持当前 `apps/api` 模块结构。
+- Prisma 作为 ORM 和 migration 工具。
 - PostgreSQL，`jsonb` 保存看板 Schema。
-- 使用团队现有 JDBC/MyBatis/JPA 规范，不强制具体 ORM。
-- OpenAPI 文件由前端仓库维护在 `openapi/bi-mvp.yaml`，Java 实现以它为准。
+- 复用 `@drag-visual/contracts` 作为 Dashboard Schema 校验来源。
+- OpenAPI 由 `apps/api` 根据 Controller/DTO 生成，并与前端 mock 契约保持一致。
 
 ## 通用协议
 
@@ -119,7 +121,7 @@
 | 500 | `PUBLISH_FAILED` | 发布事务/持久化失败，旧快照仍有效 |
 | 500 | `INTERNAL_ERROR` | 持久化草稿损坏或未分类内部错误；响应不得暴露内部细节 |
 
-表中每个错误都必须返回 JSON 对象 `{ "code": "...", "message": "..." }`，包括框架层参数校验、请求体超限、未捕获异常和上游错误；不得返回 Spring 默认错误页或另一种错误结构。当前 NestJS 参考实现若有差异，会在冻结前单独对齐；Java 实现不得复制该差异。
+表中每个错误都必须返回 JSON 对象 `{ "code": "...", "message": "..." }`，包括框架层参数校验、请求体超限、未捕获异常和上游错误；不得返回框架默认错误页或另一种错误结构。若 `apps/api` 与本文契约存在差异，以修正实现或更新契约为准，冻结前必须保持一致。
 
 ## 后端阶段顺序
 

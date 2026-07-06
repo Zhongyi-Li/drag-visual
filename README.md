@@ -1,6 +1,6 @@
 # Drag Visual
 
-Drag Visual is a frontend-first dashboard MVP. The current repository owns the React editor, viewer, shared TypeScript contracts, MSW mock service, and frontend release gate. The Java backend is owned separately.
+Drag Visual is a dashboard MVP with a React editor/viewer, shared TypeScript contracts, MSW mock service, and a repository-owned NestJS backend under `apps/api`.
 
 ## Requirements
 
@@ -56,7 +56,7 @@ The integration boundary is documented in:
 - `packages/contracts`
 - `apps/web/src/mocks/handlers.ts`
 
-The MSW mock implements frontend-test behavior for the same route paths, request/response shapes, revision semantics, publish snapshots, dataset schemas, and stable error codes that the Java service is expected to provide.
+The MSW mock implements frontend-test behavior for the same route paths, request/response shapes, revision semantics, publish snapshots, dataset schemas, and stable error codes that `apps/api` is expected to provide.
 
 ## Browser E2E Coverage
 
@@ -67,8 +67,8 @@ These tests run with `VITE_USE_MOCKS=true` through `playwright.config.ts`.
 
 ## Backend Integration Boundary
 
-The Java service is implemented by a separate owner. This frontend repository does not implement a replacement Java, Node, or database-backed service.
+The real backend is implemented in `apps/api` with NestJS + Fastify + Prisma + PostgreSQL. The frontend can keep using MSW while backend capabilities are completed.
 
-The backend owner should implement the routes, fields, and error codes in `openapi/bi-mvp.yaml`. Frontend mock behavior lives in `apps/web/src/mocks/handlers.ts` and is intended for local development, unit tests, and Playwright release-gate scenarios only.
+`apps/api` should implement the routes, fields, and error codes in `openapi/bi-mvp.yaml`. Frontend mock behavior lives in `apps/web/src/mocks/handlers.ts` and is intended for local development, unit tests, and Playwright release-gate scenarios only.
 
-Remaining backend-owned integration items are tracked in `docs/release/frontend-mvp-checklist.md`.
+Remaining real-backend integration items are tracked in `docs/release/frontend-mvp-checklist.md` and `docs/backend-self-build/00-roadmap.md`.

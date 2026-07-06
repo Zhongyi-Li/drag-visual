@@ -23,17 +23,29 @@ POST /dashboards/6c614d7a-386b-4f36-a9ad-f9305b255b4f/publish
 Content-Length: 0
 ```
 
-Spring Service 伪代码：
+NestJS Service 伪代码：
 
-```java
-@Transactional
-public JsonNode publish(UUID dashboardId) {
-    DashboardEntity entity = repository.findByIdForUpdate(dashboardId)
-        .orElseThrow(DashboardNotFoundException::new);
-    JsonNode validated = dashboardSchemaValidator.validate(entity.getDraftSchema());
-    entity.setPublishedSchema(validated.deepCopy());
-    repository.save(entity);
-    return entity.getPublishedSchema();
+```ts
+async publish(dashboardId: string): Promise<Dashboard> {
+  return this.prisma.$transaction(async (tx) => {
+    const record = await tx.dashboard.findUnique({
+      where: { id: dashboardId },
+      select: { draftSchema: true },
+    });
+
+    if (!record) {
+      throw new DashboardNotFoundError(dashboardId);
+    }
+
+    const snapshot = DashboardSchema.parse(record.draftSchema);
+
+    await tx.dashboard.update({
+      where: { id: dashboardId },
+      data: { publishedSchema: snapshot },
+    });
+
+    return snapshot;
+  });
 }
 ```
 

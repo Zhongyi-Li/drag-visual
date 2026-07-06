@@ -13,7 +13,7 @@ export const tableDefinition: ComponentDefinition<z.infer<typeof TablePropsSchem
   type: "table",
   title: "明细表",
   category: "表格",
-  defaultLayout: Object.freeze({ w: 12, h: 6 }),
+  defaultLayout: Object.freeze({ w: 9, h: 6 }),
   createDefaults: (): z.infer<typeof TablePropsSchema> => ({ pageSize: 20, striped: false }),
   dataSlots: Object.freeze([
     Object.freeze({ key: "columns", title: "字段", acceptedTypes: Object.freeze(["string", "number", "date", "boolean"] as const), required: true, multiple: true }),

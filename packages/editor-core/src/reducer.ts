@@ -203,6 +203,20 @@ const applyKnownCommand = (
         ...dashboard,
         theme: command.nextTheme,
       });
+    case "dashboard.dataset.upsert": {
+      const nextDataset = command.dataset;
+      const exists = dashboard.datasets.some(
+        (dataset) => dataset.datasetId === nextDataset.datasetId,
+      );
+      return validateDashboardSnapshot({
+        ...dashboard,
+        datasets: exists
+          ? dashboard.datasets.map((dataset) =>
+              dataset.datasetId === nextDataset.datasetId ? nextDataset : dataset,
+            )
+          : [...dashboard.datasets, nextDataset],
+      });
+    }
     default:
       return assertNever(command);
   }

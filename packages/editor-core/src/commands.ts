@@ -47,6 +47,11 @@ export interface DashboardThemeUpdateCommand {
   readonly nextTheme: Dashboard["theme"];
 }
 
+export interface DashboardDatasetUpsertCommand {
+  readonly type: "dashboard.dataset.upsert";
+  readonly dataset: Dashboard["datasets"][number];
+}
+
 export type EditorCommand =
   | ComponentAddCommand
   | ComponentRemoveCommand
@@ -54,7 +59,8 @@ export type EditorCommand =
   | LayoutChangeCommand
   | ComponentPropsUpdateCommand
   | ComponentBindingUpdateCommand
-  | DashboardThemeUpdateCommand;
+  | DashboardThemeUpdateCommand
+  | DashboardDatasetUpsertCommand;
 
 export type EditorCommandErrorCode =
   | "INVALID_COMMAND"
