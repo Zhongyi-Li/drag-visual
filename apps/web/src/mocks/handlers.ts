@@ -18,6 +18,8 @@ import { getMockScenario, resetMockScenario, setMockScenario } from "./scenarios
 
 const DASHBOARD_BODY_LIMIT = 2_097_152;
 const DATASET_BODY_LIMIT = 5_242_880;
+const DRAFTS_STORAGE_KEY = "drag-visual:mock-drafts";
+const PUBLISHED_STORAGE_KEY = "drag-visual:mock-published";
 const encoder = new TextEncoder();
 const drafts = new Map<string, unknown>();
 const published = new Map<string, Dashboard>();
@@ -42,6 +44,71 @@ const apiError = (status: number, code: ErrorCode, message = errors[code]) =>
 
 const clone = <T>(value: T): T => structuredClone(value);
 const validUuid = (value: string): boolean => DashboardSchema.shape.id.safeParse(value).success;
+
+const readStorageMap = <T>(key: string): Map<string, T> | null => {
+  try {
+    const stored = globalThis.localStorage?.getItem(key);
+    if (stored === undefined || stored === null) return null;
+    const entries = JSON.parse(stored) as unknown;
+    if (!Array.isArray(entries)) return null;
+    return new Map(entries.filter((entry): entry is [string, T] =>
+      Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string"));
+  } catch {
+    return null;
+  }
+};
+
+const writeStorageMap = (key: string, value: Map<string, unknown>): void => {
+  try {
+    globalThis.localStorage?.setItem(key, JSON.stringify([...value.entries()]));
+  } catch {
+    // In-memory state is enough when storage is unavailable.
+  }
+};
+
+const clearStorageMap = (key: string): void => {
+  try {
+    globalThis.localStorage?.removeItem(key);
+  } catch {
+    // In-memory state is enough when storage is unavailable.
+  }
+};
+
+const syncDraftsFromStorage = (): void => {
+  const stored = readStorageMap<unknown>(DRAFTS_STORAGE_KEY);
+  if (stored === null) return;
+  drafts.clear();
+  for (const [id, value] of stored) drafts.set(id, value);
+};
+
+const syncPublishedFromStorage = (): void => {
+  const stored = readStorageMap<Dashboard>(PUBLISHED_STORAGE_KEY);
+  if (stored === null) return;
+  published.clear();
+  for (const [id, value] of stored) published.set(id, value);
+};
+
+const getDraft = (id: string): unknown | undefined => {
+  syncDraftsFromStorage();
+  return drafts.get(id);
+};
+
+const setDraft = (id: string, dashboard: unknown): void => {
+  syncDraftsFromStorage();
+  drafts.set(id, clone(dashboard));
+  writeStorageMap(DRAFTS_STORAGE_KEY, drafts);
+};
+
+const setPublished = (id: string, dashboard: Dashboard): void => {
+  syncPublishedFromStorage();
+  published.set(id, clone(dashboard));
+  writeStorageMap(PUBLISHED_STORAGE_KEY, published);
+};
+
+const getPublished = (id: string): Dashboard | undefined => {
+  syncPublishedFromStorage();
+  return published.get(id);
+};
 
 const readJson = async (request: Request, maxBytes: number | null = DASHBOARD_BODY_LIMIT): Promise<unknown> => {
   const text = await request.text();
@@ -123,7 +190,7 @@ export const handlers: RequestHandler[] = [
   http.post("*/__mock/dashboards", async ({ request }) => {
     try {
       const dashboard = DashboardSchema.parse(await readJson(request));
-      drafts.set(dashboard.id, clone(dashboard));
+      setDraft(dashboard.id, dashboard);
       return HttpResponse.json(clone(dashboard), { status: 201 });
     } catch {
       return apiError(400, "DASHBOARD_SCHEMA_INVALID");
@@ -151,7 +218,7 @@ export const handlers: RequestHandler[] = [
         revision: 1,
         updatedAt: timestampAfter(),
       });
-      drafts.set(id, clone(dashboard));
+      setDraft(id, dashboard);
       return HttpResponse.json(dashboard, { status: 201 });
     } catch {
       return apiError(400, "DASHBOARD_SCHEMA_INVALID");
@@ -161,8 +228,9 @@ export const handlers: RequestHandler[] = [
   http.get("*/dashboards/:dashboardId", ({ params }) => {
     const id = dashboardId(params);
     if (!validUuid(id)) return apiError(400, "DASHBOARD_SCHEMA_INVALID");
-    if (!drafts.has(id)) return apiError(404, "DASHBOARD_NOT_FOUND");
-    const parsed = DashboardSchema.safeParse(drafts.get(id));
+    const draft = getDraft(id);
+    if (draft === undefined) return apiError(404, "DASHBOARD_NOT_FOUND");
+    const parsed = DashboardSchema.safeParse(draft);
     return parsed.success
       ? HttpResponse.json(clone(parsed.data))
       : apiError(500, "INTERNAL_ERROR");
@@ -178,8 +246,9 @@ export const handlers: RequestHandler[] = [
       return apiError(400, "DASHBOARD_SCHEMA_INVALID");
     }
     if (incoming.id !== id) return apiError(409, "DASHBOARD_ID_MISMATCH");
-    if (!drafts.has(id)) return apiError(404, "DASHBOARD_NOT_FOUND");
-    const current = DashboardSchema.safeParse(drafts.get(id));
+    const draft = getDraft(id);
+    if (draft === undefined) return apiError(404, "DASHBOARD_NOT_FOUND");
+    const current = DashboardSchema.safeParse(draft);
     if (!current.success) return apiError(500, "INTERNAL_ERROR");
     if (getMockScenario() === "revision-conflict") return apiError(409, "DASHBOARD_VERSION_CONFLICT");
     if (current.data.revision !== incoming.revision) return apiError(409, "DASHBOARD_VERSION_CONFLICT");
@@ -188,32 +257,33 @@ export const handlers: RequestHandler[] = [
       revision: incoming.revision + 1,
       updatedAt: timestampAfter(current.data.updatedAt),
     });
-    drafts.set(id, clone(next));
+    setDraft(id, next);
     return HttpResponse.json(next);
   }),
 
   http.post("*/dashboards/:dashboardId/publish", ({ params, request }) => {
     const id = dashboardId(params);
     if (!validUuid(id)) return apiError(400, "DASHBOARD_SCHEMA_INVALID");
-    if (!drafts.has(id)) return apiError(404, "DASHBOARD_NOT_FOUND");
+    const draft = getDraft(id);
+    if (draft === undefined) return apiError(404, "DASHBOARD_NOT_FOUND");
     const scenario = request.headers.get("x-msw-scenario");
     const candidate = scenario === "corrupt-draft"
-      ? { ...(drafts.get(id) as object), schemaVersion: 2 }
-      : drafts.get(id);
+      ? { ...(draft as object), schemaVersion: 2 }
+      : draft;
     const parsed = DashboardSchema.safeParse(candidate);
     if (!parsed.success) return apiError(500, "INTERNAL_ERROR");
     if (scenario === "persistence-failure" || getMockScenario() === "publish-failure") {
       return apiError(500, "PUBLISH_FAILED");
     }
     const snapshot = clone(parsed.data);
-    published.set(id, snapshot);
+    setPublished(id, snapshot);
     return HttpResponse.json(clone(snapshot));
   }),
 
   http.get("*/published-dashboards/:dashboardId", ({ params }) => {
     const id = dashboardId(params);
     if (!validUuid(id)) return apiError(400, "DASHBOARD_SCHEMA_INVALID");
-    const snapshot = published.get(id);
+    const snapshot = getPublished(id);
     return snapshot === undefined
       ? apiError(404, "PUBLISHED_DASHBOARD_NOT_FOUND")
       : HttpResponse.json(clone(snapshot));
@@ -311,5 +381,7 @@ export const handlers: RequestHandler[] = [
 export const resetMockStore = (): void => {
   drafts.clear();
   published.clear();
+  clearStorageMap(DRAFTS_STORAGE_KEY);
+  clearStorageMap(PUBLISHED_STORAGE_KEY);
   resetMockScenario();
 };

@@ -18,11 +18,23 @@ interface ResolvedComponentProps extends ViewerComponentProps {
   readonly rows: readonly Readonly<Record<string, unknown>>[];
 }
 
+const formatBindingMessage = (message: string): string => {
+  const missingField = /^Field "([^"]+)" bound to slot "[^"]+" does not exist$/.exec(message);
+  return missingField ? `字段 ${missingField[1]} 已不存在` : message;
+};
+
 const ResolvedComponent = ({ component, dataset, rows }: ResolvedComponentProps) => {
   const definition = createDefaultRegistry().get(component.type);
   const validation = validateBinding(component.binding, dataset.fields, definition.dataSlots);
   if (!validation.valid) {
-    return <Alert type="warning" showIcon title="数据绑定无效" description={validation.messages.join("；")} />;
+    return (
+      <Alert
+        type="warning"
+        showIcon
+        title="数据绑定需要检查"
+        description={validation.messages.map(formatBindingMessage).join("；")}
+      />
+    );
   }
   const transformed = applyTransforms(rows, component.binding, dataset.fields);
   return <DashboardComponentRenderer component={component} rows={transformed} />;

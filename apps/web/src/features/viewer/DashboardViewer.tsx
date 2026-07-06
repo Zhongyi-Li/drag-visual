@@ -46,6 +46,7 @@ export const DashboardViewer = ({ dashboard, mode = "published", currentDatasets
             {orderedComponents.map((component) => {
               const item = layout.get(component.id);
               const drift = driftByComponent.get(component.id);
+              const blocksRendering = drift?.messages.some((message) => !/^数据集 .+ 已从 .+ 更新到 .+$/.test(message)) ?? false;
               return (
                 <Card
                   key={component.id}
@@ -64,24 +65,26 @@ export const DashboardViewer = ({ dashboard, mode = "published", currentDatasets
                       style={{ marginBottom: 12 }}
                     />
                   )}
-                  <ComponentErrorBoundary
-                    componentId={component.id}
-                    componentType={component.type}
-                    title={component.title ?? component.type}
-                    mode={mode}
-                    resetKey={JSON.stringify({
-                      id: component.id,
-                      props: component.props,
-                      binding: component.binding,
-                      schemaVersion: component.binding ? currentDatasets?.get(component.binding.datasetId)?.schemaVersion : undefined,
-                    })}
-                  >
-                    <ViewerComponent
-                      component={component}
-                      savedDataset={component.binding ? savedDatasets.get(component.binding.datasetId) : undefined}
-                      currentDataset={component.binding ? currentDatasets?.get(component.binding.datasetId) : undefined}
-                    />
-                  </ComponentErrorBoundary>
+                  {!blocksRendering && (
+                    <ComponentErrorBoundary
+                      componentId={component.id}
+                      componentType={component.type}
+                      title={component.title ?? component.type}
+                      mode={mode}
+                      resetKey={JSON.stringify({
+                        id: component.id,
+                        props: component.props,
+                        binding: component.binding,
+                        schemaVersion: component.binding ? currentDatasets?.get(component.binding.datasetId)?.schemaVersion : undefined,
+                      })}
+                    >
+                      <ViewerComponent
+                        component={component}
+                        savedDataset={component.binding ? savedDatasets.get(component.binding.datasetId) : undefined}
+                        currentDataset={component.binding ? currentDatasets?.get(component.binding.datasetId) : undefined}
+                      />
+                    </ComponentErrorBoundary>
+                  )}
                 </Card>
               );
             })}

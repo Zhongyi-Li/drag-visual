@@ -80,3 +80,4 @@
 .inspector-selected p { margin: 0 0 16px; color: #8c8c8c; font-size: 12px; }
 .editor-route-state { min-width: 1024px; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #f5f6f8; }
 .editor-route-state h1 { margin: 0; font-size: 24px; }
+.editor-route-alerts { position: fixed; z-index: 20; top: 112px; right: 16px; width: 360px; max-width: calc(100vw - 32px); display: flex; flex-direction: column; gap: 8px; }

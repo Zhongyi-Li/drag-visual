@@ -1,6 +1,20 @@
 import type { Page } from "@playwright/test";
 
+const waitForMockWorker = async (page: Page): Promise<void> => {
+  await page.waitForFunction(
+    () => navigator.serviceWorker?.controller != null,
+    undefined,
+    { timeout: 5_000 },
+  );
+};
+
+export const navigateClientSide = async (page: Page, path: string): Promise<void> => {
+  await page.goto(path);
+  await waitForMockWorker(page);
+};
+
 export const setScenario = async (page: Page, scenario: string): Promise<void> => {
+  await waitForMockWorker(page);
   const response = await page.evaluate(async (value) => {
     const result = await fetch("/__mock/scenario", {
       method: "POST",
@@ -13,6 +27,7 @@ export const setScenario = async (page: Page, scenario: string): Promise<void> =
 };
 
 export const seedDashboard = async (page: Page, dashboard: unknown): Promise<void> => {
+  await waitForMockWorker(page);
   const response = await page.evaluate(async (value) => {
     const result = await fetch("/__mock/dashboards", {
       method: "POST",

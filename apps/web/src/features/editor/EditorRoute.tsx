@@ -51,6 +51,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
   const [store] = useState<EditorStore>(() => createEditorStore(dashboard));
   const [conflictOpen, setConflictOpen] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
+  const [publishFailed, setPublishFailed] = useState(false);
   const currentDashboard = useStore(store, editorSelectors.dashboard);
   const dirty = useStore(store, (state) => state.dirty);
   const currentWritableDashboard = DashboardSchema.parse(currentDashboard);
@@ -87,10 +88,20 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
   const onPublish = useCallback(() => {
     void (async () => {
       const snapshot = DashboardSchema.parse(editorSelectors.dashboard(store.getState()));
-      const saved = store.getState().dirty ? await save(snapshot) : snapshot;
-      const published = await publishDashboard(saved.id);
-      setPublishedId(published.id);
-    })().catch(() => undefined);
+      let saved: Dashboard;
+      try {
+        saved = store.getState().dirty ? await save(snapshot) : snapshot;
+      } catch {
+        return;
+      }
+      setPublishFailed(false);
+      try {
+        const published = await publishDashboard(saved.id);
+        setPublishedId(published.id);
+      } catch {
+        setPublishFailed(true);
+      }
+    })();
   }, [save, store]);
 
   const onPreview = useCallback(() => {
@@ -122,14 +133,25 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
 
   return (
     <>
-      {publishedId && (
-        <Alert
-          type="success"
-          showIcon
-          title="发布成功"
-          action={<Link to={`/view/${publishedId}`}>打开发布页</Link>}
-          style={{ position: "fixed", zIndex: 20, top: 16, right: 16 }}
-        />
+      {(publishedId || publishFailed) && (
+        <div className="editor-route-alerts">
+          {publishedId && (
+            <Alert
+              type="success"
+              showIcon
+              title="发布成功"
+              action={<Link to={`/view/${publishedId}`}>打开发布页</Link>}
+            />
+          )}
+          {publishFailed && (
+            <Alert
+              type="error"
+              showIcon
+              title="发布失败"
+              description="未能发布当前版本，请稍后重试。"
+            />
+          )}
+        </div>
       )}
       <EditorShell store={store} onSave={onSave} onPreview={onPreview} onPublish={onPublish} />
       <RevisionConflictModal

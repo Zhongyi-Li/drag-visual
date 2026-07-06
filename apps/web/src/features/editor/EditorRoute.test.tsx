@@ -147,6 +147,21 @@ describe("EditorRoute", () => {
     expect(published).toBe(true);
   });
 
+  it("shows a sanitized alert when publishing fails", async () => {
+    server.use(
+      http.get(`http://localhost/dashboards/${id}`, () => HttpResponse.json(dashboard)),
+      http.post(`http://localhost/dashboards/${id}/publish`, () =>
+        HttpResponse.json({ code: "PUBLISH_FAILED", message: "sensitive upstream detail" }, { status: 500 })),
+    );
+    renderEditor();
+    expect(await screen.findByText("经营看板")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "发布" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("发布失败");
+    expect(screen.queryByText("sensitive upstream detail")).not.toBeInTheDocument();
+  });
+
   it("saves before opening preview", async () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     let saved = false;
