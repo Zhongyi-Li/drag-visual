@@ -189,6 +189,15 @@ const applyKnownCommand = (
           (component) => ({ ...component, props: command.nextProps }),
         ),
       });
+    case "component.title.update":
+      return validateDashboardSnapshot({
+        ...dashboard,
+        components: replaceComponent(
+          dashboard,
+          command.componentId,
+          (component) => ({ ...component, title: command.nextTitle }),
+        ),
+      });
     case "component.binding.update":
       return validateDashboardSnapshot({
         ...dashboard,

@@ -27,6 +27,13 @@ const renderRoute = (path: string) => {
 };
 
 describe("application routes", () => {
+  it("redirects an unsigned-in workspace visit to the account gateway", async () => {
+    renderRoute("/");
+
+    expect(await screen.findByRole("heading", { name: "进入你的数据工作台" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "登录" })).toHaveAttribute("aria-selected", "true");
+  });
+
   it("loads a preview route from the draft dashboard API", async () => {
     server.use(http.get(`http://localhost/dashboards/${dashboard.id}`, () => HttpResponse.json(dashboard)));
 

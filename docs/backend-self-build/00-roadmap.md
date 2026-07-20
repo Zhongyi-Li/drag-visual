@@ -1,5 +1,7 @@
 # 自研后端工作规划
 
+> 本文记录现阶段 MVP 的实现路线。鉴权、会话、资源级权限和对接同事业务服务的数据编排，见 [Nest BFF 架构规划](./05-nest-bff-architecture.md)；这些能力将在 MVP 的草稿、发布和数据集网关稳定后推进。
+
 ## 背景
 
 后端技术栈固定为仓库内已有的 `apps/api`：NestJS + Fastify + Prisma + PostgreSQL。后续所有后端能力都在这个应用内推进，让前端、契约、mock、真实 API 和测试在同一个仓库内收敛。

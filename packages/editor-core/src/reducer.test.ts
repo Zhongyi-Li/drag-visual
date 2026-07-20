@@ -260,6 +260,20 @@ describe("applyCommand", () => {
     expect(initial.components[0]!.props).toEqual(component().props);
   });
 
+  it("updates a component title without changing its props or binding", () => {
+    const initial = populatedDashboard();
+    const next = applyCommand(initial, {
+      type: "component.title.update",
+      componentId: "chart-1",
+      nextTitle: "月度销售额",
+    });
+
+    expect(next.components[0]).toMatchObject({ id: "chart-1", title: "月度销售额" });
+    expect(next.components[0]!.props).toEqual(initial.components[0]!.props);
+    expect(next.components[0]!.binding).toEqual(initial.components[0]!.binding);
+    expect(initial.components[0]!.title).toBe("Revenue");
+  });
+
   it("replaces, clones, and clears bindings", () => {
     const initial = populatedDashboard();
     const nextBinding: DataBinding = {

@@ -74,12 +74,36 @@ describe("DashboardService", () => {
     await expect(service.get(dashboard().id)).resolves.toEqual(dashboard());
   });
 
+  it("lists dashboards with the most recently updated first", async () => {
+    const repository = new InMemoryDashboardRepository();
+    const older = dashboard({ id: "d68e4bfd-c28d-431d-980c-2211f6b668a7", updatedAt: "2020-01-01T00:00:00.000Z" });
+    const newer = dashboard({ id: "d9d2f595-64cc-49aa-bb11-b688361f8777", updatedAt: "2020-01-02T00:00:00.000Z" });
+    await repository.create(older);
+    await repository.create(newer);
+
+    await expect(new DashboardService(repository).list()).resolves.toEqual([newer, older]);
+  });
+
   it("throws DashboardNotFoundError for a missing dashboard", async () => {
     const service = new DashboardService(new InMemoryDashboardRepository());
 
     await expect(service.get("missing")).rejects.toBeInstanceOf(
       DashboardNotFoundError,
     );
+  });
+
+  it("deletes an existing dashboard", async () => {
+    const repository = new InMemoryDashboardRepository();
+    await repository.create(dashboard());
+
+    await expect(new DashboardService(repository).delete(dashboard().id)).resolves.toBeUndefined();
+    await expect(repository.find(dashboard().id)).resolves.toBeNull();
+  });
+
+  it("rejects deletion of a missing dashboard", async () => {
+    const service = new DashboardService(new InMemoryDashboardRepository());
+
+    await expect(service.delete("missing")).rejects.toBeInstanceOf(DashboardNotFoundError);
   });
 
   it("saves the current revision with exactly one revision increment", async () => {
@@ -125,5 +149,13 @@ describe("InMemoryDashboardRepository", () => {
     await expect(repository.find(input.id)).resolves.toMatchObject({
       name: "销售看板",
     });
+  });
+
+  it("reports whether a dashboard was deleted", async () => {
+    const repository = new InMemoryDashboardRepository();
+    await repository.create(dashboard());
+
+    await expect(repository.delete(dashboard().id)).resolves.toBe(true);
+    await expect(repository.delete(dashboard().id)).resolves.toBe(false);
   });
 });

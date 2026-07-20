@@ -14,12 +14,27 @@ export const createDashboard = async (
   return migrateDashboard(response);
 };
 
+export const listDashboards = async (
+  client: ApiClient = apiClient,
+): Promise<Dashboard[]> => {
+  const response = await client.request("dashboards");
+  if (!Array.isArray(response)) throw new TypeError("Dashboard list response is invalid");
+  return response.map((dashboard) => migrateDashboard(dashboard));
+};
+
 export const getDashboard = async (
   id: string,
   client: ApiClient = apiClient,
 ): Promise<Dashboard> => {
   const response = await client.request(`dashboards/${encodeURIComponent(id)}`);
   return migrateDashboard(response);
+};
+
+export const deleteDashboard = async (
+  id: string,
+  client: ApiClient = apiClient,
+): Promise<void> => {
+  await client.request(`dashboards/${encodeURIComponent(id)}`, { method: "DELETE" });
 };
 
 export const saveDashboard = async (

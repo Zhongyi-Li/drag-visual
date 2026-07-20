@@ -48,6 +48,7 @@ export const EditorShell = ({
   registry = defaultRegistry,
 }: EditorShellProps) => {
   const [activeTitle, setActiveTitle] = useState<string | null>(null);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   useEditorShortcuts(store, onSave);
 
@@ -90,10 +91,18 @@ export const EditorShell = ({
         onAddChart={() => document.getElementById("component-search")?.focus()}
       />
       <DndContext sensors={sensors} collisionDetection={paletteCollisionDetection} onDragStart={onDragStart} onDragCancel={() => setActiveTitle(null)} onDragEnd={onDragEnd}>
-        <div className="editor-workbench">
+        <div
+          className={`editor-workbench${inspectorCollapsed ? " editor-workbench--inspector-collapsed" : ""}`}
+          data-testid="editor-workbench"
+        >
           <ComponentPalette store={store} createComponentId={createComponentId} registry={registry} />
           <GridCanvas store={store} registry={registry} createComponentId={createComponentId} />
-          <InspectorPanel store={store} registry={registry} />
+          <InspectorPanel
+            collapsed={inspectorCollapsed}
+            onToggleCollapsed={() => setInspectorCollapsed((current) => !current)}
+            store={store}
+            registry={registry}
+          />
         </div>
         <DragOverlay>{activeTitle ? <Card size="small" className="palette-drag-overlay">{activeTitle}</Card> : null}</DragOverlay>
       </DndContext>

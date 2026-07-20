@@ -7,6 +7,7 @@ import {
 import { type ReactNode, useState } from "react";
 
 import { ApiError } from "../api/ApiError.js";
+import { LocalDatasetProvider } from "../features/datasets/LocalDatasetProvider.js";
 
 export const shouldRetryRequest = (failureCount: number, error: Error): boolean => {
   if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false;
@@ -49,7 +50,9 @@ export const AppProviders = ({ children, queryClient }: AppProvidersProps) => {
       }}
     >
       <QueryClientProvider client={queryClient ?? localClient}>
-        {children}
+        <LocalDatasetProvider>
+          {children}
+        </LocalDatasetProvider>
       </QueryClientProvider>
     </ConfigProvider>
   );

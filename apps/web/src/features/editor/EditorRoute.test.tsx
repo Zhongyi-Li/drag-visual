@@ -142,7 +142,7 @@ describe("EditorRoute", () => {
     expect(await screen.findByText("经营看板")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "添加柱图" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "发布" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存并发布" }));
 
     expect(await screen.findByText("发布成功")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "打开发布页" })).toHaveAttribute("href", `/view/${id}`);
@@ -158,7 +158,7 @@ describe("EditorRoute", () => {
     renderEditor();
     expect(await screen.findByText("经营看板")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "发布" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存并发布" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("发布失败");
     expect(screen.queryByText("sensitive upstream detail")).not.toBeInTheDocument();
@@ -253,7 +253,7 @@ describe("EditorRoute", () => {
     expect(await screen.findByText("经营看板")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "添加柱图" }));
 
-    await userEvent.click(screen.getByRole("button", { name: "发布" }));
+    await userEvent.click(screen.getByRole("button", { name: "保存并发布" }));
 
     await screen.findByText("保存失败");
     expect(publishRequests).toBe(0);

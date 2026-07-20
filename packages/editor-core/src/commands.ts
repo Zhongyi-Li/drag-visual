@@ -35,6 +35,12 @@ export interface ComponentPropsUpdateCommand {
   readonly nextProps: ComponentInstance["props"];
 }
 
+export interface ComponentTitleUpdateCommand {
+  readonly type: "component.title.update";
+  readonly componentId: string;
+  readonly nextTitle: string;
+}
+
 export interface ComponentBindingUpdateCommand {
   readonly type: "component.binding.update";
   readonly componentId: string;
@@ -58,6 +64,7 @@ export type EditorCommand =
   | ComponentDuplicateCommand
   | LayoutChangeCommand
   | ComponentPropsUpdateCommand
+  | ComponentTitleUpdateCommand
   | ComponentBindingUpdateCommand
   | DashboardThemeUpdateCommand
   | DashboardDatasetUpsertCommand;

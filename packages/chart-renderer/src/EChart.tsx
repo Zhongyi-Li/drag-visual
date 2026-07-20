@@ -1,10 +1,10 @@
-import { BarChart, LineChart, PieChart } from "echarts/charts";
+import { BarChart, GaugeChart, LineChart, PieChart, RadarChart, SunburstChart, TreemapChart } from "echarts/charts";
 import { GridComponent, LegendComponent, TooltipComponent } from "echarts/components";
 import { init, use, type EChartsCoreOption } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import { useEffect, useRef } from "react";
 
-use([BarChart, LineChart, PieChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
+use([BarChart, GaugeChart, LineChart, PieChart, RadarChart, SunburstChart, TreemapChart, GridComponent, LegendComponent, TooltipComponent, CanvasRenderer]);
 
 export const EChart = ({ option, ariaLabel }: { readonly option: EChartsCoreOption; readonly ariaLabel: string }) => {
   const container = useRef<HTMLDivElement>(null);

@@ -1,14 +1,21 @@
 import "reflect-metadata";
 
+import { config as loadEnv } from "dotenv";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { fileURLToPath } from "node:url";
 
 import { AppModule } from "./app.module.js";
 import {
   dashboardErrorEnvelopeHook,
   safeJsonFastifyOptions,
 } from "./fastify-options.js";
+
+// The API command runs with apps/api as its working directory, while local
+// configuration lives at the workspace root. Explicitly load it so `pnpm dev`
+// and `pnpm --filter @drag-visual/api dev` behave the same way.
+loadEnv({ path: fileURLToPath(new URL("../../../.env", import.meta.url)) });
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create<NestFastifyApplication>(

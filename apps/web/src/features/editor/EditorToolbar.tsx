@@ -1,17 +1,18 @@
 import {
   ArrowLeftOutlined,
   BarChartOutlined,
+  CloudUploadOutlined,
   CloudOutlined,
   EyeOutlined,
   RedoOutlined,
   SaveOutlined,
   UndoOutlined,
-  UploadOutlined,
 } from "@ant-design/icons";
 import { Button, Space, Tooltip } from "antd";
 import { useStore } from "zustand";
 
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
+import { FileDatasetImporter } from "./FileDatasetImporter.js";
 
 interface EditorToolbarProps {
   store: EditorStore;
@@ -58,13 +59,14 @@ export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart 
           <Tooltip title={onSave ? "保存看板" : "保存功能将在后续阶段接入"}>
             <Button icon={<SaveOutlined />} aria-label="保存" disabled={!onSave || saveStatus === "saving"} onClick={onSave}>保存</Button>
           </Tooltip>
-          <Tooltip title={onPublish ? "发布看板" : "发布功能将在后续阶段接入"}>
-            <Button type="primary" icon={<UploadOutlined />} aria-label="发布" disabled={!onPublish || saveStatus === "saving"} onClick={onPublish}>发布</Button>
+          <Tooltip title={onPublish ? "保存并发布看板" : "发布功能将在后续阶段接入"}>
+            <Button type="primary" icon={<CloudUploadOutlined />} aria-label="保存并发布" disabled={!onPublish || saveStatus === "saving"} onClick={onPublish}>保存并发布</Button>
           </Tooltip>
         </Space>
       </div>
       <nav className="editor-header__tools" aria-label="编辑工具">
         <Button type="text" icon={<BarChartOutlined />} aria-label="添加图表" onClick={onAddChart}>添加图表</Button>
+        <FileDatasetImporter />
         <Tooltip title="添加查询控件即将开放">
           <span><Button type="text" disabled aria-label="添加查询控件（即将开放）">添加查询控件</Button></span>
         </Tooltip>

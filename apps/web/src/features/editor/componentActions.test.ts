@@ -36,7 +36,12 @@ describe("addRegistryComponent", () => {
 
   it("keeps the selected palette entry title when provided", () => {
     const store = createEditorStore(empty);
-    addRegistryComponent(store, createDefaultRegistry(), () => "line-1", "line", { x: 0, y: 0 }, "趋势分析");
-    expect(store.getState().history.present.components[0]).toMatchObject({ id: "line-1", type: "line", title: "趋势分析" });
+    addRegistryComponent(store, createDefaultRegistry(), () => "multi-1", "multidimensional", { x: 0, y: 0 }, "多维分析");
+    expect(store.getState().history.present.components[0]).toMatchObject({
+      id: "multi-1",
+      type: "multidimensional",
+      title: "多维分析",
+      props: { aggregation: "sum", showTotals: true, timeGranularity: "day" },
+    });
   });
 });

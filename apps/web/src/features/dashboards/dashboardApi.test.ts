@@ -6,6 +6,7 @@ import { createApiClient } from "../../api/client.js";
 import { server } from "../../mocks/server.js";
 import {
   createDashboard,
+  deleteDashboard,
   getDashboard,
   getPublishedDashboard,
   publishDashboard,
@@ -63,6 +64,12 @@ describe("dashboardApi", () => {
 
     await expect(saveDashboard(dashboard, createApiClient("http://localhost"))).resolves.toMatchObject({ revision: 2 });
     expect(body).toEqual(dashboard);
+  });
+
+  it("deletes a dashboard", async () => {
+    server.use(http.delete(`http://localhost/dashboards/${dashboard.id}`, () => HttpResponse.json({ deleted: true })));
+
+    await expect(deleteDashboard(dashboard.id, createApiClient("http://localhost"))).resolves.toBeUndefined();
   });
 
   it("publishes and reads the published dashboard snapshot", async () => {

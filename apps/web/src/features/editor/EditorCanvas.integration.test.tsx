@@ -120,19 +120,27 @@ describe("editor canvas library integration", () => {
     const frame = screen.getByRole("group", { name: "销售额" });
     fireEvent.mouseDown(frame, { clientX: 270, clientY: 120, button: 0 });
     fireEvent.mouseMove(document, { clientX: 420, clientY: 176, buttons: 1 });
-    expect(screen.getByTestId("component-placeholder")).toHaveAttribute("data-interacting", "true");
+    expect(screen.getByTestId("component-renderer")).toHaveAttribute("data-interacting", "true");
+    expect(screen.getByTestId("canvas-grid-guides").children).toHaveLength(12);
     fireEvent.mouseUp(document, { clientX: 420, clientY: 176, button: 0 });
     expect(dispatch).toHaveBeenCalledTimes(1);
     expect(store.getState().history.present.layout[0]).toMatchObject({ x: 4, y: 3 });
+    expect(screen.queryByTestId("canvas-grid-guides")).not.toBeInTheDocument();
 
     dispatch.mockClear();
+    expect(document.querySelector(".react-resizable-handle-n")).toBeInTheDocument();
+    expect(document.querySelector(".react-resizable-handle-s")).toBeInTheDocument();
+    expect(document.querySelector(".react-resizable-handle-e")).toBeInTheDocument();
+    expect(document.querySelector(".react-resizable-handle-w")).toBeInTheDocument();
     const resizeHandle = document.querySelector(".react-resizable-handle-se");
     expect(resizeHandle).toBeInTheDocument();
     fireEvent.mouseDown(resizeHandle!, { clientX: 690, clientY: 376, button: 0 });
     fireEvent.mouseMove(document, { clientX: 300, clientY: 130, buttons: 1 });
+    expect(screen.getByTestId("canvas-grid-guides").children).toHaveLength(12);
     fireEvent.mouseUp(document, { clientX: 300, clientY: 130, button: 0 });
     expect(dispatch).toHaveBeenCalledTimes(1);
-    expect(store.getState().history.present.layout[0]).toMatchObject({ w: 6, h: 5 });
+    expect(store.getState().history.present.layout[0]).toMatchObject({ w: 3, h: 3 });
+    expect(screen.queryByTestId("canvas-grid-guides")).not.toBeInTheDocument();
   });
 
   it("blocks a real react-grid-layout drag into an occupied slot", () => {

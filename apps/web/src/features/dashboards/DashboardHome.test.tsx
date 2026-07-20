@@ -21,16 +21,32 @@ const dashboard = {
 };
 
 const renderHome = () => {
+  window.localStorage.setItem("zhbi.auth.session", JSON.stringify({
+    accessToken: "test-token",
+    user: { id: "test-user", username: "hello_user" },
+  }));
   const router = createMemoryRouter(appRoutes, { initialEntries: ["/"] });
   render(<AppProviders><RouterProvider router={router} /></AppProviders>);
   return router;
 };
 
 describe("DashboardHome", () => {
-  it("renders the product title and enabled create action", () => {
+  it("renders the workspace controls without a page title and keeps create enabled", () => {
     renderHome();
-    expect(screen.getByRole("heading", { name: "可视化看板" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "仪表板" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "新建看板" })).toBeEnabled();
+  });
+
+  it("shows account actions and signs out from the account menu", async () => {
+    const router = renderHome();
+
+    await userEvent.click(screen.getByRole("button", { name: "打开 hello_user 的账号菜单" }));
+    expect(await screen.findByText("账号设置")).toBeInTheDocument();
+    expect(screen.getByText("切换账号")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("退出登录"));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe("/auth"));
+    expect(window.localStorage.getItem("zhbi.auth.session")).toBeNull();
   });
 
   it("creates the default dashboard with pending state then navigates", async () => {

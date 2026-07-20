@@ -48,10 +48,18 @@ export class DashboardService {
     return this.repository.create(dashboard);
   }
 
+  async list(): Promise<Dashboard[]> {
+    return this.repository.list();
+  }
+
   async get(id: string): Promise<Dashboard> {
     const dashboard = await this.repository.find(id);
     if (!dashboard) throw new DashboardNotFoundError(id);
     return dashboard;
+  }
+
+  async delete(id: string): Promise<void> {
+    if (!await this.repository.delete(id)) throw new DashboardNotFoundError(id);
   }
 
   async save(dashboard: Dashboard): Promise<Dashboard> {

@@ -15,7 +15,13 @@
 
 ## 环境变量
 
-至少需要：
+在项目根目录复制环境变量模板：
+
+```bash
+cp .env.example .env
+```
+
+然后在根目录 `.env` 中至少配置：
 
 ```bash
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:PORT/DB_NAME"
@@ -32,23 +38,35 @@ PORT=3000
 corepack pnpm install
 ```
 
-2. 校验 Prisma schema
+2. 启动本地 PostgreSQL
 
 ```bash
-corepack pnpm --filter @drag-visual/api prisma:validate
+corepack pnpm db:up
 ```
 
-3. 生成 Prisma Client
+这会启动仓库内 `compose.yaml` 定义的 PostgreSQL 16 服务，使用 `.env.example` 中的默认连接信息。
+
+3. 校验 Prisma schema
 
 ```bash
-corepack pnpm --filter @drag-visual/api prisma:generate
+corepack pnpm prisma:validate
 ```
 
-4. 准备数据库表
+4. 生成 Prisma Client
 
-当前 schema 对应的表模型是 `DashboardRecord`。如果 migration 尚未固化，可以先根据 `prisma/schema.prisma` 创建迁移；后续应补充正式 migration 文件，不能依赖手工建表。
+```bash
+corepack pnpm prisma:generate
+```
 
-5. 启动 API
+5. 准备数据库表
+
+当前 schema 对应的表模型是 `DashboardRecord`。首次初始化时创建 migration：
+
+```bash
+corepack pnpm prisma:migrate --name init
+```
+
+6. 启动 API
 
 ```bash
 corepack pnpm --filter @drag-visual/api dev
@@ -71,7 +89,7 @@ curl http://127.0.0.1:3000/health
 ```bash
 corepack pnpm --filter @drag-visual/api test
 corepack pnpm --filter @drag-visual/api typecheck
-corepack pnpm --filter @drag-visual/api prisma:validate
+corepack pnpm prisma:validate
 ```
 
 ## 最小手工联调

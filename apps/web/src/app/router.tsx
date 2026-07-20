@@ -1,7 +1,9 @@
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Result } from "antd";
-import { createBrowserRouter, type RouteObject } from "react-router-dom";
+import { Navigate, Outlet, createBrowserRouter, type RouteObject, useLocation } from "react-router-dom";
 
+import { AuthRoute } from "../features/auth/AuthRoute.js";
+import { readAuthSession } from "../features/auth/authSession.js";
 import { DashboardHome } from "../features/dashboards/DashboardHome.js";
 
 const NotFound = () => (
@@ -15,9 +17,20 @@ const NotFound = () => (
   </main>
 );
 
+const ProtectedRoute = () => {
+  const location = useLocation();
+  return readAuthSession() ? <Outlet /> : <Navigate to="/auth" replace state={{ from: location.pathname }} />;
+};
+
 export const appRoutes: RouteObject[] = [
-  { path: "/", Component: DashboardHome },
-  { path: "/editor/:id", lazy: () => import("../features/editor/EditorRoute.js") },
+  { path: "/auth", Component: AuthRoute },
+  {
+    Component: ProtectedRoute,
+    children: [
+      { path: "/", Component: DashboardHome },
+      { path: "/editor/:id", lazy: () => import("../features/editor/EditorRoute.js") },
+    ],
+  },
   { path: "/preview/:id", lazy: () => import("../features/preview/PreviewRoute.js") },
   { path: "/view/:id", lazy: () => import("../features/view/ViewRoute.js") },
   { path: "*", Component: NotFound },

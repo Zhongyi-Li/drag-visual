@@ -1,5 +1,5 @@
 import { DashboardSchema, migrateDashboard, type Dashboard } from "@drag-visual/contracts";
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 
 import { Prisma } from "../generated/prisma/client.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -64,7 +64,7 @@ export const dashboardToPrismaJson = (
 
 @Injectable()
 export class PrismaDashboardRepository implements DashboardRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async create(dashboard: Dashboard): Promise<Dashboard> {
     const record = await this.prisma.dashboardRecord.create({
@@ -78,11 +78,23 @@ export class PrismaDashboardRepository implements DashboardRepository {
     return migrateDashboard(record.draftSchema);
   }
 
+  async list(): Promise<Dashboard[]> {
+    const records = await this.prisma.dashboardRecord.findMany({
+      orderBy: { updatedAt: "desc" },
+    });
+    return records.map((record) => migrateDashboard(record.draftSchema));
+  }
+
   async find(id: string): Promise<Dashboard | null> {
     const record = await this.prisma.dashboardRecord.findUnique({
       where: { id },
     });
     return record ? migrateDashboard(record.draftSchema) : null;
+  }
+
+  async delete(id: string): Promise<boolean> {
+    const result = await this.prisma.dashboardRecord.deleteMany({ where: { id } });
+    return result.count === 1;
   }
 
   async updateIfRevision(dashboard: Dashboard): Promise<Dashboard | null> {

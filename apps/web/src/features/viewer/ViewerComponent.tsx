@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Empty, Spin } from "antd";
 
 import { getDataset, queryDataset } from "../datasets/datasetApi.js";
+import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 
 interface ViewerComponentProps {
   readonly component: ComponentInstance;
@@ -37,26 +38,33 @@ const ResolvedComponent = ({ component, dataset, rows }: ResolvedComponentProps)
     );
   }
   const transformed = applyTransforms(rows, component.binding, dataset.fields);
-  return <DashboardComponentRenderer component={component} rows={transformed} />;
+  return <DashboardComponentRenderer component={component} fields={dataset.fields} rows={transformed} />;
 };
 
 const BoundViewerComponent = ({ component, savedDataset }: ViewerComponentProps) => {
+  const localDatasets = useLocalDatasets();
   const datasetId = component.binding!.datasetId;
+  const localSchema = localDatasets.getDataset(datasetId);
+  const localResult = localDatasets.queryDataset(datasetId);
   const schema = useQuery({
     queryKey: ["dataset-schema", datasetId],
     queryFn: () => getDataset(datasetId),
+    enabled: localSchema === undefined,
   });
   const data = useQuery({
     queryKey: ["dataset-query", datasetId, savedDataset?.parameters ?? {}],
     queryFn: () => queryDataset(datasetId, savedDataset?.parameters ?? {}),
-    enabled: schema.data !== undefined,
+    enabled: localResult === undefined && (localSchema !== undefined || schema.data !== undefined),
   });
 
-  if (schema.isPending || data.isPending) return <Spin size="small" aria-label={`正在加载${component.title ?? component.type}`} />;
+  const resolvedSchema = localSchema ?? schema.data;
+  const resolvedResult = localResult ?? data.data;
+
+  if (resolvedSchema === undefined || resolvedResult === undefined) return <Spin size="small" aria-label={`正在加载${component.title ?? component.type}`} />;
   if (schema.isError) return <Alert type="error" showIcon title="加载数据集失败" />;
   if (data.isError) return <Alert type="error" showIcon title="查询组件数据失败" />;
-  if (data.data.rows.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />;
-  return <ResolvedComponent component={component} savedDataset={savedDataset} dataset={schema.data} rows={data.data.rows} />;
+  if (resolvedResult.rows.length === 0) return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />;
+  return <ResolvedComponent component={component} savedDataset={savedDataset} dataset={resolvedSchema} rows={resolvedResult.rows} />;
 };
 
 export const ViewerComponent = ({ component, savedDataset, currentDataset }: ViewerComponentProps) => {

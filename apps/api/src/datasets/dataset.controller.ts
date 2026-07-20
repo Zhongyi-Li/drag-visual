@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpException,
   HttpStatus,
+  Inject,
   Logger,
   Param,
   Post,
@@ -102,7 +103,7 @@ export class DatasetExceptionFilter implements ExceptionFilter {
 @Controller("datasets")
 @UseFilters(DatasetExceptionFilter)
 export class DatasetController {
-  constructor(private readonly datasets: DatasetService) {}
+  constructor(@Inject(DatasetService) private readonly datasets: DatasetService) {}
 
   @Get()
   async list() {

@@ -1,5 +1,5 @@
 import type { Dashboard } from "@drag-visual/contracts";
-import { Injectable } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 
 import { dashboardToPrismaJson } from "../dashboards/prisma-dashboard.repository.js";
 import { PrismaService } from "../prisma/prisma.service.js";
@@ -7,7 +7,7 @@ import type { PublishingRepository } from "./publishing.repository.js";
 
 @Injectable()
 export class PrismaPublishingRepository implements PublishingRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
   async getDraft(id: string): Promise<unknown | null> {
     const record = await this.prisma.dashboardRecord.findUnique({

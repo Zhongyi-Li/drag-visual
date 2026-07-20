@@ -34,6 +34,7 @@ if (typeof window !== "undefined") {
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   cleanup();
+  if (typeof window !== "undefined") window.localStorage.clear();
   server.resetHandlers();
   resetMockStore();
 });

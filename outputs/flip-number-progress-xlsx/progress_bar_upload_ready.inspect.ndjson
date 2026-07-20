@@ -1,0 +1,4 @@
+{"kind":"sheet","id":"ws/nzjywo","name":"Data","index":0,"range":"A1:L2","address":"A1:L2","tables":1}
+{"kind":"table","sheet":"Data","address":"A1:L2","rows":2,"cols":12,"values":[["businessDate","month","region","revenue","revenueTarget","orders","orderTarget","activeUsers","activeUsersTarget","completionRate","budgetUsed","budgetTotal"],["2026-06-01T00:00:00.000Z","2026-06","全部",12280000,13010000,411600,442300,5538000,5538000,1,2880000,3200000]]}
+{"kind":"region","sheet":"Data","address":"A1:L2","rows":2,"cols":12,"nonEmpty":24,"text":24,"maxTextLength":17,"preview":[["businessDate","month","region","revenue","revenueTarget","orders","orderTarget","activeUsers","activeUsersTarget","completionRate","budgetUsed","budgetTotal"],["46174","2026-06","全部","12280000","13010000","411600","442300","5538000","5538000","1","2880000","3200000"]],"previewAddress":"A1:L2","previewRows":2,"previewCols":12}
+{"kind":"notice","message":"Cell search matched 0 entries."}

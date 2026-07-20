@@ -22,6 +22,8 @@ const validDashboard = (overrides: Partial<Dashboard> = {}): Dashboard => ({
 const createRepository = () => {
   const dashboardRecord = {
     create: vi.fn(),
+    deleteMany: vi.fn(),
+    findMany: vi.fn(),
     findUnique: vi.fn(),
     updateMany: vi.fn(),
   };
@@ -171,11 +173,32 @@ describe("PrismaDashboardRepository", () => {
     });
   });
 
+  it("lists persisted drafts in modification order", async () => {
+    const { repository, dashboardRecord } = createRepository();
+    const dashboard = validDashboard();
+    dashboardRecord.findMany.mockResolvedValue([{ draftSchema: dashboard }]);
+
+    await expect(repository.list()).resolves.toEqual([dashboard]);
+    expect(dashboardRecord.findMany).toHaveBeenCalledWith({
+      orderBy: { updatedAt: "desc" },
+    });
+  });
+
   it("returns null when a persisted dashboard does not exist", async () => {
     const { repository, dashboardRecord } = createRepository();
     dashboardRecord.findUnique.mockResolvedValue(null);
 
     await expect(repository.find(validDashboard().id)).resolves.toBeNull();
+  });
+
+  it("deletes a persisted dashboard by ID", async () => {
+    const { repository, dashboardRecord } = createRepository();
+    dashboardRecord.deleteMany.mockResolvedValue({ count: 1 });
+
+    await expect(repository.delete(validDashboard().id)).resolves.toBe(true);
+    expect(dashboardRecord.deleteMany).toHaveBeenCalledWith({
+      where: { id: validDashboard().id },
+    });
   });
 
   it("updates using the optimistic id/revision pair and synchronized JSON", async () => {

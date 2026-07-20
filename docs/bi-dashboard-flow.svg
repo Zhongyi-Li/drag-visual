@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1240" viewBox="0 0 1800 1240" role="img" aria-labelledby="title desc">
+  <title id="title">BI 看板使用流程</title>
+  <desc id="desc">从登录注册进入仪表盘管理页，再新建、编辑、预览、发布和下线仪表盘的流程图。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .bg { fill: #f8fafc; }
+      .title { font-family: 'PingFang SC','Microsoft YaHei',Arial,sans-serif; font-size: 34px; font-weight: 700; fill: #0f172a; }
+      .subtitle { font-family: 'PingFang SC','Microsoft YaHei',Arial,sans-serif; font-size: 18px; fill: #64748b; }
+      .lane { fill: #ffffff; stroke: #dbe4f0; stroke-width: 2; }
+      .laneTitle { font-family: 'PingFang SC','Microsoft YaHei',Arial,sans-serif; font-size: 19px; font-weight: 600; fill: #334155; }
+      .node { fill: #ffffff; stroke: #94a3b8; stroke-width: 2; }
+      .nodePrimary { fill: #eff6ff; stroke: #3b82f6; stroke-width: 2.5; }
+      .nodeWork { fill: #eef2ff; stroke: #6366f1; stroke-width: 2.5; }
+      .nodePreview { fill: #fff7ed; stroke: #f59e0b; stroke-width: 2.5; }
+      .nodeDraft { fill: #f8fafc; stroke: #64748b; stroke-width: 2.5; }
+      .nodePublished { fill: #ecfdf5; stroke: #10b981; stroke-width: 2.5; }
+      .nodeOffline { fill: #fff1f2; stroke: #f43f5e; stroke-width: 2.5; }
+      .nodeTitle { font-family: 'PingFang SC','Microsoft YaHei',Arial,sans-serif; font-size: 21px; font-weight: 600; fill: #0f172a; text-anchor: middle; }
+      .nodeText { font-family: 'PingFang SC','Microsoft YaHei',Arial,sans-serif; font-size: 16px; fill: #475569; text-anchor: middle; }
+      .small { font-family: 'PingFang SC','Microsoft YaHei',Arial,sans-serif; font-size: 15px; fill: #64748b; text-anchor: middle; }
+      .action { font-family: 'PingFang SC','Microsoft YaHei',Arial,sans-serif; font-size: 15px; font-weight: 600; fill: #334155; text-anchor: middle; }
+      .flow { fill: none; stroke: #64748b; stroke-width: 2.5; marker-end: url(#arrow); }
+      .flowDashed { fill: none; stroke: #94a3b8; stroke-width: 2; stroke-dasharray: 7 6; marker-end: url(#arrow); }
+      .tag { font-family: 'PingFang SC','Microsoft YaHei',Arial,sans-serif; font-size: 14px; fill: #475569; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <rect class="bg" width="1800" height="1240"/>
+  <text class="title" x="100" y="76">BI 看板产品操作流程</text>
+  <text class="subtitle" x="100" y="112">登录后默认进入仪表盘管理页；工作台用于新建与编辑，发布和下线通过状态流转管理。</text>
+
+  <rect class="lane" x="80" y="160" width="1640" height="330" rx="18"/>
+  <text class="laneTitle" x="115" y="205">01 · 进入与新建</text>
+
+  <rect class="node" x="135" y="260" width="225" height="110" rx="14"/>
+  <text class="nodeTitle" x="247" y="305">登录 / 注册</text>
+  <text class="nodeText" x="247" y="336">账号认证完成</text>
+
+  <rect class="nodePrimary" x="500" y="240" width="360" height="150" rx="14"/>
+  <text class="nodeTitle" x="680" y="288">仪表盘管理页</text>
+  <text class="nodeText" x="680" y="320">登录后默认首页</text>
+  <text class="nodeText" x="680" y="350">名称 · 所有者 · 修改人 · 修改时间 · 状态 · 操作</text>
+
+  <rect class="nodeWork" x="1050" y="240" width="310" height="150" rx="14"/>
+  <text class="nodeTitle" x="1205" y="288">工作台页</text>
+  <text class="nodeText" x="1205" y="320">配置数据源、组件与布局</text>
+  <text class="nodeText" x="1205" y="350">新建仪表盘 / 编辑仪表盘</text>
+
+  <rect class="nodePreview" x="1490" y="260" width="180" height="110" rx="14"/>
+  <text class="nodeTitle" x="1580" y="305">预览页</text>
+  <text class="nodeText" x="1580" y="336">确认展示效果</text>
+
+  <path class="flow" d="M360 315 H500"/>
+  <text class="tag" x="430" y="295">登录成功</text>
+  <path class="flow" d="M860 315 H1050"/>
+  <text class="tag" x="955" y="295">+ 新增仪表盘 / 编辑</text>
+  <path class="flow" d="M1360 315 H1490"/>
+  <text class="tag" x="1425" y="295">预览</text>
+  <path class="flowDashed" d="M1205 390 V438 H680 V390"/>
+  <text class="tag" x="942" y="428">保存草稿后返回列表</text>
+
+  <rect class="lane" x="80" y="535" width="1640" height="610" rx="18"/>
+  <text class="laneTitle" x="115" y="580">02 · 仪表盘状态与可用操作</text>
+
+  <rect class="nodeDraft" x="180" y="690" width="300" height="155" rx="14"/>
+  <text class="nodeTitle" x="330" y="738">草稿</text>
+  <text class="nodeText" x="330" y="772">已保存，未对成员生效</text>
+  <text class="action" x="330" y="812">编辑 · 预览 · 发布</text>
+
+  <rect class="nodePublished" x="750" y="690" width="300" height="155" rx="14"/>
+  <text class="nodeTitle" x="900" y="738">已发布</text>
+  <text class="nodeText" x="900" y="772">授权成员可访问线上版本</text>
+  <text class="action" x="900" y="812">查看 · 预览 · 编辑 · 下线</text>
+
+  <rect class="nodeOffline" x="1320" y="690" width="300" height="155" rx="14"/>
+  <text class="nodeTitle" x="1470" y="738">已下线</text>
+  <text class="nodeText" x="1470" y="772">暂停对外展示，保留配置</text>
+  <text class="action" x="1470" y="812">编辑 · 预览 · 重新发布</text>
+
+  <path class="flow" d="M480 768 H750"/>
+  <text class="tag" x="615" y="748">发布确认</text>
+  <path class="flow" d="M1050 768 H1320"/>
+  <text class="tag" x="1185" y="748">下线确认</text>
+  <path class="flow" d="M1470 845 V1010 H900 V845"/>
+  <text class="tag" x="1185" y="994">重新发布</text>
+
+  <rect class="nodeWork" x="655" y="955" width="250" height="110" rx="14"/>
+  <text class="nodeTitle" x="780" y="998">工作台页</text>
+  <text class="nodeText" x="780" y="1030">编辑后保存为草稿</text>
+
+  <path class="flow" d="M330 845 V930 H655"/>
+  <text class="tag" x="485" y="918">编辑</text>
+  <path class="flow" d="M900 845 V955"/>
+  <text class="tag" x="940" y="912">编辑</text>
+  <path class="flow" d="M1470 845 V930 H905"/>
+  <text class="tag" x="1188" y="918">编辑</text>
+  <path class="flowDashed" d="M780 1065 V1095 H330 V845"/>
+  <text class="tag" x="550" y="1118">保存后回到草稿状态</text>
+
+  <rect x="180" y="1180" width="14" height="14" rx="3" fill="#ecfdf5" stroke="#10b981"/>
+  <text class="small" x="255" y="1192">线上生效</text>
+  <rect x="370" y="1180" width="14" height="14" rx="3" fill="#f8fafc" stroke="#64748b"/>
+  <text class="small" x="455" y="1192">草稿状态</text>
+  <rect x="570" y="1180" width="14" height="14" rx="3" fill="#fff1f2" stroke="#f43f5e"/>
+  <text class="small" x="663" y="1192">暂停展示</text>
+  <text class="subtitle" x="1715" y="1192" text-anchor="end">发布、下线使用确认弹窗，不额外占用页面</text>
+</svg>

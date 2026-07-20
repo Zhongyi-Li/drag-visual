@@ -6,6 +6,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Inject,
   Logger,
   Param,
   Post,
@@ -111,7 +112,7 @@ export class PublishingExceptionFilter implements ExceptionFilter {
 @Controller()
 @UseFilters(PublishingExceptionFilter)
 export class PublishingController {
-  constructor(private readonly publishing: PublishingService) {}
+  constructor(@Inject(PublishingService) private readonly publishing: PublishingService) {}
 
   @Post("dashboards/:id/publish")
   async publish(@Param("id") id: string) {

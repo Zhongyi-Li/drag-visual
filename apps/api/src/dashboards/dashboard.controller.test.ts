@@ -120,6 +120,18 @@ describe("DashboardController", () => {
     expect(response.json()).toEqual(existingDashboard());
   });
 
+  it("lists existing dashboards", async () => {
+    const repository = new InMemoryDashboardRepository();
+    const dashboard = existingDashboard();
+    await repository.create(dashboard);
+    await bootstrap(repository);
+
+    const response = await app!.inject({ method: "GET", url: "/dashboards" });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual([dashboard]);
+  });
+
   it("rejects a malformed dashboard route UUID before repository lookup", async () => {
     class LookupMustNotRunRepository extends InMemoryDashboardRepository {
       override async find(): Promise<Dashboard | null> {
@@ -153,6 +165,21 @@ describe("DashboardController", () => {
       code: "DASHBOARD_NOT_FOUND",
       message: "Dashboard was not found",
     });
+  });
+
+  it("deletes a dashboard", async () => {
+    const repository = new InMemoryDashboardRepository();
+    await repository.create(existingDashboard());
+    await bootstrap(repository);
+
+    const response = await app!.inject({
+      method: "DELETE",
+      url: `/dashboards/${existingDashboard().id}`,
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ deleted: true });
+    await expect(repository.find(existingDashboard().id)).resolves.toBeNull();
   });
 
   it("saves a dashboard through an optimistic revision", async () => {

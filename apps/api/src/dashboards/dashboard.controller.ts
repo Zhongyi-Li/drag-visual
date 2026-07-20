@@ -4,10 +4,12 @@ import {
   Body,
   Catch,
   Controller,
+  Delete,
   ExceptionFilter,
   Get,
   HttpException,
   HttpStatus,
+  Inject,
   Logger,
   Param,
   Post,
@@ -119,7 +121,7 @@ const httpError = (error: unknown): never => {
 @Controller("dashboards")
 @UseFilters(DashboardExceptionFilter)
 export class DashboardController {
-  constructor(private readonly dashboards: DashboardService) {}
+  constructor(@Inject(DashboardService) private readonly dashboards: DashboardService) {}
 
   @Post()
   async create(@Body() body: unknown) {
@@ -131,11 +133,27 @@ export class DashboardController {
     }
   }
 
+  @Get()
+  async list() {
+    return this.dashboards.list();
+  }
+
   @Get(":id")
   async get(@Param("id") id: string) {
     const dashboardId = parseRequest(() => DashboardId.parse(id));
     try {
       return await this.dashboards.get(dashboardId);
+    } catch (error: unknown) {
+      return httpError(error);
+    }
+  }
+
+  @Delete(":id")
+  async delete(@Param("id") id: string) {
+    const dashboardId = parseRequest(() => DashboardId.parse(id));
+    try {
+      await this.dashboards.delete(dashboardId);
+      return { deleted: true };
     } catch (error: unknown) {
       return httpError(error);
     }

@@ -93,6 +93,17 @@ const getDraft = (id: string): unknown | undefined => {
   return drafts.get(id);
 };
 
+const listDrafts = (): Dashboard[] => {
+  syncDraftsFromStorage();
+  return [...drafts.values()]
+    .flatMap((draft) => {
+      const parsed = DashboardSchema.safeParse(draft);
+      return parsed.success ? [parsed.data] : [];
+    })
+    .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
+    .map(clone);
+};
+
 const setDraft = (id: string, dashboard: unknown): void => {
   syncDraftsFromStorage();
   drafts.set(id, clone(dashboard));
@@ -103,6 +114,18 @@ const setPublished = (id: string, dashboard: Dashboard): void => {
   syncPublishedFromStorage();
   published.set(id, clone(dashboard));
   writeStorageMap(PUBLISHED_STORAGE_KEY, published);
+};
+
+const deleteDashboard = (id: string): boolean => {
+  syncDraftsFromStorage();
+  syncPublishedFromStorage();
+  const deleted = drafts.delete(id);
+  if (deleted) {
+    published.delete(id);
+    writeStorageMap(DRAFTS_STORAGE_KEY, drafts);
+    writeStorageMap(PUBLISHED_STORAGE_KEY, published);
+  }
+  return deleted;
 };
 
 const getPublished = (id: string): Dashboard | undefined => {
@@ -225,6 +248,8 @@ export const handlers: RequestHandler[] = [
     }
   }),
 
+  http.get("*/dashboards", () => HttpResponse.json(listDrafts())),
+
   http.get("*/dashboards/:dashboardId", ({ params }) => {
     const id = dashboardId(params);
     if (!validUuid(id)) return apiError(400, "DASHBOARD_SCHEMA_INVALID");
@@ -234,6 +259,14 @@ export const handlers: RequestHandler[] = [
     return parsed.success
       ? HttpResponse.json(clone(parsed.data))
       : apiError(500, "INTERNAL_ERROR");
+  }),
+
+  http.delete("*/dashboards/:dashboardId", ({ params }) => {
+    const id = dashboardId(params);
+    if (!validUuid(id)) return apiError(400, "DASHBOARD_SCHEMA_INVALID");
+    return deleteDashboard(id)
+      ? HttpResponse.json({ deleted: true })
+      : apiError(404, "DASHBOARD_NOT_FOUND");
   }),
 
   http.put("*/dashboards/:dashboardId", async ({ params, request }) => {

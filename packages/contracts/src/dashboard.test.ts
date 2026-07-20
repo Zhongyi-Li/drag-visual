@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ComponentType,
   Dashboard,
   DashboardSchema,
   type FieldBinding as FieldBindingValue,
@@ -25,6 +26,138 @@ describe("DashboardSchema", () => {
   it("accepts a valid empty dashboard", () => {
     expect(DashboardSchema.parse(validDashboard())).toEqual(validDashboard());
     expect(Dashboard).toBe(DashboardSchema);
+  });
+
+  it("accepts metric trend components as first-class dashboard components", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "metric-trend-1", x: 0, y: 0, w: 4, h: 4 }],
+      components: [{
+        id: "metric-trend-1",
+        type: "metricTrend",
+        title: "指标趋势",
+        props: { aggregation: "sum", showSummary: true, timeGranularity: "month" },
+      }],
+    };
+
+    expect(ComponentType.parse("metricTrend")).toBe("metricTrend");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
+  it("accepts sunburst charts as first-class dashboard components", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "sunburst-1", x: 0, y: 0, w: 7, h: 6 }],
+      components: [{
+        id: "sunburst-1",
+        type: "sunburst",
+        title: "各月销售构成",
+        props: { color: "#1677ff", showLegend: true },
+      }],
+    };
+
+    expect(ComponentType.parse("sunburst")).toBe("sunburst");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
+  it("accepts radar and treemap charts as first-class dashboard components", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [
+        { i: "radar-1", x: 0, y: 0, w: 7, h: 6 },
+        { i: "treemap-1", x: 7, y: 0, w: 5, h: 6 },
+      ],
+      components: [
+        { id: "radar-1", type: "radar", title: "渠道对比", props: { color: "#4b7cf5", showLegend: true } },
+        { id: "treemap-1", type: "treemap", title: "月度占比", props: { color: "#4b7cf5", showLegend: false } },
+      ],
+    };
+
+    expect(ComponentType.parse("radar")).toBe("radar");
+    expect(ComponentType.parse("treemap")).toBe("treemap");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
+  it("accepts line, area, stacked, and percentage chart component types", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [
+        { i: "line-1", x: 0, y: 0, w: 6, h: 5 },
+        { i: "area-1", x: 6, y: 0, w: 6, h: 5 },
+        { i: "stacked-area-1", x: 0, y: 5, w: 6, h: 5 },
+        { i: "percent-area-1", x: 6, y: 5, w: 6, h: 5 },
+        { i: "stacked-bar-1", x: 0, y: 10, w: 6, h: 5 },
+        { i: "percent-bar-1", x: 6, y: 10, w: 6, h: 5 },
+      ],
+      components: [
+        { id: "line-1", type: "line", title: "收入趋势", props: { color: "#1677ff", showLegend: true, smooth: false, area: false } },
+        { id: "area-1", type: "area", title: "访问量走势", props: { color: "#1677ff", showLegend: true, smooth: true, area: true } },
+        { id: "stacked-area-1", type: "stackedArea", title: "渠道构成", props: { color: "#1677ff", showLegend: true, smooth: true, area: true } },
+        { id: "percent-area-1", type: "percentArea", title: "渠道占比", props: { color: "#1677ff", showLegend: true, smooth: true, area: true } },
+        { id: "stacked-bar-1", type: "stackedBar", title: "销售构成", props: { color: "#1677ff", showLegend: true } },
+        { id: "percent-bar-1", type: "percentBar", title: "销售占比", props: { color: "#1677ff", showLegend: true, smooth: true, area: true } },
+      ],
+    };
+
+    expect(ComponentType.parse("line")).toBe("line");
+    expect(ComponentType.parse("area")).toBe("area");
+    expect(ComponentType.parse("stackedArea")).toBe("stackedArea");
+    expect(ComponentType.parse("percentArea")).toBe("percentArea");
+    expect(ComponentType.parse("stackedBar")).toBe("stackedBar");
+    expect(ComponentType.parse("percentBar")).toBe("percentBar");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
+  it("accepts flip number, progress bar, gauge, liquid, and metric breakdown components as first-class dashboard components", () => {
+    const dashboard = {
+      ...validDashboard(),
+      components: [
+        {
+          id: "flip-1",
+          type: "flipNumber",
+          title: "翻牌器",
+          props: { aggregation: "sum", prefix: "¥", suffix: "", decimals: 0 },
+        },
+        {
+          id: "progress-1",
+          type: "progressBar",
+          title: "进度条",
+          props: { aggregation: "sum", decimals: 1, showValue: true },
+        },
+        {
+          id: "gauge-1",
+          type: "gauge",
+          title: "仪表盘",
+          props: { aggregation: "sum", decimals: 1 },
+        },
+        {
+          id: "liquid-1",
+          type: "liquid",
+          title: "水波图",
+          props: { aggregation: "sum", decimals: 1 },
+        },
+        {
+          id: "breakdown-1",
+          type: "metricBreakdown",
+          title: "指标拆解",
+          props: { aggregation: "sum", decimals: 1 },
+        },
+      ],
+      layout: [
+        { i: "flip-1", x: 0, y: 0, w: 3, h: 3 },
+        { i: "progress-1", x: 3, y: 0, w: 4, h: 2 },
+        { i: "gauge-1", x: 7, y: 0, w: 4, h: 4 },
+        { i: "liquid-1", x: 0, y: 4, w: 4, h: 4 },
+        { i: "breakdown-1", x: 4, y: 4, w: 6, h: 4 },
+      ],
+    };
+
+    expect(ComponentType.parse("flipNumber")).toBe("flipNumber");
+    expect(ComponentType.parse("progressBar")).toBe("progressBar");
+    expect(ComponentType.parse("gauge")).toBe("gauge");
+    expect(ComponentType.parse("liquid")).toBe("liquid");
+    expect(ComponentType.parse("metricBreakdown")).toBe("metricBreakdown");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
   });
 
   it("rejects the obsolete top-level version field", () => {
@@ -197,6 +330,57 @@ describe("DashboardSchema", () => {
         ],
       }).success,
     ).toBe(false);
+  });
+
+  it("accepts the crosstab component type", () => {
+    expect(ComponentType.parse("crosstab")).toBe("crosstab");
+  });
+
+  it("accepts the trend analysis component type", () => {
+    expect(ComponentType.parse("trend")).toBe("trend");
+  });
+
+  it("accepts the multidimensional analysis component type", () => {
+    const dashboard = DashboardSchema.parse({
+      schemaVersion: 1,
+      id: "123e4567-e89b-42d3-a456-426614174000",
+      name: "多维分析看板",
+      theme: { primaryColor: "#1677ff", backgroundColor: "#f5f7fa" },
+      layout: [{ i: "multi-1", x: 0, y: 0, w: 10, h: 7 }],
+      components: [{
+        id: "multi-1",
+        type: "multidimensional",
+        title: "多维分析",
+        props: { aggregation: "sum", showTotals: true },
+      }],
+      datasets: [],
+      revision: 1,
+      updatedAt: "2026-07-08T00:00:00.000Z",
+    });
+
+    expect(dashboard.components[0]?.type).toBe("multidimensional");
+  });
+
+  it("accepts the heatmap component type", () => {
+    const dashboard = DashboardSchema.parse({
+      schemaVersion: 1,
+      id: "123e4567-e89b-42d3-a456-426614174000",
+      name: "热力图看板",
+      theme: { primaryColor: "#1677ff", backgroundColor: "#f5f7fa" },
+      layout: [{ i: "heatmap-1", x: 0, y: 0, w: 10, h: 7 }],
+      components: [{
+        id: "heatmap-1",
+        type: "heatmap",
+        title: "热力图",
+        props: { aggregation: "sum", showValues: true },
+      }],
+      datasets: [],
+      revision: 1,
+      updatedAt: "2026-07-08T00:00:00.000Z",
+    });
+
+    expect(ComponentType.parse("heatmap")).toBe("heatmap");
+    expect(dashboard.components[0]?.type).toBe("heatmap");
   });
 
   it("rejects a layout item for a missing component", () => {

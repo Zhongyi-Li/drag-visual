@@ -30,62 +30,61 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
   {
     category: "表格",
     items: [
-      { id: "pivot-table", type: "table", title: "交叉表", icon: "pivot-table" },
+      { id: "pivot-table", type: "crosstab", title: "交叉表", icon: "pivot-table" },
       { id: "detail-table", type: "table", title: "明细表", icon: "detail-table" },
-      { id: "trend-analysis", type: "line", title: "趋势分析", icon: "trend-analysis" },
-      { id: "multi-analysis", type: "line", title: "多维分析", icon: "multi-analysis" },
-      { id: "heatmap", type: "table", title: "热力图", icon: "heatmap" },
+      { id: "trend-analysis", type: "trend", title: "趋势分析", icon: "trend-analysis" },
+      { id: "multi-analysis", type: "multidimensional", title: "多维分析", icon: "multi-analysis" },
+      { id: "heatmap", type: "heatmap", title: "热力图", icon: "heatmap" },
     ],
   },
   {
     category: "指标",
     items: [
       { id: "metric-board", type: "kpi", title: "指标看板", icon: "metric-board" },
-      { id: "metric-trend", type: "kpi", title: "指标趋势", icon: "metric-trend" },
-      { id: "flip-number", type: "kpi", title: "翻牌器", icon: "flip-number" },
-      { id: "progress", type: "kpi", title: "进度条", icon: "progress" },
-      { id: "gauge", type: "kpi", title: "仪表盘", icon: "gauge" },
-      { id: "liquid", type: "kpi", title: "水波图", icon: "liquid" },
-      { id: "metric-breakdown", type: "kpi", title: "指标拆解", icon: "metric-breakdown" },
-      { id: "metric-relation", type: "kpi", title: "指标关系", icon: "metric-relation" },
+      { id: "metric-trend", type: "metricTrend", title: "指标趋势", icon: "metric-trend" },
+      { id: "flip-number", type: "flipNumber", title: "翻牌器", icon: "flip-number" },
+      { id: "progress", type: "progressBar", title: "进度条", icon: "progress" },
+      { id: "gauge", type: "gauge", title: "仪表盘", icon: "gauge" },
+      { id: "liquid", type: "liquid", title: "水波图", icon: "liquid" },
+      { id: "metric-breakdown", type: "metricBreakdown", title: "指标拆解", icon: "metric-breakdown" },
     ],
   },
   {
     category: "线/面积图",
     items: [
       { id: "line", type: "line", title: "线图", icon: "line" },
-      { id: "area", type: "line", title: "面积图", icon: "area" },
-      { id: "stacked-area", type: "line", title: "堆积", icon: "stacked-area" },
-      { id: "percent-area", type: "line", title: "百分比", icon: "percent-area" },
-      { id: "combo", type: "line", title: "组合图", icon: "combo" },
+      { id: "area", type: "area", title: "面积图", icon: "area" },
+      { id: "stacked-area", type: "stackedArea", title: "堆积", icon: "stacked-area" },
+      { id: "percent-area", type: "percentArea", title: "百分比", icon: "percent-area" },
     ],
   },
   {
     category: "柱/条图",
     items: [
       { id: "bar", type: "bar", title: "柱图", icon: "bar" },
-      { id: "stacked-bar", type: "bar", title: "堆积", icon: "stacked-bar" },
-      { id: "percent-bar", type: "bar", title: "百分比", icon: "percent-bar" },
-      { id: "ring-bar", type: "bar", title: "环形柱图", icon: "ring-bar" },
-      { id: "ranking", type: "bar", title: "排行榜", icon: "ranking" },
-      { id: "strip", type: "bar", title: "条形图", icon: "strip" },
-      { id: "stacked-strip", type: "bar", title: "堆积", icon: "stacked-strip" },
-      { id: "percent-strip", type: "bar", title: "百分比", icon: "percent-strip" },
-      { id: "dynamic-strip", type: "bar", title: "动态条形", icon: "dynamic-strip" },
-      { id: "waterfall", type: "bar", title: "瀑布图", icon: "waterfall" },
-      { id: "bullet", type: "bar", title: "子弹图", icon: "bullet" },
-      { id: "boxplot", type: "bar", title: "箱形图", icon: "boxplot" },
-      { id: "histogram", type: "bar", title: "直方图", icon: "histogram" },
+      { id: "stacked-bar", type: "stackedBar", title: "堆积", icon: "stacked-bar" },
+      { id: "percent-bar", type: "percentBar", title: "百分比", icon: "percent-bar" },
+      { id: "ring-bar", type: "ringBar", title: "环形柱图", icon: "ring-bar" },
+      { id: "ranking", type: "ranking", title: "排行榜", icon: "ranking" },
+      // 暂不在组件面板展示：条形、堆积条形、百分比条形、动态条形、瀑布、子弹、箱形、直方图。
+      // { id: "strip", type: "bar", title: "条形图", icon: "strip" },
+      // { id: "stacked-strip", type: "bar", title: "堆积", icon: "stacked-strip" },
+      // { id: "percent-strip", type: "bar", title: "百分比", icon: "percent-strip" },
+      // { id: "dynamic-strip", type: "bar", title: "动态条形", icon: "dynamic-strip" },
+      // { id: "waterfall", type: "bar", title: "瀑布图", icon: "waterfall" },
+      // { id: "bullet", type: "bar", title: "子弹图", icon: "bullet" },
+      // { id: "boxplot", type: "bar", title: "箱形图", icon: "boxplot" },
+      // { id: "histogram", type: "bar", title: "直方图", icon: "histogram" },
     ],
   },
   {
     category: "饼/环形",
     items: [
       { id: "pie", type: "pie", title: "饼图", icon: "pie" },
-      { id: "rose", type: "pie", title: "玫瑰图", icon: "rose" },
-      { id: "sunburst", type: "pie", title: "旭日图", icon: "sunburst" },
-      { id: "radar", type: "pie", title: "雷达图", icon: "radar" },
-      { id: "treemap", type: "pie", title: "矩形树图", icon: "treemap" },
+      { id: "rose", type: "rose", title: "玫瑰图", icon: "rose" },
+      { id: "sunburst", type: "sunburst", title: "旭日图", icon: "sunburst" },
+      { id: "radar", type: "radar", title: "雷达图", icon: "radar" },
+      { id: "treemap", type: "treemap", title: "矩形树图", icon: "treemap" },
     ],
   },
 ];
@@ -105,25 +104,27 @@ const DraggablePaletteCard = ({ id, type, title, icon, onAdd }: PaletteItem & { 
     listeners?.onKeyDown?.(event);
   };
   return (
-    <button
-      ref={setNodeRef}
-      className={`palette-card${isDragging ? " palette-card--dragging" : ""}`}
-      type="button"
-      aria-label={`添加${title}`}
-      style={transform ? { transform: CSS.Translate.toString(transform) } : undefined}
-      onClick={() => { if (!isDragging) onAdd(); }}
-      {...listeners}
-      {...attributes}
-      onKeyDown={onKeyDown}
-    >
-      <span className={`palette-card__icon palette-card__icon--${icon}`} aria-hidden="true">
-        <span />
-        <span />
-        <span />
-        <span />
-      </span>
-      <span>{title}</span>
-    </button>
+    <Tooltip title={title} placement="top">
+      <button
+        ref={setNodeRef}
+        className={`palette-card${isDragging ? " palette-card--dragging" : ""}`}
+        type="button"
+        aria-label={`添加${title}`}
+        style={transform ? { transform: CSS.Translate.toString(transform) } : undefined}
+        onClick={() => { if (!isDragging) onAdd(); }}
+        {...listeners}
+        {...attributes}
+        onKeyDown={onKeyDown}
+      >
+        <span className={`palette-card__icon palette-card__icon--${icon}`} aria-hidden="true">
+          <span />
+          <span />
+          <span />
+          <span />
+        </span>
+        <span>{title}</span>
+      </button>
+    </Tooltip>
   );
 };
 
