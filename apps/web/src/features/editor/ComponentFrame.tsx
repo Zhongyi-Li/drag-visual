@@ -138,7 +138,7 @@ export const ComponentFrame = ({ component, store, createComponentId, isInteract
     { key: "delete", label: "删除", danger: true },
     { type: "divider" },
     { key: "refresh", label: isRefreshing ? "正在刷新" : "刷新", disabled: isRefreshing },
-    { key: "view-data", label: "查看数据", disabled: dataResult === undefined },
+    { key: "view-data", label: "查看数据", disabled: true },
   ];
   const onMenuClick: MenuProps["onClick"] = ({ key, domEvent }) => {
     stopControlEvent(domEvent);

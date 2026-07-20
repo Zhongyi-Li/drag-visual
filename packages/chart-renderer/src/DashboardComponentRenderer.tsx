@@ -2034,8 +2034,6 @@ export const DashboardComponentRenderer = ({
     return (
       <DataSurface
         testId="detail-table-surface"
-        eyebrow="明细表"
-        title={component.title ?? "明细表"}
         chips={[
           <SurfaceChip key="rows" tone="teal">{compactCount(model.rows.length, "行")}</SurfaceChip>,
           <SurfaceChip key="columns">{compactCount(model.columns.length, "列")}</SurfaceChip>,

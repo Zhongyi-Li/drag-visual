@@ -22,6 +22,20 @@ Run the web app without mocks, using `VITE_API_BASE_URL` for API requests:
 pnpm dev:web
 ```
 
+## Local Frontend and Backend
+
+Start the backend API service (default: `http://127.0.0.1:3000`):
+
+```bash
+pnpm --filter @drag-visual/api dev
+```
+
+In a second terminal, start the Vite frontend (default: `http://localhost:5173`):
+
+```bash
+pnpm --dir apps/web exec vite -- --port 5173
+```
+
 ## Frontend Verification
 
 Use these commands for the frontend release gate:

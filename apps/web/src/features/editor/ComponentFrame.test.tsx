@@ -123,7 +123,7 @@ describe("ComponentFrame", () => {
     expect(screen.getByRole("menuitem", { name: "复制" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "删除" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "刷新" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "查看数据" })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: "查看数据" })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("shows a refresh-in-progress state before remounting the chart", async () => {

@@ -677,7 +677,8 @@ it("renders detail tables inside a polished data surface with row and column con
   render(<DashboardComponentRenderer component={component} fields={fields} rows={[{ field3: "1050G", field2: "PUBG G币", month: "2026-04" }]} />);
 
   expect(screen.getByTestId("detail-table-surface")).toBeTruthy();
-  expect(screen.getByText("明细表")).toBeTruthy();
+  expect(screen.queryByText("明细表")).toBeNull();
+  expect(screen.queryByText("订单明细表")).toBeNull();
   expect(screen.getAllByText("1 行").length).toBeGreaterThan(0);
   expect(screen.getAllByText("3 列").length).toBeGreaterThan(0);
 });

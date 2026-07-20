@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1800" height="1240" viewBox="0 0 1800 1240" role="img" aria-labelledby="title desc">
   <title id="title">BI 看板使用流程</title>
-  <desc id="desc">从登录注册进入仪表盘管理页，再新建、编辑、预览、发布和下线仪表盘的流程图。</desc>
+  <desc id="desc">从登录注册进入看板中心，再新建、编辑、预览、发布和下线看板中心的流程图。</desc>
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
@@ -30,7 +30,7 @@
 
   <rect class="bg" width="1800" height="1240"/>
   <text class="title" x="100" y="76">BI 看板产品操作流程</text>
-  <text class="subtitle" x="100" y="112">登录后默认进入仪表盘管理页；工作台用于新建与编辑，发布和下线通过状态流转管理。</text>
+  <text class="subtitle" x="100" y="112">登录后默认进入看板中心；工作台用于新建与编辑，发布和下线通过状态流转管理。</text>
 
   <rect class="lane" x="80" y="160" width="1640" height="330" rx="18"/>
   <text class="laneTitle" x="115" y="205">01 · 进入与新建</text>
@@ -40,14 +40,14 @@
   <text class="nodeText" x="247" y="336">账号认证完成</text>
 
   <rect class="nodePrimary" x="500" y="240" width="360" height="150" rx="14"/>
-  <text class="nodeTitle" x="680" y="288">仪表盘管理页</text>
+  <text class="nodeTitle" x="680" y="288">看板中心</text>
   <text class="nodeText" x="680" y="320">登录后默认首页</text>
   <text class="nodeText" x="680" y="350">名称 · 所有者 · 修改人 · 修改时间 · 状态 · 操作</text>
 
   <rect class="nodeWork" x="1050" y="240" width="310" height="150" rx="14"/>
   <text class="nodeTitle" x="1205" y="288">工作台页</text>
   <text class="nodeText" x="1205" y="320">配置数据源、组件与布局</text>
-  <text class="nodeText" x="1205" y="350">新建仪表盘 / 编辑仪表盘</text>
+  <text class="nodeText" x="1205" y="350">新建看板中心 / 编辑看板中心</text>
 
   <rect class="nodePreview" x="1490" y="260" width="180" height="110" rx="14"/>
   <text class="nodeTitle" x="1580" y="305">预览页</text>
@@ -56,14 +56,14 @@
   <path class="flow" d="M360 315 H500"/>
   <text class="tag" x="430" y="295">登录成功</text>
   <path class="flow" d="M860 315 H1050"/>
-  <text class="tag" x="955" y="295">+ 新增仪表盘 / 编辑</text>
+  <text class="tag" x="955" y="295">+ 新增看板中心 / 编辑</text>
   <path class="flow" d="M1360 315 H1490"/>
   <text class="tag" x="1425" y="295">预览</text>
   <path class="flowDashed" d="M1205 390 V438 H680 V390"/>
   <text class="tag" x="942" y="428">保存草稿后返回列表</text>
 
   <rect class="lane" x="80" y="535" width="1640" height="610" rx="18"/>
-  <text class="laneTitle" x="115" y="580">02 · 仪表盘状态与可用操作</text>
+  <text class="laneTitle" x="115" y="580">02 · 看板中心状态与可用操作</text>
 
   <rect class="nodeDraft" x="180" y="690" width="300" height="155" rx="14"/>
   <text class="nodeTitle" x="330" y="738">草稿</text>
