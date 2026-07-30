@@ -11,11 +11,17 @@ const workspaceSourcePackages = [
   ["@drag-visual/editor-core", "../../packages/editor-core/src/index.ts"],
 ] as const;
 
+const normalizeBasePath = (value: string | undefined): string => {
+  if (!value || value === "/") return "/";
+  return `/${value.replace(/^\/+|\/+$/g, "")}/`;
+};
+
 export default defineConfig(({ command }) => {
   const useWorkspaceSources = command === "serve";
   const workspacePackageNames = workspaceSourcePackages.map(([find]) => find);
 
   return {
+    base: normalizeBasePath(process.env.VITE_PUBLIC_BASE),
     define: {
       // react-draggable still references process.env.NODE_ENV in its browser bundle.
       // Vite does not polyfill process, so define the exact property it reads.

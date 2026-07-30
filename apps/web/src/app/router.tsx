@@ -45,4 +45,6 @@ export const appRoutes: RouteObject[] = [
   { path: "*", Component: NotFound },
 ];
 
-export const router = createBrowserRouter(appRoutes);
+export const router = createBrowserRouter(appRoutes, {
+  basename: import.meta.env.BASE_URL,
+});

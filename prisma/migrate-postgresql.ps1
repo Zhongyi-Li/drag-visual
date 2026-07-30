@@ -43,8 +43,9 @@ try {
 
       $quotedName = $migrationName.Replace("'", "''")
       $historyArguments = $connectionArguments + @("-t", "-A", "-c", ('SELECT 1 FROM "ZhbiDeploymentMigration" WHERE "name" = ''' + $quotedName + ''';'))
-      $applied = (& $PsqlPath @historyArguments).Trim()
+      $historyResult = & $PsqlPath @historyArguments
       if ($LASTEXITCODE -ne 0) { throw "Unable to read deployment migration history." }
+      $applied = ($historyResult -join "").Trim()
       if ($applied -eq "1") {
         Write-Host "Already applied: $migrationName"
         return
