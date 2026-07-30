@@ -55,8 +55,15 @@ jobs:
           if (-not (Test-Path (Join-Path $releaseRoot "apps\\web\\dist\\index.html"))) { throw "Web build output is missing." }
 
           Push-Location $releaseRoot
-          tar.exe -a -c -f $archivePath apps prisma package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts .env.example
+          # The pnpm deployment contains links inside node_modules. Store their
+          # targets as real files so Windows Explorer can extract the archive
+          # without losing nested Prisma dependencies.
+          tar.exe -a -c -h -f $archivePath apps prisma package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts .env.example
           Pop-Location
+
+          $verificationRoot = Join-Path $env:GITHUB_WORKSPACE "release\\archive-verification"
+          Expand-Archive -LiteralPath $archivePath -DestinationPath $verificationRoot -Force
+          & (Join-Path $verificationRoot "apps\\api\\node_modules\\.bin\\prisma.cmd") version
 
           Get-FileHash -Algorithm SHA256 $archivePath | Format-List
 
