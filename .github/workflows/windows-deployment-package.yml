@@ -38,18 +38,43 @@ jobs:
         run: |
           $releaseRoot = Join-Path $env:GITHUB_WORKSPACE "release\\zhbi"
           $apiRoot = Join-Path $releaseRoot "apps\\api"
-          $pnpmApiRoot = Join-Path $env:GITHUB_WORKSPACE "release\\api-pnpm-layout"
+          $standaloneApiRoot = Join-Path $env:GITHUB_WORKSPACE "release\\standalone-api"
           $archivePath = Join-Path $env:GITHUB_WORKSPACE "release\\zhbi-windows-x64.zip"
+          New-Item -ItemType Directory -Force -Path $standaloneApiRoot | Out-Null
+
+          # Build a conventional npm dependency tree. pnpm's Windows junctions
+          # are not portable through an Actions ZIP and Explorer extraction.
+          Copy-Item -Recurse -Force "apps\\api\\dist" (Join-Path $standaloneApiRoot "dist")
+          Copy-Item -Force "apps\\api\\package.json" (Join-Path $standaloneApiRoot "package.json")
+
+          $contractSourceRoot = Join-Path $standaloneApiRoot "contracts"
+          New-Item -ItemType Directory -Force -Path $contractSourceRoot | Out-Null
+          Copy-Item -Recurse -Force "packages\\contracts\\dist" (Join-Path $contractSourceRoot "dist")
+          Copy-Item -Force "packages\\contracts\\package.json" (Join-Path $contractSourceRoot "package.json")
+          $contractPackagePath = Join-Path $contractSourceRoot "package.json"
+          $contractPackage = Get-Content -LiteralPath $contractPackagePath -Raw | ConvertFrom-Json
+          $contractPackage | Add-Member -NotePropertyName "version" -NotePropertyValue "0.0.0" -Force
+          $contractPackage | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $contractPackagePath -NoNewline
+
+          Push-Location $contractSourceRoot
+          npm pack --pack-destination $standaloneApiRoot | Out-Host
+          Pop-Location
+          $contractArchive = Get-ChildItem -LiteralPath $standaloneApiRoot -Filter "*.tgz" | Select-Object -First 1
+          if (-not $contractArchive) { throw "Contracts package archive is missing." }
+          Rename-Item -LiteralPath $contractArchive.FullName -NewName "contracts.tgz"
+          Remove-Item -Recurse -Force $contractSourceRoot
+
+          $apiPackagePath = Join-Path $standaloneApiRoot "package.json"
+          $apiPackage = Get-Content -LiteralPath $apiPackagePath -Raw | ConvertFrom-Json
+          $apiPackage.dependencies.'@drag-visual/contracts' = "file:contracts.tgz"
+          $apiPackage.devDependencies = [pscustomobject]@{}
+          $apiPackage | ConvertTo-Json -Depth 100 | Set-Content -LiteralPath $apiPackagePath -NoNewline
+
+          Push-Location $standaloneApiRoot
+          npm install --omit=dev --ignore-scripts --no-audit --no-fund | Out-Host
+          Pop-Location
           New-Item -ItemType Directory -Force -Path $apiRoot | Out-Null
-
-          # Keep only the API runtime dependencies. Database migrations run
-          # through the bundled PostgreSQL psql script on the offline server.
-          pnpm --filter @drag-visual/api --prod deploy --legacy $pnpmApiRoot
-
-          # pnpm uses Windows junctions in node_modules. Materialize the link
-          # targets before creating the ZIP so Explorer can extract a complete
-          # runtime without losing Prisma's nested dependencies.
-          node .github/scripts/make-portable-api-runtime.mjs $pnpmApiRoot $apiRoot
+          Copy-Item -Recurse -Force (Join-Path $standaloneApiRoot "*") $apiRoot
 
           New-Item -ItemType Directory -Force -Path (Join-Path $releaseRoot "apps\\web") | Out-Null
           Copy-Item -Recurse -Force "apps\\web\\dist" (Join-Path $releaseRoot "apps\\web\\dist")
