@@ -1,0 +1,63 @@
+name: Build Windows deployment package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Package for Windows x64
+    runs-on: windows-2022
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.28.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install production build dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client and build
+        run: |
+          pnpm prisma:generate
+          pnpm typecheck
+          pnpm build
+
+      - name: Create offline deployment archive
+        shell: pwsh
+        run: |
+          $archiveDirectory = Join-Path $env:GITHUB_WORKSPACE "release"
+          New-Item -ItemType Directory -Force -Path $archiveDirectory | Out-Null
+          $archivePath = Join-Path $archiveDirectory "zhbi-windows-x64.zip"
+
+          Push-Location $env:GITHUB_WORKSPACE
+          tar.exe -a -c -f $archivePath `
+            apps `
+            packages `
+            prisma `
+            node_modules `
+            package.json `
+            pnpm-lock.yaml `
+            pnpm-workspace.yaml `
+            prisma.config.ts `
+            .env.example
+          Pop-Location
+
+          Get-FileHash -Algorithm SHA256 $archivePath | Format-List
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zhbi-windows-x64
+          path: release/zhbi-windows-x64.zip
+          if-no-files-found: error
+          retention-days: 14
