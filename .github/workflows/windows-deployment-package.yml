@@ -42,8 +42,8 @@ jobs:
           $archivePath = Join-Path $env:GITHUB_WORKSPACE "release\\zhbi-windows-x64.zip"
           New-Item -ItemType Directory -Force -Path $apiRoot | Out-Null
 
-          # Keep only the API runtime dependencies. Prisma stays in production
-          # dependencies so migrations can run on the offline target server.
+          # Keep only the API runtime dependencies. Database migrations run
+          # through the bundled PostgreSQL psql script on the offline server.
           pnpm --filter @drag-visual/api --prod deploy --legacy $pnpmApiRoot
 
           # pnpm uses Windows junctions in node_modules. Materialize the link
@@ -57,7 +57,7 @@ jobs:
           Copy-Item -Force "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "prisma.config.ts", ".env.example" -Destination $releaseRoot
 
           if (-not (Test-Path (Join-Path $apiRoot "dist\\main.js"))) { throw "API build output is missing." }
-          if (-not (Test-Path (Join-Path $apiRoot "node_modules\\.bin\\prisma.cmd"))) { throw "Prisma CLI is missing from the runtime package." }
+          if (-not (Test-Path (Join-Path $releaseRoot "prisma\\migrate-postgresql.ps1"))) { throw "PostgreSQL migration script is missing." }
           if (-not (Test-Path (Join-Path $releaseRoot "apps\\web\\dist\\index.html"))) { throw "Web build output is missing." }
           $runtimeLink = Get-ChildItem -Force -Recurse (Join-Path $apiRoot "node_modules") | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint } | Select-Object -First 1
           if ($runtimeLink) { throw "Portable runtime still contains a link: $($runtimeLink.FullName)" }
@@ -68,7 +68,9 @@ jobs:
 
           $verificationRoot = Join-Path $env:GITHUB_WORKSPACE "release\\archive-verification"
           Expand-Archive -LiteralPath $archivePath -DestinationPath $verificationRoot -Force
-          & (Join-Path $verificationRoot "apps\\api\\node_modules\\.bin\\prisma.cmd") version
+          Push-Location $verificationRoot
+          node --input-type=module -e "await import('./apps/api/dist/generated/prisma/client.js'); console.log('Prisma client runtime verified');"
+          Pop-Location
 
           Get-FileHash -Algorithm SHA256 $archivePath | Format-List
 
