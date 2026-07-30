@@ -38,12 +38,18 @@ jobs:
         run: |
           $releaseRoot = Join-Path $env:GITHUB_WORKSPACE "release\\zhbi"
           $apiRoot = Join-Path $releaseRoot "apps\\api"
+          $pnpmApiRoot = Join-Path $env:GITHUB_WORKSPACE "release\\api-pnpm-layout"
           $archivePath = Join-Path $env:GITHUB_WORKSPACE "release\\zhbi-windows-x64.zip"
           New-Item -ItemType Directory -Force -Path $apiRoot | Out-Null
 
           # Keep only the API runtime dependencies. Prisma stays in production
           # dependencies so migrations can run on the offline target server.
-          pnpm --filter @drag-visual/api --prod deploy --legacy $apiRoot
+          pnpm --filter @drag-visual/api --prod deploy --legacy $pnpmApiRoot
+
+          # pnpm uses Windows junctions in node_modules. Materialize the link
+          # targets before creating the ZIP so Explorer can extract a complete
+          # runtime without losing Prisma's nested dependencies.
+          node .github/scripts/make-portable-api-runtime.mjs $pnpmApiRoot $apiRoot
 
           New-Item -ItemType Directory -Force -Path (Join-Path $releaseRoot "apps\\web") | Out-Null
           Copy-Item -Recurse -Force "apps\\web\\dist" (Join-Path $releaseRoot "apps\\web\\dist")
@@ -53,12 +59,11 @@ jobs:
           if (-not (Test-Path (Join-Path $apiRoot "dist\\main.js"))) { throw "API build output is missing." }
           if (-not (Test-Path (Join-Path $apiRoot "node_modules\\.bin\\prisma.cmd"))) { throw "Prisma CLI is missing from the runtime package." }
           if (-not (Test-Path (Join-Path $releaseRoot "apps\\web\\dist\\index.html"))) { throw "Web build output is missing." }
+          $runtimeLink = Get-ChildItem -Force -Recurse (Join-Path $apiRoot "node_modules") | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint } | Select-Object -First 1
+          if ($runtimeLink) { throw "Portable runtime still contains a link: $($runtimeLink.FullName)" }
 
           Push-Location $releaseRoot
-          # The pnpm deployment contains links inside node_modules. Store their
-          # targets as real files so Windows Explorer can extract the archive
-          # without losing nested Prisma dependencies.
-          tar.exe -a -c -h -f $archivePath apps prisma package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts .env.example
+          tar.exe -a -c -f $archivePath apps prisma package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts .env.example
           Pop-Location
 
           $verificationRoot = Join-Path $env:GITHUB_WORKSPACE "release\\archive-verification"
