@@ -15,6 +15,7 @@ import { useStore } from "zustand";
 
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
 import { FileDatasetImporter } from "./FileDatasetImporter.js";
+import { appPath } from "../../app/appPath.js";
 
 interface EditorToolbarProps {
   store: EditorStore;
@@ -67,7 +68,7 @@ export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart,
       <div className="editor-header__primary">
         <div className="editor-header__identity">
           <Tooltip title="返回看板首页">
-            <a className="editor-icon-link" href="/" aria-label="返回看板首页"><ArrowLeftOutlined /></a>
+            <a className="editor-icon-link" href={appPath()} aria-label="返回看板首页"><ArrowLeftOutlined /></a>
           </Tooltip>
           <span className="editor-product-mark" aria-hidden="true"><BarChartOutlined /></span>
           <div className="editor-title-block">

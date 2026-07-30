@@ -25,6 +25,7 @@ import { createDashboard, deleteDashboard, listDashboards, publishDashboard, unp
 import { clearAuthSession, readAuthSession } from "../auth/authSession.js";
 import { logout } from "../auth/authApi.js";
 import { AccountSettingsModal } from "../auth/AccountSettingsModal.js";
+import { appPath } from "../../app/appPath.js";
 import "./dashboardHome.css";
 
 const { Text } = Typography;
@@ -113,7 +114,7 @@ export const DashboardHome = () => {
           >
             <button className="dashboard-home__account-trigger" type="button" aria-label={`打开 ${accountName} 的账号菜单`}>
               <span className="dashboard-home__account-copy"><span>Hello,</span><strong title={accountName}>{accountName}</strong></span>
-              <Avatar className="dashboard-home__avatar" size={42} src="/images/zhbi-avatar.png" alt="默认头像" />
+              <Avatar className="dashboard-home__avatar" size={42} src={appPath("images/zhbi-avatar.png")} alt="默认头像" />
             </button>
           </Dropdown>
         </div>
@@ -192,7 +193,7 @@ export const DashboardHome = () => {
                     <div className="dashboard-home__preview-canvas">
                       <iframe
                         className="dashboard-home__preview-frame"
-                        src={`/preview/${dashboard.id}?embed=1`}
+                        src={appPath(`preview/${dashboard.id}?embed=1`)}
                         title={`${dashboard.name} 看板缩略图`}
                         loading="lazy"
                         tabIndex={-1}

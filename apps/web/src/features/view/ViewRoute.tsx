@@ -6,6 +6,7 @@ import { useParams } from "react-router-dom";
 import { ApiError } from "../../api/ApiError.js";
 import { DashboardViewer } from "../viewer/DashboardViewer.js";
 import { getPublishedViewerDashboard } from "../viewer/viewerQueries.js";
+import { appPath } from "../../app/appPath.js";
 
 export const Component = () => {
   const { id = "" } = useParams();
@@ -25,7 +26,7 @@ export const Component = () => {
           status={missing ? "404" : "500"}
           title={<h1>{missing ? "发布页不存在" : "加载发布页失败"}</h1>}
           extra={missing
-            ? <Button href="/" aria-label="返回看板首页" icon={<ArrowLeftOutlined />}>返回看板首页</Button>
+            ? <Button href={appPath()} aria-label="返回看板首页" icon={<ArrowLeftOutlined />}>返回看板首页</Button>
             : <Button type="primary" aria-label="重试" icon={<ReloadOutlined />} onClick={() => void query.refetch()}>重试</Button>}
         />
       </main>

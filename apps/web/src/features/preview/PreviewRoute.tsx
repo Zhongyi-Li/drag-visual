@@ -5,6 +5,7 @@ import { useParams } from "react-router-dom";
 
 import { DashboardViewer } from "../viewer/DashboardViewer.js";
 import { getPreviewDashboard } from "../viewer/viewerQueries.js";
+import { appPath } from "../../app/appPath.js";
 
 const copyLink = async (link: string): Promise<void> => {
   try {
@@ -52,7 +53,7 @@ export const Component = () => {
     );
   }
 
-  const publishedUrl = new URL(`/view/${id}`, globalThis.location.origin).toString();
+  const publishedUrl = new URL(appPath(`view/${id}`), globalThis.location.origin).toString();
   const sharePublishedDashboard = () => {
     void copyLink(publishedUrl).then(
       () => messageApi.success("发布页链接已复制，可直接分享给他人"),
@@ -87,7 +88,7 @@ export const Component = () => {
             <Tag variant="filled" color="default">预览</Tag>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Button href={`/editor/${id}`} icon={<EditOutlined />} aria-label="继续编辑">继续编辑</Button>
+            <Button href={appPath(`editor/${id}`)} icon={<EditOutlined />} aria-label="继续编辑">继续编辑</Button>
             <Button type="primary" icon={<ShareAltOutlined />} aria-label="分享" onClick={sharePublishedDashboard}>分享</Button>
           </div>
         </header>

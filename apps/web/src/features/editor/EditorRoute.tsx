@@ -23,6 +23,7 @@ import { RevisionConflictModal } from "./RevisionConflictModal.js";
 import { useAutosave } from "./useAutosave.js";
 import { createEditorStore, type EditorStore } from "./store/editorStore.js";
 import { editorSelectors } from "./store/editorStore.js";
+import { appPath } from "../../app/appPath.js";
 
 const EditorLoader = () => {
   const { id = "" } = useParams();
@@ -42,7 +43,7 @@ const EditorLoader = () => {
           title={<h1>{missing ? "看板不存在" : "加载看板失败"}</h1>}
           subTitle={missing ? "该看板可能已被删除。" : "服务暂时不可用，请稍后重试。"}
           extra={missing
-            ? <Button href="/" aria-label="返回看板首页" icon={<ArrowLeftOutlined />}>返回看板首页</Button>
+            ? <Button href={appPath()} aria-label="返回看板首页" icon={<ArrowLeftOutlined />}>返回看板首页</Button>
             : <Button type="primary" aria-label="重试" icon={<ReloadOutlined />} onClick={() => void query.refetch()}>重试</Button>}
         />
       </main>
@@ -199,7 +200,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
   const onPreview = useCallback(() => {
     const snapshot = DashboardSchema.parse(editorSelectors.dashboard(store.getState()));
     writePreviewSnapshot(snapshot);
-    window.open(`/preview/${snapshot.id}`, "_blank", "noopener,noreferrer");
+    window.open(appPath(`preview/${snapshot.id}`), "_blank", "noopener,noreferrer");
   }, [store]);
 
   const onReloadServerVersion = useCallback(() => {
@@ -217,7 +218,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
         revision: created.revision,
         updatedAt: created.updatedAt,
       });
-      window.location.assign(`/editor/${saved.id}`);
+      window.location.assign(appPath(`editor/${saved.id}`));
     })().catch(() => undefined);
   }, [store]);
 

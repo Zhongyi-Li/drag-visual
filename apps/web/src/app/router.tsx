@@ -7,6 +7,7 @@ import { useEffect, useSyncExternalStore } from "react";
 import { AuthRoute } from "../features/auth/AuthRoute.js";
 import { readAuthSession, readAuthStatus, restoreAuthSession, subscribeAuthSession } from "../features/auth/authSession.js";
 import { DashboardHome } from "../features/dashboards/DashboardHome.js";
+import { appPath } from "./appPath.js";
 
 const NotFound = () => (
   <main style={{ minHeight: "100vh", padding: "48px 24px", background: "#f5f7fa" }}>
@@ -14,7 +15,7 @@ const NotFound = () => (
       status="404"
       title={<h1 style={{ fontSize: 24, margin: 0 }}>页面未找到</h1>}
       subTitle="当前地址不存在，请返回看板首页。"
-      extra={<Button type="primary" href="/" aria-label="返回看板首页" icon={<ArrowLeftOutlined />}>返回看板首页</Button>}
+      extra={<Button type="primary" href={appPath()} aria-label="返回看板首页" icon={<ArrowLeftOutlined />}>返回看板首页</Button>}
     />
   </main>
 );

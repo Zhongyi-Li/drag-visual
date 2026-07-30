@@ -2,6 +2,8 @@ import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Result, Typography } from "antd";
 import { useParams } from "react-router-dom";
 
+import { appPath } from "./appPath.js";
+
 interface RoutePlaceholderProps { title: string; description: string; }
 
 export const RoutePlaceholder = ({ title, description }: RoutePlaceholderProps) => {
@@ -14,7 +16,7 @@ export const RoutePlaceholder = ({ title, description }: RoutePlaceholderProps) 
         subTitle={description}
         extra={[
           <Typography.Text key="id" type="secondary">看板 ID：{id}</Typography.Text>,
-          <Button key="home" href="/" aria-label="返回看板首页" icon={<ArrowLeftOutlined />}>返回看板首页</Button>,
+          <Button key="home" href={appPath()} aria-label="返回看板首页" icon={<ArrowLeftOutlined />}>返回看板首页</Button>,
         ]}
       />
     </main>
