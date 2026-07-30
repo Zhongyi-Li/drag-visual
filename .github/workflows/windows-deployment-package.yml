@@ -87,9 +87,15 @@ jobs:
           $runtimeLink = Get-ChildItem -Force -Recurse (Join-Path $apiRoot "node_modules") | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint } | Select-Object -First 1
           if ($runtimeLink) { throw "Portable runtime still contains a link: $($runtimeLink.FullName)" }
 
-          Push-Location $releaseRoot
-          tar.exe -a -c -f $archivePath apps prisma package.json pnpm-lock.yaml pnpm-workspace.yaml prisma.config.ts .env.example
-          Pop-Location
+          Compress-Archive -LiteralPath @(
+            (Join-Path $releaseRoot "apps"),
+            (Join-Path $releaseRoot "prisma"),
+            (Join-Path $releaseRoot "package.json"),
+            (Join-Path $releaseRoot "pnpm-lock.yaml"),
+            (Join-Path $releaseRoot "pnpm-workspace.yaml"),
+            (Join-Path $releaseRoot "prisma.config.ts"),
+            (Join-Path $releaseRoot ".env.example")
+          ) -DestinationPath $archivePath -CompressionLevel Optimal -Force
 
           $verificationRoot = Join-Path $env:GITHUB_WORKSPACE "release\\archive-verification"
           Expand-Archive -LiteralPath $archivePath -DestinationPath $verificationRoot -Force
