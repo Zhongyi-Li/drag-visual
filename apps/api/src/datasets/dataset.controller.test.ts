@@ -1,4 +1,4 @@
-import { DatasetQueryResult } from "@drag-visual/contracts";
+import { Dataset, DatasetQueryResult } from "@drag-visual/contracts";
 import {
   FastifyAdapter,
   type NestFastifyApplication,
@@ -6,6 +6,8 @@ import {
 import { Test } from "@nestjs/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { SessionAuthGuard } from "../auth/session-auth.guard.js";
+import { AuthService } from "../auth/auth.service.js";
 import { safeJsonFastifyOptions } from "../fastify-options.js";
 import { DatasetController } from "./dataset.controller.js";
 import {
@@ -13,7 +15,44 @@ import {
   type DatasetRepository,
 } from "./dataset.repository.js";
 import { DatasetService } from "./dataset.service.js";
-import { FixtureDatasetRepository } from "./fixture-dataset.repository.js";
+import { DatasetUpstreamError } from "./dataset.errors.js";
+
+const salesDataset = Dataset.parse({
+  id: "sales",
+  name: "销售数据",
+  fields: [
+    { key: "month", label: "月份", type: "string", nullable: false },
+    { key: "businessDate", label: "业务日期", type: "date", nullable: false },
+    { key: "revenue", label: "收入", type: "number", nullable: false },
+    { key: "discount", label: "折扣", type: "number", nullable: true },
+  ],
+  parameters: [
+    { key: "year", label: "年份", type: "number", required: true },
+    { key: "fromDate", label: "开始日期", type: "date", required: true },
+  ],
+  schemaVersion: "v1",
+});
+
+class TestDatasetRepository implements DatasetRepository {
+  async list() {
+    const { id, name, schemaVersion } = salesDataset;
+    return [{ id, name, schemaVersion }];
+  }
+
+  async getSchema(id: string) {
+    return id === salesDataset.id ? salesDataset : null;
+  }
+
+  async query(id: string) {
+    if (id !== salesDataset.id) return null;
+    return DatasetQueryResult.parse({
+      columns: salesDataset.fields,
+      rows: [{ month: "1月", businessDate: "2026-01-15", revenue: 120_000, discount: null }],
+      total: 1,
+      sampledAt: "2026-07-02T08:00:00.000Z",
+    });
+  }
+}
 
 describe("DatasetController", () => {
   let app: NestFastifyApplication | undefined;
@@ -24,13 +63,15 @@ describe("DatasetController", () => {
   });
 
   const bootstrap = async (
-    repository: DatasetRepository = new FixtureDatasetRepository(),
+    repository: DatasetRepository = new TestDatasetRepository(),
   ) => {
     const module = await Test.createTestingModule({
       controllers: [DatasetController],
       providers: [
         DatasetService,
         { provide: DATASET_REPOSITORY, useValue: repository },
+        { provide: SessionAuthGuard, useValue: { canActivate: () => true } },
+        { provide: AuthService, useValue: { authenticate: async () => ({ id: "test-user", username: "test", displayName: null, avatarUrl: null }) } },
       ],
     }).compile();
     app = module.createNestApplication<NestFastifyApplication>(
@@ -48,7 +89,6 @@ describe("DatasetController", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual([
       { id: "sales", name: "销售数据", schemaVersion: "v1" },
-      { id: "inventory", name: "库存数据", schemaVersion: "v3" },
     ]);
   });
 
@@ -85,7 +125,7 @@ describe("DatasetController", () => {
 
     expect(response.statusCode).toBe(200);
     const result = DatasetQueryResult.parse(response.json());
-    expect(result.total).toBe(1000);
+    expect(result.total).toBe(1);
     expect(result.rows[0]).toEqual({
       month: "1月",
       businessDate: "2026-01-15",
@@ -126,7 +166,7 @@ describe("DatasetController", () => {
   });
 
   it("maps invalid repository responses to a stable bad gateway response", async () => {
-    class InvalidRepository extends FixtureDatasetRepository {
+    class InvalidRepository extends TestDatasetRepository {
       override async query() {
         return {
           columns: [
@@ -150,6 +190,27 @@ describe("DatasetController", () => {
     expect(response.json()).toEqual({
       code: "DATASET_INVALID_RESPONSE",
       message: "Dataset response is invalid",
+    });
+  });
+
+  it("maps upstream dataset failures to a stable bad gateway response", async () => {
+    class UpstreamFailureRepository extends TestDatasetRepository {
+      override async query() {
+        throw new DatasetUpstreamError();
+      }
+    }
+    await bootstrap(new UpstreamFailureRepository());
+
+    const response = await app!.inject({
+      method: "POST",
+      url: "/datasets/sales/query",
+      payload: { parameters: { year: 2026, fromDate: "2026-01-01" } },
+    });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({
+      code: "DATASET_UPSTREAM_ERROR",
+      message: "Dataset upstream request failed",
     });
   });
 });

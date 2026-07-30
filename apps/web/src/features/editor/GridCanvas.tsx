@@ -1,4 +1,4 @@
-import { AppstoreAddOutlined } from "@ant-design/icons";
+import { BarChartOutlined, DragOutlined, LineChartOutlined, PieChartOutlined } from "@ant-design/icons";
 import { useDroppable } from "@dnd-kit/core";
 import type { ComponentRegistry } from "@drag-visual/component-registry";
 import type { GridItem as DashboardGridItem } from "@drag-visual/contracts";
@@ -28,6 +28,7 @@ interface GridCanvasProps {
   store: EditorStore;
   registry: ComponentRegistry;
   createComponentId: () => string;
+  onStartFromLibrary?: () => void;
   gridWidth?: number;
   GridRenderer?: ReactComponentType<GridRendererProps>;
 }
@@ -40,6 +41,7 @@ const layoutChanged = (left: DashboardGridItem | undefined, right: DashboardGrid
 
 const fixedGridCompactor: Compactor = getCompactor(null, false, false);
 const resizeHandles = ["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const;
+const gridGuideColumns = Array.from({ length: GRID_COLUMNS }, (_, index) => index);
 type InteractionMode = "drag" | "resize" | null;
 
 interface DragStartSnapshot {
@@ -73,7 +75,7 @@ const buildShadowLayout = (nextLayout: Layout, baseline: readonly DashboardGridI
   return createShadowLayout(baseline, activeItem).map((item) => ({ ...byId.get(item.i), ...item }));
 };
 
-export const GridCanvas = ({ store, registry, createComponentId, gridWidth, GridRenderer = ReactGridLayout }: GridCanvasProps) => {
+export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibrary, gridWidth, GridRenderer = ReactGridLayout }: GridCanvasProps) => {
   const dashboard = useStore(store, editorSelectors.dashboard);
   const [isInteracting, setIsInteracting] = useState(false);
   const interactionMode = useRef<InteractionMode>(null);
@@ -181,22 +183,45 @@ export const GridCanvas = ({ store, registry, createComponentId, gridWidth, Grid
       aria-label="看板画布"
       data-drop-zone-id={PALETTE_DROP_ID}
     >
-      {dashboard.components.length === 0 ? (
-        <div className="editor-canvas__empty">
-          <AppstoreAddOutlined />
-          <strong>从左侧添加图表</strong>
-          <span>点击或拖动图表组件到画布</span>
-        </div>
-      ) : (
-        <div
-          ref={containerRef}
-          className={`editor-canvas__grid-container${isInteracting ? " editor-canvas__grid-container--interacting" : ""}`}
-          onMouseDownCapture={rememberPointerDown}
-          onTouchStartCapture={rememberPointerDown}
-        >
+      <div
+        ref={containerRef}
+        className={`editor-canvas__grid-container${isInteracting ? " editor-canvas__grid-container--interacting" : ""}`}
+        onMouseDownCapture={rememberPointerDown}
+        onTouchStartCapture={rememberPointerDown}
+      >
+        {dashboard.components.length === 0 ? (
+          <section className="editor-canvas__empty" aria-labelledby="empty-canvas-heading">
+            <div className="editor-canvas__grid-guides editor-canvas__grid-guides--empty" aria-hidden="true">
+              {gridGuideColumns.map((index) => <span key={index} />)}
+            </div>
+            <div className="editor-canvas__empty-preview" aria-hidden="true">
+              <div className="editor-canvas__empty-preview-card editor-canvas__empty-preview-card--wide">
+                <div className="editor-canvas__empty-preview-title"><span /><span /></div>
+                <BarChartOutlined />
+              </div>
+              <div className="editor-canvas__empty-preview-card">
+                <div className="editor-canvas__empty-preview-title"><span /><span /></div>
+                <LineChartOutlined />
+              </div>
+              <div className="editor-canvas__empty-preview-card">
+                <div className="editor-canvas__empty-preview-title"><span /><span /></div>
+                <PieChartOutlined />
+              </div>
+            </div>
+            <div className="editor-canvas__empty-content">
+              <h2 id="empty-canvas-heading">从一个图表开始</h2>
+              <p>选择左侧图表，立即开始编排</p>
+              <button type="button" className="editor-canvas__empty-action" onClick={onStartFromLibrary ?? (() => document.getElementById("component-search")?.focus())}>
+                从图表库开始
+              </button>
+            </div>
+            <p className="editor-canvas__empty-hint"><DragOutlined aria-hidden="true" /> 也可将左侧图表拖至画布</p>
+          </section>
+        ) : (
+          <>
           {isInteracting ? (
             <div className="editor-canvas__grid-guides" data-testid="canvas-grid-guides" aria-hidden="true">
-              {Array.from({ length: GRID_COLUMNS }, (_, index) => <span key={index} />)}
+              {gridGuideColumns.map((index) => <span key={index} />)}
             </div>
           ) : null}
           <span className="editor-visually-hidden">已添加 {dashboard.components.length} 个组件</span>
@@ -221,8 +246,9 @@ export const GridCanvas = ({ store, registry, createComponentId, gridWidth, Grid
             ))}
           </GridRenderer>
             : null}
-        </div>
-      )}
+          </>
+        )}
+      </div>
     </main>
   );
 };

@@ -5,8 +5,11 @@ import type { ComponentDefinition } from "../types.js";
 import { requireSlot } from "./helpers.js";
 
 const RankingPropsSchema = z.object({
+  aggregation: z.enum(["sum", "avg", "max", "min"]),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
   maxItems: z.number().int().min(3).max(20),
+  metricWeights: z.record(z.string(), z.number().finite().min(0).max(100)),
+  rankingMode: z.enum(["primary", "weighted"]),
   showValue: z.boolean(),
 }).strict();
 
@@ -20,7 +23,14 @@ export const rankingDefinition: ComponentDefinition<z.infer<typeof RankingPropsS
   title: "排行榜",
   category: "柱/条图",
   defaultLayout: Object.freeze({ w: 7, h: 5 }),
-  createDefaults: (): z.infer<typeof RankingPropsSchema> => ({ color: "#1677ff", maxItems: 10, showValue: true }),
+  createDefaults: (): z.infer<typeof RankingPropsSchema> => ({
+    aggregation: "sum",
+    color: "#1677ff",
+    maxItems: 10,
+    metricWeights: {},
+    rankingMode: "primary",
+    showValue: true,
+  }),
   dataSlots,
   propsSchema: RankingPropsSchema,
   validateBinding: (binding: DataBinding | undefined) => {

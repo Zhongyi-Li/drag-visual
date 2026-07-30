@@ -37,6 +37,8 @@ export const QueryParameter = z.object({
   label: nonEmptyString,
   type: fieldType,
   required: z.boolean(),
+  runtime: z.boolean().optional(),
+  defaultValue: z.union([z.string(), z.number(), z.boolean()]).optional(),
 }).strict();
 
 export type QueryParameter = z.infer<typeof QueryParameter>;
@@ -67,9 +69,46 @@ export const Dataset = z
 
 export type Dataset = z.infer<typeof Dataset>;
 
+export const DatasetAggregation = z.enum(["sum", "avg", "count", "max", "min"]);
+
+export type DatasetAggregation = z.infer<typeof DatasetAggregation>;
+
+export const DatasetAggregationMeasure = z.object({
+  fieldKey: nonEmptyString,
+  aggregation: DatasetAggregation,
+}).strict();
+
+export type DatasetAggregationMeasure = z.infer<typeof DatasetAggregationMeasure>;
+
+export const DatasetAggregationRequest = z.object({
+  groupBy: z.array(nonEmptyString).max(10),
+  measures: z.array(DatasetAggregationMeasure).min(1).max(20),
+}).strict().superRefine((aggregation, context) => {
+  const groupBy = new Set<string>();
+  aggregation.groupBy.forEach((fieldKey, index) => {
+    if (groupBy.has(fieldKey)) {
+      context.addIssue({ code: "custom", message: `Duplicate group field: ${fieldKey}`, path: ["groupBy", index] });
+    }
+    groupBy.add(fieldKey);
+  });
+  const measures = new Set<string>();
+  aggregation.measures.forEach((measure, index) => {
+    if (measures.has(measure.fieldKey)) {
+      context.addIssue({ code: "custom", message: `Duplicate aggregation field: ${measure.fieldKey}`, path: ["measures", index, "fieldKey"] });
+    }
+    if (groupBy.has(measure.fieldKey)) {
+      context.addIssue({ code: "custom", message: `Field cannot be both group and aggregation: ${measure.fieldKey}`, path: ["measures", index, "fieldKey"] });
+    }
+    measures.add(measure.fieldKey);
+  });
+});
+
+export type DatasetAggregationRequest = z.infer<typeof DatasetAggregationRequest>;
+
 export const DatasetQueryRequest = z
   .object({
     parameters: safeJsonRecord,
+    aggregation: DatasetAggregationRequest.optional(),
   })
   .strict();
 
@@ -80,6 +119,10 @@ export const DatasetQueryResult = z
     columns: z.array(DatasetField),
     rows: z.array(safeJsonRecord).max(10_000),
     total: z.number().int().nonnegative().optional(),
+    // A business interface can return its own human-readable data name.
+    // Keep it with the snapshot so UI consumers can label the dataset without
+    // deriving a name from a technical endpoint or identifier.
+    datasetName: nonEmptyString.optional(),
     sampledAt: z.iso.datetime(),
   })
   .strict()

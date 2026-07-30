@@ -7,6 +7,7 @@ import {
   barDefinition,
   crosstabDefinition,
   createDefaultRegistry,
+  donutDefinition,
   flipNumberDefinition,
   gaugeDefinition,
   heatmapDefinition,
@@ -16,6 +17,7 @@ import {
   metricTrendDefinition,
   multidimensionalDefinition,
   progressBarDefinition,
+  targetProgressDefinition,
   rankingDefinition,
   radarDefinition,
   ringBarDefinition,
@@ -35,6 +37,7 @@ describe("component registry", () => {
       "area",
       "bar",
       "crosstab",
+      "donut",
       "flipNumber",
       "gauge",
       "heatmap",
@@ -56,6 +59,7 @@ describe("component registry", () => {
       "stackedBar",
       "sunburst",
       "table",
+      "targetProgress",
       "text",
       "treemap",
       "trend",
@@ -65,8 +69,18 @@ describe("component registry", () => {
   it("defines a first-class rose chart so its polar-area encoding survives renaming", () => {
     expect(roseDefinition.type).toBe("rose");
     expect(roseDefinition.title).toBe("玫瑰图");
-    expect(roseDefinition.createDefaults()).toEqual({ color: "#1677ff", showLegend: false });
+    expect(roseDefinition.createDefaults()).toEqual({ color: "#1677ff", showLegend: true });
     expect(roseDefinition.dataSlots).toEqual(createDefaultRegistry().get("pie").dataSlots);
+  });
+
+  it("defines a first-class donut chart with right-side category legend space", () => {
+    const donut = createDefaultRegistry().get("donut");
+
+    expect(donutDefinition.type).toBe("donut");
+    expect(donut.title).toBe("环形图");
+    expect(donut.defaultLayout).toEqual({ w: 7, h: 5 });
+    expect(donut.createDefaults()).toEqual({ color: "#1677ff", showLegend: true });
+    expect(donut.dataSlots).toEqual(createDefaultRegistry().get("pie").dataSlots);
   });
 
   it("defines a sunburst chart with a multi-select metric slot", () => {
@@ -76,8 +90,9 @@ describe("component registry", () => {
     expect(sunburst.defaultLayout).toEqual({ w: 7, h: 6 });
     expect(sunburst.createDefaults()).toEqual({ color: "#1677ff", showLegend: true });
     expect(sunburst.dataSlots).toEqual([
-      expect.objectContaining({ key: "dimension", required: true, multiple: false }),
-      expect.objectContaining({ key: "measure", required: true, multiple: true }),
+      expect.objectContaining({ key: "dimension", title: "扇区标签/维度", required: true, multiple: false }),
+      expect.objectContaining({ key: "measure", title: "扇区角度/度量", required: true, multiple: true }),
+      expect.objectContaining({ key: "tooltipMeasures", title: "工具提示/度量", required: false, multiple: true }),
     ]);
   });
 
@@ -128,7 +143,7 @@ describe("component registry", () => {
     expect(percentBarDefinition.category).toBe("柱/条图");
     expect(stacked.createDefaults()).toEqual({ color: "#1677ff", showLegend: true, smooth: true, area: true });
     expect(percent.createDefaults()).toEqual({ color: "#1677ff", showLegend: true, smooth: true, area: true });
-    expect(percentBar.createDefaults()).toEqual({ color: "#1677ff", showLegend: true, smooth: true, area: true });
+    expect(percentBar.createDefaults()).toEqual({ aggregation: "sum", color: "#1677ff", showLegend: true, smooth: true, area: true });
     expect(stacked.dataSlots).toEqual(percent.dataSlots);
     expect(percent.dataSlots).toEqual(percentBar.dataSlots);
   });
@@ -137,7 +152,7 @@ describe("component registry", () => {
     const stacked = createDefaultRegistry().get("stackedBar");
 
     expect(stackedBarDefinition.title).toBe("堆积柱图");
-    expect(stacked.createDefaults()).toEqual({ color: "#1677ff", showLegend: true });
+    expect(stacked.createDefaults()).toEqual({ aggregation: "sum", color: "#1677ff", showLegend: true });
     expect(stacked.dataSlots).toEqual([
       expect.objectContaining({ key: "dimension", required: true, multiple: false }),
       expect.objectContaining({ key: "measures", required: true, multiple: true }),
@@ -155,20 +170,31 @@ describe("component registry", () => {
 
     expect(ringBarDefinition.title).toBe("环形柱图");
     expect(ringBar.defaultLayout).toEqual({ w: 7, h: 4 });
-    expect(ringBar.createDefaults()).toEqual({ decimals: 1, showValue: true });
+    expect(ringBar.createDefaults()).toEqual({ aggregation: "sum", color: "#1677ff", showLegend: true });
     expect(ringBar.dataSlots).toEqual([
-      expect.objectContaining({ key: "dimension", required: true }),
-      expect.objectContaining({ key: "measure", title: "实际值", required: true }),
-      expect.objectContaining({ key: "target", title: "目标值", required: true }),
+      expect.objectContaining({ key: "dimension", title: "维度", required: true }),
+      expect.objectContaining({ key: "measure", title: "指标/列", required: true }),
+      expect.objectContaining({ key: "tooltipMeasures", title: "工具提示/度量", required: false, multiple: true }),
     ]);
     expect(ringBar.validateBinding?.({
       datasetId: "sales",
-      slots: { dimension: { fieldKey: "region" }, measure: { fieldKey: "actual" }, target: { fieldKey: "target" } },
+      slots: {
+        dimension: { fieldKey: "region" },
+        measure: { fieldKey: "actual" },
+        tooltipMeasures: [{ fieldKey: "cost" }],
+      },
     })).toEqual({ valid: true, messages: [] });
 
     expect(rankingDefinition.title).toBe("排行榜");
     expect(ranking.defaultLayout).toEqual({ w: 7, h: 5 });
-    expect(ranking.createDefaults()).toEqual({ color: "#1677ff", maxItems: 10, showValue: true });
+    expect(ranking.createDefaults()).toEqual({
+      aggregation: "sum",
+      color: "#1677ff",
+      maxItems: 10,
+      metricWeights: {},
+      rankingMode: "primary",
+      showValue: true,
+    });
     expect(ranking.dataSlots).toEqual([
       expect.objectContaining({ key: "dimension", title: "排名维度", required: true }),
       expect.objectContaining({ key: "measure", title: "排名指标", required: true, multiple: true }),
@@ -187,11 +213,12 @@ describe("component registry", () => {
       expect.objectContaining({ key: "dimension", acceptedTypes: ["string", "date"], required: false }),
       expect.objectContaining({ key: "measure", acceptedTypes: ["number"], required: true, multiple: true }),
     ]);
-    expect(barDefinition.propsSchema.parse({ color: "#1677ff", showLegend: true })).toEqual({
+    expect(barDefinition.propsSchema.parse({ aggregation: "sum", color: "#1677ff", showLegend: true })).toEqual({
+      aggregation: "sum",
       color: "#1677ff",
       showLegend: true,
     });
-    expect(barDefinition.propsSchema.safeParse({ color: "blue", showLegend: true }).success).toBe(false);
+    expect(barDefinition.propsSchema.safeParse({ aggregation: "sum", color: "blue", showLegend: true }).success).toBe(false);
     expect(barDefinition.validateBinding?.({
       datasetId: "sales",
       slots: { measure: [{ fieldKey: "orders" }, { fieldKey: "refunds" }] },
@@ -267,11 +294,28 @@ describe("component registry", () => {
       aggregation: "sum",
       decimals: 1,
       showValue: true,
+      progressPairs: [],
     });
     expect(progressBarDefinition.validateBinding?.({
       datasetId: "sales",
       slots: { measure: [{ fieldKey: "revenue" }, { fieldKey: "orders" }] },
     }).valid).toBe(true);
+  });
+
+  it("defines target progress as a dimension-level completion component", () => {
+    expect(targetProgressDefinition.type).toBe("targetProgress");
+    expect(targetProgressDefinition.title).toBe("目标完成率");
+    expect(targetProgressDefinition.defaultLayout).toEqual({ w: 9, h: 5 });
+    expect(targetProgressDefinition.createDefaults()).toEqual({ aggregation: "sum", color: "#f57c00", decimals: 0, showValue: true, suffix: "" });
+    expect(targetProgressDefinition.dataSlots).toEqual([
+      expect.objectContaining({ key: "dimension", title: "完成维度", required: true, multiple: false }),
+      expect.objectContaining({ key: "measure", title: "完成值", required: true, multiple: false }),
+      expect.objectContaining({ key: "target", title: "目标值", required: true, multiple: false }),
+    ]);
+    expect(targetProgressDefinition.validateBinding?.({
+      datasetId: "sales",
+      slots: { dimension: { fieldKey: "product" }, measure: { fieldKey: "completed" }, target: { fieldKey: "target" } },
+    })).toEqual({ valid: true, messages: [] });
   });
 
   it("defines gauge slots for an optional grouping dimension, actual value, and target", () => {
@@ -346,7 +390,7 @@ describe("component registry", () => {
     expect(heatmapDefinition.dataSlots).toEqual([
       expect.objectContaining({ key: "rowDimension", title: "行维度", acceptedTypes: ["string", "date", "boolean"], required: true }),
       expect.objectContaining({ key: "columnDimension", title: "列维度", acceptedTypes: ["string", "date", "boolean"], required: true }),
-      expect.objectContaining({ key: "measure", title: "指标", acceptedTypes: ["number"], required: true }),
+      expect.objectContaining({ key: "measure", title: "指标/列", acceptedTypes: ["number"], required: true }),
     ]);
     expect(heatmapDefinition.propsSchema.parse({ aggregation: "sum", showValues: true })).toEqual({
       aggregation: "sum",
@@ -369,7 +413,7 @@ describe("component registry", () => {
     expect(trendDefinition.defaultLayout).toEqual({ w: 8, h: 5 });
     expect(trendDefinition.dataSlots).toEqual([
       expect.objectContaining({ key: "timeDimension", title: "日期", acceptedTypes: ["date"], required: true }),
-      expect.objectContaining({ key: "measure", title: "指标", acceptedTypes: ["number"], required: true }),
+      expect.objectContaining({ key: "measure", title: "指标/列", acceptedTypes: ["number"], required: true }),
     ]);
     expect(trendDefinition.propsSchema.parse({ aggregation: "sum", showSummary: true, timeGranularity: "month" })).toEqual({
       aggregation: "sum",
@@ -464,7 +508,7 @@ describe("component registry", () => {
   it("creates fresh deterministic defaults without aliases", () => {
     const first = barDefinition.createDefaults();
     const second = barDefinition.createDefaults();
-    expect(first).toEqual({ color: "#1677ff", showLegend: true });
+    expect(first).toEqual({ aggregation: "sum", color: "#1677ff", showLegend: true });
     expect(first).not.toBe(second);
   });
 

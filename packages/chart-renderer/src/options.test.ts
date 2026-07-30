@@ -27,6 +27,7 @@ import {
   buildKpiBoardModel,
   buildKpiModel,
   buildProgressBarModel,
+  buildTargetProgressModel,
   buildTableModel,
   buildTrendModel,
   buildTrendOption,
@@ -124,7 +125,24 @@ describe("component option builders", () => {
       roseType: "area",
       data: [{ name: "1月", value: 200_000 }, { name: "2月", value: 50_000 }],
     });
-    expect(rose.legend).toMatchObject({ show: false });
+    expect(rose.legend).toMatchObject({ show: true, bottom: 0, type: "scroll" });
+
+    const donut = buildPieOption(component({
+      type: "donut",
+      title: "商品构成",
+      props: { color: "#1677ff", showLegend: true },
+    }), [
+      { month: "1月", revenue: 120_000 },
+      { month: "2月", revenue: 80_000 },
+    ], lineFields);
+    expect(donut.legend).toMatchObject({ show: true, orient: "vertical", left: "58%", top: "center" });
+    expect(donut.series[0]).toMatchObject({
+      type: "pie",
+      radius: ["42%", "68%"],
+      center: ["30%", "50%"],
+      label: { show: false },
+      labelLine: { show: false },
+    });
 
     const multiMetricPie = buildPieOption(component({
       type: "pie",
@@ -143,14 +161,21 @@ describe("component option builders", () => {
       ],
     });
     const tooltip = multiMetricPie.tooltip.formatter({ name: "1月", value: 200_000, percent: 80, marker: "•" });
-    expect(tooltip).toContain("销售额：20万（80.00%）");
-    expect(tooltip).toContain("毛利：2万");
+    expect(tooltip).toContain("销售额：20万 ¥（80.00%）");
+    expect(tooltip).toContain("毛利：2万 ¥");
 
     const sunburst = buildSunburstOption(component({
       type: "sunburst",
       title: "月度销售构成",
       props: { color: "#1677ff", showLegend: true },
-      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "month" }, measure: [{ fieldKey: "revenue" }, { fieldKey: "profit" }] } },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          dimension: { fieldKey: "month" },
+          measure: [{ fieldKey: "revenue" }, { fieldKey: "profit" }],
+          tooltipMeasures: [{ fieldKey: "profit" }],
+        },
+      },
     }), [
       { month: "1月", revenue: 120_000, profit: 12_000 },
       { month: "1月", revenue: 80_000, profit: 8_000 },
@@ -163,6 +188,7 @@ describe("component option builders", () => {
     expect(sunburst.legend).toMatchObject({
       show: false,
     });
+    expect(sunburst.tooltip.formatter({ name: "1月", value: 200_000, marker: "•" })).toContain("毛利：2万");
 
     const profitSunburst = buildSunburstOption(component({
       type: "sunburst",
@@ -178,38 +204,69 @@ describe("component option builders", () => {
     });
   });
 
-  it("builds a target-based ring bar and a descending ranking", () => {
+  it("builds a concentric ring bar from one aggregated metric and a descending ranking", () => {
     const chartFields: readonly DatasetField[] = [
       { key: "region", label: "区域", type: "string", nullable: false },
       { key: "actual", label: "实际销售额", type: "number", nullable: false },
       { key: "target", label: "销售目标", type: "number", nullable: false },
+      { key: "cost", label: "成本金额", type: "number", nullable: false },
     ];
     const chartRows = [
-      { region: "华北", actual: 82, target: 100 },
-      { region: "华东", actual: 135, target: 120 },
-      { region: "华南", actual: 48, target: 100 },
+      { region: "华北", actual: 82, cost: 30 },
+      { region: "华北", actual: 8, cost: 3 },
+      { region: "华东", actual: 135, cost: 68 },
+      { region: "华南", actual: 48, cost: 21 },
     ];
     const ring = buildRingBarOption(component({
       type: "ringBar",
-      props: { decimals: 1, showValue: true },
-      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "region" }, measure: { fieldKey: "actual" }, target: { fieldKey: "target" } } },
+      props: { aggregation: "sum", color: "#1677ff", showLegend: true },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          dimension: { fieldKey: "region" },
+          measure: { fieldKey: "actual" },
+          tooltipMeasures: [{ fieldKey: "cost", aggregation: "sum" }],
+        },
+      },
     }), chartRows, chartFields);
     expect(ring.series).toHaveLength(6);
-    expect(ring.series[1]).toMatchObject({ type: "pie", name: "华北" });
+    expect(ring.series[0]).toMatchObject({
+      type: "pie",
+      center: ["53%", "58%"],
+      data: [{ name: "华北", value: 100 }],
+    });
+    expect(ring.series[1]).toMatchObject({
+      type: "pie",
+      name: "实际销售额",
+      center: ["53%", "58%"],
+      label: { show: false },
+      data: [expect.objectContaining({ name: "华北" }), expect.objectContaining({ value: expect.any(Number) })],
+    });
+    expect(ring.series[1].data[1]).not.toHaveProperty("tooltip");
+    expect(ring.tooltip).toMatchObject({
+      appendToBody: true,
+      renderMode: "html",
+      extraCssText: expect.stringContaining("z-index:2147483647"),
+    });
+    expect(ring.tooltip.formatter({ seriesIndex: 1 })).toContain("成本金额：33");
 
-    const sixItemRing = buildRingBarOption(component({
+    const aggregatedRing = buildRingBarOption(component({
       type: "ringBar",
-      props: { decimals: 1, showValue: true },
-      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "region" }, measure: { fieldKey: "actual" }, target: { fieldKey: "target" } } },
+      props: { aggregation: "sum", color: "#1677ff", showLegend: true },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          dimension: { fieldKey: "region" },
+          measure: { fieldKey: "actual" },
+          tooltipMeasures: [{ fieldKey: "cost", aggregation: "sum" }],
+        },
+      },
     }), [
-      { region: "华北", actual: 82, target: 100 },
-      { region: "华东", actual: 81, target: 100 },
-      { region: "华南", actual: 80, target: 100 },
-      { region: "华中", actual: 76, target: 100 },
-      { region: "西北", actual: 68, target: 100 },
-      { region: "西南", actual: 63, target: 100 },
-    ], chartFields);
-    expect(sixItemRing.series[0]).toMatchObject({ radius: ["28%", "43%"] });
+      { region: "华北", actual: 90, cost: 33 },
+      { region: "华东", actual: 135, cost: 68 },
+      { region: "华南", actual: 48, cost: 21 },
+    ], chartFields, true);
+    expect(aggregatedRing.series[1]).toMatchObject({ data: [expect.objectContaining({ name: "华北" }), expect.anything()] });
 
     const ranking = buildRankingOption(component({
       type: "ranking",
@@ -217,7 +274,7 @@ describe("component option builders", () => {
       binding: { datasetId: "sales", slots: { dimension: { fieldKey: "region" }, measure: { fieldKey: "actual" } } },
     }), chartRows, chartFields);
     expect(ranking.yAxis).toMatchObject({ data: ["1. 华东", "2. 华北", "3. 华南"] });
-    expect(ranking.series[0]).toMatchObject({ type: "bar", data: [135, 82, 48] });
+    expect(ranking.series[0]).toMatchObject({ type: "bar", data: [135, 90, 48] });
 
     const rankingModel = buildRankingModel(component({
       type: "ranking",
@@ -229,6 +286,61 @@ describe("component option builders", () => {
       { key: "target", label: "销售目标" },
     ]);
     expect(rankingModel.items[0]).toMatchObject({ label: "华东", primaryRatio: 1 });
+  });
+
+  it("ranks aggregated dimensions by direct weighted metric results", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "region", label: "区域", type: "string", nullable: false },
+      { key: "revenue", label: "销售额", type: "number", nullable: false },
+      { key: "profit", label: "毛利额", type: "number", nullable: false },
+      { key: "orders", label: "订单数", type: "number", nullable: false },
+      { key: "weight", label: "权重", type: "number", nullable: false },
+      { key: "adjustmentFactor", label: "调整系数", type: "number", nullable: false },
+    ];
+    const rankingComponent = component({
+      type: "ranking",
+      props: {
+        aggregation: "sum",
+        color: "#1677ff",
+        maxItems: 10,
+        metricWeights: { revenue: 20, profit: 50, orders: 30 },
+        rankingMode: "weighted",
+        showValue: true,
+      },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          dimension: { fieldKey: "region" },
+          measure: [
+            { fieldKey: "revenue" }, { fieldKey: "profit" }, { fieldKey: "orders" },
+            { fieldKey: "weight" }, { fieldKey: "adjustmentFactor" },
+          ],
+        },
+      },
+    });
+    const rows = [
+      { region: "华东", revenue: 500, profit: 50, orders: 5, weight: 0.2, adjustmentFactor: 1.05 },
+      { region: "华东", revenue: 500, profit: 50, orders: 5, weight: 0.2, adjustmentFactor: 1.05 },
+      { region: "华北", revenue: 800, profit: 300, orders: 15, weight: 0.3, adjustmentFactor: 1.02 },
+      { region: "华南", revenue: 500, profit: 400, orders: 20, weight: 0.5, adjustmentFactor: 0.98 },
+    ];
+
+    const model = buildRankingModel(rankingComponent, rows, fields);
+    expect(model.rankingMode).toBe("weighted");
+    expect(model.measures.map((measure) => measure.key)).toEqual(["revenue", "profit", "orders"]);
+    expect(model.items.map((item) => item.label)).toEqual(["华北", "华南", "华东"]);
+    expect(model.items[0]).toMatchObject({
+      score: 314.5,
+      values: [
+        { key: "revenue", value: 800 },
+        { key: "profit", value: 300 },
+        { key: "orders", value: 15 },
+      ],
+    });
+
+    const option = buildRankingOption(rankingComponent, rows, fields);
+    expect(option.yAxis).toMatchObject({ data: ["1. 华北", "2. 华南", "3. 华东"] });
+    expect(option.series[0]).toMatchObject({ name: "排名分值", data: [314.5, 306, 253] });
   });
 
   it("stacks every selected measure by the same category", () => {
@@ -255,7 +367,7 @@ describe("component option builders", () => {
       expect.objectContaining({ type: "bar", name: "毛利", data: [40, 60], stack: "total" }),
     ]);
     expect(stacked.tooltip).toMatchObject({ trigger: "item" });
-    expect(stacked.tooltip.formatter?.({ marker: "●", seriesName: "毛利", value: 60 })).toBe("●毛利<br/>60");
+    expect(stacked.tooltip.formatter?.({ marker: "●", seriesName: "毛利", value: 60 })).toBe("●毛利<br/>60 ¥");
   });
 
   it("renders every selected bar metric side by side and keeps legacy single-metric bindings", () => {
@@ -273,6 +385,50 @@ describe("component option builders", () => {
     expect(buildBarOption(component({}), rows).series).toEqual([
       expect.objectContaining({ name: "月收入", data: [10] }),
     ]);
+  });
+
+  it("aggregates repeated bar dimensions with the configured aggregation", () => {
+    const aggregated = buildBarOption(component({
+      props: { aggregation: "sum", color: "#1677ff", showLegend: true },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "product" }, measure: { fieldKey: "revenue" } } },
+    }), [
+      { product: "小米电视 S mini 55", revenue: 120 },
+      { product: "小米电视 S mini 55", revenue: 80 },
+      { product: "小米电视 A32", revenue: 60 },
+    ], [{ key: "product", label: "商品名称", type: "string", nullable: false }, lineFields[1]!]);
+
+    expect(aggregated.xAxis).toMatchObject({ data: ["小米电视 S mini 55", "小米电视 A32"] });
+    expect(aggregated.series[0]).toMatchObject({ data: [200, 60] });
+
+    const average = buildBarOption(component({
+      props: { aggregation: "avg", color: "#1677ff", showLegend: true },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "product" }, measure: { fieldKey: "revenue" } } },
+    }), [
+      { product: "小米电视 S mini 55", revenue: 120 },
+      { product: "小米电视 S mini 55", revenue: 80 },
+    ], [{ key: "product", label: "商品名称", type: "string", nullable: false }, lineFields[1]!]);
+
+    expect(average.series[0]).toMatchObject({ data: [100] });
+  });
+
+  it("keeps every dense categorical bar label visible and compact", () => {
+    const option = buildBarOption(component({}), Array.from({ length: 20 }, (_, index) => ({
+      month: `超长商品名称-${index + 1}-Xiaomi Humidifier 2 Lite EU`,
+      revenue: index + 1,
+    })), lineFields);
+
+    expect(option.grid).toMatchObject({ bottom: 60 });
+    expect(option.xAxis).toMatchObject({ axisLabel: { interval: 0, rotate: 24, hideOverlap: false } });
+    expect(option.xAxis.data).toHaveLength(20);
+    expect(option.series[0]).toMatchObject({ barMinHeight: 2, itemStyle: { color: "#1677ff" } });
+  });
+
+  it("uses more vertical axis intervals when a bar chart receives a taller container", () => {
+    const shortChart = buildBarOption(component({}), rows, lineFields, false, 160);
+    const tallChart = buildBarOption(component({}), rows, lineFields, false, 336);
+
+    expect(shortChart.yAxis).toMatchObject({ interval: 5 });
+    expect(tallChart.yAxis).toMatchObject({ interval: 2 });
   });
 
   it("uses an independent scale for each grouped bar metric when their units differ substantially", () => {
@@ -327,6 +483,20 @@ describe("component option builders", () => {
     expect(option.yAxis).toMatchObject({ min: 0, max: 30000, interval: 10000 });
   });
 
+  it("keeps bar-chart maxima close enough to preserve visible category differences", () => {
+    const option = buildBarOption(component({
+      type: "stackedBar",
+      props: { aggregation: "sum", color: "#1677ff", showLegend: true },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "month" }, measures: [{ fieldKey: "revenue" }] } },
+    }), [
+      { month: "A", revenue: 650_000 },
+      { month: "B", revenue: 120_000 },
+      { month: "C", revenue: 30_000 },
+    ], lineFields);
+
+    expect(option.yAxis).toMatchObject({ min: 0, max: 750_000, interval: 250_000 });
+  });
+
   it("builds stacked areas, percentage trend lines, and 100% stacked columns from the same multi-metric binding", () => {
     const binding = { datasetId: "sales", slots: { dimension: { fieldKey: "month" }, measures: [{ fieldKey: "revenue" }, { fieldKey: "profit" }] } };
     const chartRows = [
@@ -372,6 +542,57 @@ describe("component option builders", () => {
     expect(percentageBar.xAxis).toMatchObject({ boundaryGap: true });
     expect(percentageBar.yAxis).toMatchObject({ min: 0, max: 100, interval: 25 });
     expect(percentageBar.tooltip.trigger).toBe("item");
+  });
+
+  it("uses each percentage-bar metric's selected aggregation before calculating its share", () => {
+    const option = buildBarOption(component({
+      type: "percentBar",
+      props: { aggregation: "sum", color: "#1677ff", showLegend: true, smooth: true, area: true },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          dimension: { fieldKey: "month" },
+          measures: [
+            { fieldKey: "revenue", aggregation: "count" },
+            { fieldKey: "profit", aggregation: "sum" },
+          ],
+        },
+      },
+    }), [
+      { month: "2026-01-01", revenue: 10, profit: 4 },
+      { month: "2026-01-01", revenue: 30, profit: 6 },
+    ], lineFields);
+
+    expect(option.series).toEqual([
+      expect.objectContaining({ name: "毛利", data: [expect.closeTo(83.333333, 4)] }),
+      expect.objectContaining({ name: "销售额", data: [expect.closeTo(16.666667, 4)] }),
+    ]);
+  });
+
+  it("does not aggregate server-aggregated percentage-bar rows a second time", () => {
+    const option = buildBarOption(component({
+      type: "percentBar",
+      props: { aggregation: "sum", color: "#1677ff", showLegend: true, smooth: true, area: true },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          dimension: { fieldKey: "warehouse" },
+          measures: [
+            { fieldKey: "supplyPrice", aggregation: "count" },
+            { fieldKey: "productTotal", aggregation: "avg" },
+          ],
+        },
+      },
+    }), [{ warehouse: "CK26015", supplyPrice: 226, productTotal: 239.045664 }], [
+      { key: "warehouse", label: "实体实体仓编码", type: "string", nullable: true },
+      { key: "supplyPrice", label: "供货价", type: "number", nullable: true },
+      { key: "productTotal", label: "产品总金额", type: "number", nullable: true },
+    ], true);
+
+    expect(option.series).toEqual([
+      expect.objectContaining({ name: "产品总金额", data: [expect.closeTo(51.403, 3)] }),
+      expect.objectContaining({ name: "供货价", data: [expect.closeTo(48.597, 3)] }),
+    ]);
   });
 
   it("aggregates KPI values", () => {
@@ -461,8 +682,8 @@ describe("component option builders", () => {
       [{ revenue: 100, orders: 20 }, { revenue: 50, orders: 10 }],
     )).toEqual({
       items: [
-        { key: "revenue", label: "revenue", value: 150 },
-        { key: "orders", label: "orders", value: 30 },
+        { key: "revenue", label: "revenue", isCurrency: true, value: 150 },
+        { key: "orders", label: "orders", isCurrency: false, value: 30 },
       ],
     });
     expect(buildProgressBarModel(progressBar, [
@@ -470,8 +691,8 @@ describe("component option builders", () => {
       { revenue: 60, revenueTarget: 100, orders: 20, orderTarget: 40 },
     ])).toEqual({
       items: [
-        { key: "revenue", label: "revenue", value: 180, target: 300, progress: 0.6 },
-        { key: "orders", label: "orders", value: 50, target: 100, progress: 0.5 },
+        { key: "revenue", label: "revenue", isCurrency: true, targetIsCurrency: true, value: 180, target: 200, progress: 0.9 },
+        { key: "orders", label: "orders", isCurrency: false, targetIsCurrency: false, value: 50, target: 60, progress: 50 / 60 },
       ],
     });
     expect(buildProgressBarModel(component({
@@ -480,9 +701,110 @@ describe("component option builders", () => {
       binding: { datasetId: "sales", slots: { measure: [{ fieldKey: "revenue" }, { fieldKey: "orders" }] } },
     }), [{ revenue: 20, orders: 8 }])).toEqual({
       items: [
-        { key: "revenue", label: "revenue", value: 20, target: 20, progress: 1 },
-        { key: "orders", label: "orders", value: 8, target: 8, progress: 1 },
+        { key: "revenue", label: "revenue", isCurrency: true, targetIsCurrency: false, value: 20, target: 20, progress: 1 },
+        { key: "orders", label: "orders", isCurrency: false, targetIsCurrency: false, value: 8, target: 8, progress: 1 },
       ],
+    });
+    expect(buildProgressBarModel(component({
+      type: "progressBar",
+      props: {
+        aggregation: "sum",
+        decimals: 1,
+        showValue: true,
+        progressPairs: [
+          ["revenue", "orderTarget"],
+          ["orders", "revenueTarget"],
+        ],
+      },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          measure: [{ fieldKey: "revenue" }, { fieldKey: "orders" }],
+          target: [{ fieldKey: "revenueTarget" }, { fieldKey: "orderTarget" }],
+        },
+      },
+    }), [{ revenue: 120, revenueTarget: 200, orders: 30, orderTarget: 60 }])).toEqual({
+      items: [
+        { key: "revenue", label: "revenue", isCurrency: true, targetIsCurrency: false, value: 120, target: 60, progress: 2 },
+        { key: "orders", label: "orders", isCurrency: false, targetIsCurrency: true, value: 30, target: 200, progress: 0.15 },
+      ],
+    });
+    expect(buildProgressBarModel(component({
+      type: "progressBar",
+      props: { aggregation: "sum", decimals: 1, showValue: true },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          measure: [{ fieldKey: "revenue", aggregation: "avg" }],
+          target: [{ fieldKey: "revenueTarget", aggregation: "sum" }],
+        },
+      },
+    }), [
+      { revenue: 120, revenueTarget: 200 },
+      { revenue: 60, revenueTarget: 100 },
+    ])).toEqual({
+      items: [{ key: "revenue", label: "revenue", isCurrency: true, targetIsCurrency: true, value: 90, target: 300, progress: 0.3 }],
+    });
+  });
+
+  it("builds completion rows from each dimension's actual and target values", () => {
+    const targetProgress = component({
+      type: "targetProgress",
+      title: "日销售目标完成率",
+      props: { aggregation: "sum", color: "#f57c00", decimals: 0, showValue: true, suffix: "" },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          dimension: { fieldKey: "product" },
+          measure: { fieldKey: "completed" },
+          target: { fieldKey: "target" },
+        },
+      },
+    });
+
+    expect(buildTargetProgressModel(targetProgress, [
+      { product: "小米加湿器 2", completed: 1, target: 50 },
+      { product: "小米加湿器 2", completed: 2, target: 50 },
+      { product: "小米电视 A32", completed: 8, target: 150 },
+    ], [
+      { key: "product", label: "商品", type: "string", nullable: false },
+      { key: "completed", label: "完成值", type: "number", nullable: false },
+      { key: "target", label: "目标值", type: "number", nullable: false },
+    ])).toEqual({
+      dimensionLabel: "商品",
+      measureLabel: "完成值",
+      targetLabel: "目标值",
+      measureKey: "completed",
+      targetKey: "target",
+      measureIsCurrency: false,
+      targetIsCurrency: false,
+      items: [
+        { key: "小米加湿器 2", label: "小米加湿器 2", value: 3, target: 50, progress: 0.06 },
+        { key: "小米电视 A32", label: "小米电视 A32", value: 8, target: 150, progress: 8 / 150 },
+      ],
+    });
+  });
+
+  it("honors separately configured aggregations for target-progress actual and target values", () => {
+    const targetProgress = component({
+      type: "targetProgress",
+      title: "日销售目标完成率",
+      props: { aggregation: "sum", color: "#f57c00", decimals: 0, showValue: true, suffix: "" },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          dimension: { fieldKey: "product" },
+          measure: { fieldKey: "completed", aggregation: "avg" },
+          target: { fieldKey: "target", aggregation: "sum" },
+        },
+      },
+    });
+
+    expect(buildTargetProgressModel(targetProgress, [
+      { product: "小米加湿器 2", completed: 1, target: 50 },
+      { product: "小米加湿器 2", completed: 3, target: 50 },
+    ])).toMatchObject({
+      items: [{ label: "小米加湿器 2", value: 2, target: 100, progress: 0.02 }],
     });
   });
 
@@ -625,25 +947,26 @@ describe("component option builders", () => {
     ])).toEqual({
       dimensionLabel: "月份",
       measureLabel: "revenue",
+      measureKey: "revenue",
       groups: [
         {
           label: "2026-01",
           value: 150,
           metrics: [
-            { key: "revenueTarget", label: "revenueTarget", value: 180 },
-            { key: "priorRevenue", label: "priorRevenue", value: 130 },
-            { key: "orders", label: "orders", value: 15 },
-            { key: "orderTarget", label: "orderTarget", value: 18 },
+            { key: "revenueTarget", label: "revenueTarget", isCurrency: true, value: 180 },
+            { key: "priorRevenue", label: "priorRevenue", isCurrency: true, value: 130 },
+            { key: "orders", label: "orders", isCurrency: false, value: 15 },
+            { key: "orderTarget", label: "orderTarget", isCurrency: false, value: 18 },
           ],
         },
         {
           label: "2026-02",
           value: 200,
           metrics: [
-            { key: "revenueTarget", label: "revenueTarget", value: 250 },
-            { key: "priorRevenue", label: "priorRevenue", value: 180 },
-            { key: "orders", label: "orders", value: 20 },
-            { key: "orderTarget", label: "orderTarget", value: 25 },
+            { key: "revenueTarget", label: "revenueTarget", isCurrency: true, value: 250 },
+            { key: "priorRevenue", label: "priorRevenue", isCurrency: true, value: 180 },
+            { key: "orders", label: "orders", isCurrency: false, value: 20 },
+            { key: "orderTarget", label: "orderTarget", isCurrency: false, value: 25 },
           ],
         },
       ],
@@ -670,9 +993,9 @@ describe("component option builders", () => {
     expect(buildKpiBoardModel(kpi, [
       { month: "2026-01", revenue: 100, revenueTarget: 120, priorRevenue: 90, orders: 10 },
     ])?.groups[0]?.metrics).toEqual([
-      { key: "revenueTarget", label: "revenueTarget", value: 120 },
-      { key: "priorRevenue", label: "priorRevenue", value: 90 },
-      { key: "orders", label: "orders", value: 10 },
+      { key: "revenueTarget", label: "revenueTarget", isCurrency: true, value: 120 },
+      { key: "priorRevenue", label: "priorRevenue", isCurrency: true, value: 90 },
+      { key: "orders", label: "orders", isCurrency: false, value: 10 },
     ]);
   });
 
@@ -779,7 +1102,7 @@ describe("component option builders", () => {
         datasetId: "sales",
         slots: {
           timeDimension: { fieldKey: "businessDate" },
-          measure: { fieldKey: "revenue" },
+          measure: { fieldKey: "revenue", aggregation: "avg" },
         },
       },
     });
@@ -800,15 +1123,15 @@ describe("component option builders", () => {
     expect(model.measureLabel).toBe("销售额");
     expect(model.points).toEqual([
       { label: "2026-01", value: 80 },
-      { label: "2026-02", value: 150 },
+      { label: "2026-02", value: 75 },
       { label: "2026-03", value: 120 },
     ]);
     expect(model.latest).toEqual({ label: "2026-03", value: 120 });
-    expect(model.previous).toEqual({ label: "2026-02", value: 150 });
-    expect(model.change).toEqual({ absolute: -30, rate: -0.2 });
-    expect(model.peak).toEqual({ label: "2026-02", value: 150 });
+    expect(model.previous).toEqual({ label: "2026-02", value: 75 });
+    expect(model.change).toEqual({ absolute: 45, rate: 0.6 });
+    expect(model.peak).toEqual({ label: "2026-03", value: 120 });
     expect(option.xAxis.data).toEqual(["2026-01", "2026-02", "2026-03"]);
-    expect(option.series[0]).toMatchObject({ type: "line", name: "销售额", data: [80, 150, 120] });
+    expect(option.series[0]).toMatchObject({ type: "line", name: "销售额", data: [80, 75, 120] });
   });
 
   it("builds a multi-metric trend option with one date dimension", () => {
@@ -820,13 +1143,14 @@ describe("component option builders", () => {
         datasetId: "sales",
         slots: {
           timeDimension: { fieldKey: "businessDate" },
-          measure: [{ fieldKey: "revenue" }, { fieldKey: "orders" }],
+          measure: [{ fieldKey: "revenue", aggregation: "avg" }, { fieldKey: "orders", aggregation: "count" }],
         },
       },
     });
     const model = buildMetricTrendModel(metricTrend, [
       { businessDate: "2026-01-01", revenue: 100, orders: 10 },
       { businessDate: "2026-02-01", revenue: 120, orders: 12 },
+      { businessDate: "2026-02-01", revenue: 80, orders: 15 },
     ], [
       { key: "businessDate", label: "业务日期", type: "date", nullable: false },
       { key: "revenue", label: "收入", type: "number", nullable: false },
@@ -834,16 +1158,64 @@ describe("component option builders", () => {
     ]);
 
     expect(buildMetricTrendOption(metricTrend, model, "orders")).toMatchObject({
-      grid: { left: 44, right: 18, top: 18, bottom: 30 },
+      grid: { left: 48, right: 20, top: 16, bottom: 38 },
+      tooltip: { trigger: "axis", triggerOn: "mousemove|click" },
       xAxis: { type: "category", data: ["2026-01", "2026-02"] },
       yAxis: { type: "value" },
       series: [
-        expect.objectContaining({ type: "line", name: "订单数", data: [10, 12] }),
+        expect.objectContaining({ type: "line", name: "订单数", data: [1, 2] }),
       ],
     });
     expect(buildMetricTrendOption(metricTrend, model, "orders").series).toHaveLength(1);
+    expect(model.isTimeDimension).toBe(true);
     expect(model.measures.map((measure) => measure.label)).toEqual(["收入", "订单数"]);
-    expect(model.measures[0]?.latest).toEqual({ label: "2026-02", value: 120 });
+    expect(model.measures.map((measure) => measure.total)).toEqual([200, 3]);
+    expect(model.measures[0]?.latest).toEqual({ label: "2026-02", value: 100 });
+  });
+
+  it("keeps ordinary category labels intact when metric trend uses a dimension", () => {
+    const metricTrend = component({
+      type: "metricTrend",
+      props: { aggregation: "sum", showSummary: true, timeGranularity: "day" },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          timeDimension: { fieldKey: "productName" },
+          measure: [{ fieldKey: "revenue" }],
+        },
+      },
+    });
+    const model = buildMetricTrendModel(metricTrend, [
+      { productName: "创维 55 寸电视 55MUF7000Z", revenue: 100 },
+      { productName: "小米电视 A32（32 寸）", revenue: 120 },
+    ], [
+      { key: "productName", label: "商品名称", type: "string", nullable: false },
+      { key: "revenue", label: "实收金额", type: "number", nullable: false },
+    ]);
+
+    expect(model.periods).toEqual(["创维 55 寸电视 55MUF7000Z", "小米电视 A32（32 寸）"]);
+    expect(model.measures[0]?.points.map((point) => point.label)).toEqual(model.periods);
+    expect(model.isTimeDimension).toBe(false);
+  });
+
+  it("renders every dense category label in a metric trend", () => {
+    const metricTrend = component({
+      type: "metricTrend",
+      props: { aggregation: "sum", showSummary: true, timeGranularity: "day" },
+      binding: { datasetId: "sales", slots: { timeDimension: { fieldKey: "product" }, measure: [{ fieldKey: "revenue" }] } },
+    });
+    const model = buildMetricTrendModel(metricTrend, Array.from({ length: 8 }, (_, index) => ({
+      product: `商品名称 ${index + 1} - Xiaomi Smart Humidifier`,
+      revenue: index + 1,
+    })), [
+      { key: "product", label: "商品名称", type: "string", nullable: false },
+      { key: "revenue", label: "销售额", type: "number", nullable: false },
+    ]);
+    const option = buildMetricTrendOption(metricTrend, model);
+
+    expect(option.grid).toMatchObject({ bottom: 68 });
+    expect(option.xAxis).toMatchObject({ axisLabel: { interval: 0, rotate: 24, hideOverlap: false } });
+    expect(option.xAxis.data).toHaveLength(8);
   });
 
   it("aggregates multidimensional analysis rows by date granularity, dimensions, and measures", () => {
@@ -881,8 +1253,8 @@ describe("component option builders", () => {
       { key: "category", label: "品类" },
     ]);
     expect(model.measures).toEqual([
-      { key: "revenue", label: "销售额" },
-      { key: "orders", label: "订单数" },
+      { key: "revenue", label: "销售额", isCurrency: true },
+      { key: "orders", label: "订单数", isCurrency: false },
     ]);
     expect(model.rows).toEqual([
       { key: "2026-01\u0000华东\u0000手机", dimensions: ["2026-01", "华东", "手机"], values: [1500, 7] },

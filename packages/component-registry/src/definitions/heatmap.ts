@@ -26,7 +26,7 @@ const dataSlots = Object.freeze([
   }),
   Object.freeze({
     key: "measure",
-    title: "指标",
+    title: "指标/列",
     acceptedTypes: Object.freeze(["number"] as const),
     required: true,
     multiple: false,

@@ -1,0 +1,8 @@
+.runtime-dataset-request { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-height: 34px; padding: 4px 14px 7px; border-bottom: 1px solid #f0f2f5; background: #fff; }
+.runtime-dataset-request__controls { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.runtime-dataset-request__field { display: flex; align-items: center; gap: 5px; color: #64748b; font-size: 12px; white-space: nowrap; }
+.runtime-dataset-request__field .ant-input-number { width: 58px; }
+.runtime-dataset-request__field .ant-input { width: 94px; }
+.viewer-component { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden; }
+.viewer-component > :last-child { flex: 1 1 auto; min-height: 0; overflow: hidden; }
+@media (max-width: 760px) { .runtime-dataset-request { align-items: flex-start; flex-direction: column; } .runtime-dataset-request__controls { flex-wrap: wrap; } }

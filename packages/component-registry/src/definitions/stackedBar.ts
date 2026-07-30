@@ -6,7 +6,7 @@ import { BarPropsSchema, type BarProps } from "./bar.js";
 
 const stackedBarDataSlots = Object.freeze([
   Object.freeze({ key: "dimension", title: "维度", acceptedTypes: Object.freeze(["string", "date"] as const), required: true, multiple: false }),
-  Object.freeze({ key: "measures", title: "指标", acceptedTypes: Object.freeze(["number"] as const), required: true, multiple: true }),
+  Object.freeze({ key: "measures", title: "指标/列", acceptedTypes: Object.freeze(["number"] as const), required: true, multiple: true }),
 ]);
 
 const validateStackedBarBinding = (binding: DataBinding | undefined) => {
@@ -21,7 +21,7 @@ export const stackedBarDefinition: ComponentDefinition<BarProps> = Object.freeze
   title: "堆积柱图",
   category: "柱/条图",
   defaultLayout: Object.freeze({ w: 6, h: 5 }),
-  createDefaults: (): BarProps => ({ color: "#1677ff", showLegend: true }),
+  createDefaults: (): BarProps => ({ aggregation: "sum", color: "#1677ff", showLegend: true }),
   dataSlots: stackedBarDataSlots,
   propsSchema: BarPropsSchema,
   validateBinding: validateStackedBarBinding,

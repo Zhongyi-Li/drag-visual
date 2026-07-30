@@ -3,6 +3,7 @@ import { Test } from "@nestjs/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { AppModule } from "./app.module.js";
+import { DatasetService } from "./datasets/dataset.service.js";
 
 describe("HealthController", () => {
   let app: NestFastifyApplication | undefined;
@@ -25,5 +26,23 @@ describe("HealthController", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok" });
+  });
+
+  it("resolves all dataset repositories from the application module", async () => {
+    const module = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    const datasets = module.get(DatasetService);
+
+    await expect(datasets.list()).resolves.toEqual([
+      {
+        id: "retail-delivery-orders",
+        name: "零售发货单（业务表）",
+        schemaVersion: "retail-delivery-orders-v2",
+      },
+    ]);
+
+    await module.close();
   });
 });

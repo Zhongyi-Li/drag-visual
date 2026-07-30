@@ -14,6 +14,7 @@ interface ComponentPaletteProps {
   store: EditorStore;
   createComponentId: () => string;
   registry?: ComponentRegistry;
+  highlighted?: boolean;
 }
 
 const defaultRegistry = createDefaultRegistry();
@@ -30,10 +31,12 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
   {
     category: "表格",
     items: [
-      { id: "pivot-table", type: "crosstab", title: "交叉表", icon: "pivot-table" },
+      // TODO(chart-palette): 交叉表待后续开发完成后再恢复展示。
+      // { id: "pivot-table", type: "crosstab", title: "交叉表", icon: "pivot-table" },
       { id: "detail-table", type: "table", title: "明细表", icon: "detail-table" },
-      { id: "trend-analysis", type: "trend", title: "趋势分析", icon: "trend-analysis" },
-      { id: "multi-analysis", type: "multidimensional", title: "多维分析", icon: "multi-analysis" },
+      // TODO(chart-palette): 趋势分析、多维分析待后续开发完成后再恢复展示。
+      // { id: "trend-analysis", type: "trend", title: "趋势分析", icon: "trend-analysis" },
+      // { id: "multi-analysis", type: "multidimensional", title: "多维分析", icon: "multi-analysis" },
       { id: "heatmap", type: "heatmap", title: "热力图", icon: "heatmap" },
     ],
   },
@@ -42,22 +45,26 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
     items: [
       { id: "metric-board", type: "kpi", title: "指标看板", icon: "metric-board" },
       { id: "metric-trend", type: "metricTrend", title: "指标趋势", icon: "metric-trend" },
-      { id: "flip-number", type: "flipNumber", title: "翻牌器", icon: "flip-number" },
+      // TODO(chart-palette): 翻牌器待后续开发完成后再恢复展示。
+      // { id: "flip-number", type: "flipNumber", title: "翻牌器", icon: "flip-number" },
       { id: "progress", type: "progressBar", title: "进度条", icon: "progress" },
+      { id: "target-progress", type: "targetProgress", title: "目标完成率", icon: "target-progress" },
       { id: "gauge", type: "gauge", title: "仪表盘", icon: "gauge" },
-      { id: "liquid", type: "liquid", title: "水波图", icon: "liquid" },
-      { id: "metric-breakdown", type: "metricBreakdown", title: "指标拆解", icon: "metric-breakdown" },
+      // TODO(chart-palette): 水波图、指标拆解待后续开发完成后再恢复展示。
+      // { id: "liquid", type: "liquid", title: "水波图", icon: "liquid" },
+      // { id: "metric-breakdown", type: "metricBreakdown", title: "指标拆解", icon: "metric-breakdown" },
     ],
   },
-  {
-    category: "线/面积图",
-    items: [
-      { id: "line", type: "line", title: "线图", icon: "line" },
-      { id: "area", type: "area", title: "面积图", icon: "area" },
-      { id: "stacked-area", type: "stackedArea", title: "堆积", icon: "stacked-area" },
-      { id: "percent-area", type: "percentArea", title: "百分比", icon: "percent-area" },
-    ],
-  },
+  // TODO(chart-palette): 整个线/面积图分类待后续开发完成后再恢复展示。
+  // {
+  //   category: "线/面积图",
+  //   items: [
+  //     { id: "line", type: "line", title: "线图", icon: "line" },
+  //     { id: "area", type: "area", title: "面积图", icon: "area" },
+  //     { id: "stacked-area", type: "stackedArea", title: "堆积", icon: "stacked-area" },
+  //     { id: "percent-area", type: "percentArea", title: "百分比", icon: "percent-area" },
+  //   ],
+  // },
   {
     category: "柱/条图",
     items: [
@@ -81,10 +88,12 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
     category: "饼/环形",
     items: [
       { id: "pie", type: "pie", title: "饼图", icon: "pie" },
+      { id: "donut", type: "donut", title: "环形图", icon: "donut" },
       { id: "rose", type: "rose", title: "玫瑰图", icon: "rose" },
-      { id: "sunburst", type: "sunburst", title: "旭日图", icon: "sunburst" },
-      { id: "radar", type: "radar", title: "雷达图", icon: "radar" },
-      { id: "treemap", type: "treemap", title: "矩形树图", icon: "treemap" },
+      // TODO(chart-palette): 旭日图、雷达图、矩形树图待后续开发完成后再恢复展示。
+      // { id: "sunburst", type: "sunburst", title: "旭日图", icon: "sunburst" },
+      // { id: "radar", type: "radar", title: "雷达图", icon: "radar" },
+      // { id: "treemap", type: "treemap", title: "矩形树图", icon: "treemap" },
     ],
   },
 ];
@@ -111,7 +120,9 @@ const DraggablePaletteCard = ({ id, type, title, icon, onAdd }: PaletteItem & { 
         type="button"
         aria-label={`添加${title}`}
         style={transform ? { transform: CSS.Translate.toString(transform) } : undefined}
-        onClick={() => { if (!isDragging) onAdd(); }}
+        // A pointer click can briefly activate dnd-kit before this handler runs.
+        // Adding must remain reliable for the primary click-to-add interaction.
+        onClick={onAdd}
         {...listeners}
         {...attributes}
         onKeyDown={onKeyDown}
@@ -128,7 +139,7 @@ const DraggablePaletteCard = ({ id, type, title, icon, onAdd }: PaletteItem & { 
   );
 };
 
-export const ComponentPalette = ({ store, createComponentId, registry = defaultRegistry }: ComponentPaletteProps) => {
+export const ComponentPalette = ({ store, createComponentId, registry = defaultRegistry, highlighted = false }: ComponentPaletteProps) => {
   const [search, setSearch] = useState("");
   const registeredTypes = new Set(registry.list().map((definition) => definition.type));
   const query = search.trim().toLocaleLowerCase("zh-CN");
@@ -149,7 +160,7 @@ export const ComponentPalette = ({ store, createComponentId, registry = defaultR
   const hasVisibleItems = visibleGroups.some((group) => group.items.length > 0);
 
   return (
-    <aside className="editor-palette editor-panel-scroll" aria-label="图表组件">
+    <aside className={`editor-palette editor-panel-scroll${highlighted ? " editor-palette--highlighted" : ""}`} aria-label="图表组件">
       <div className="palette-content">
         <div className="palette-search">
           <Input id="component-search" type="search" value={search} onChange={(event) => setSearch(event.target.value)} aria-label="搜索图表" prefix={<SearchOutlined />} placeholder="搜索图表" size="small" />
@@ -162,7 +173,7 @@ export const ComponentPalette = ({ store, createComponentId, registry = defaultR
               <h2 id={headingId}>{category}</h2>
               <div className="palette-grid">
                 {items.map((item) => (
-                  <DraggablePaletteCard key={item.id} {...item} onAdd={() => addRegistryComponent(store, registry, createComponentId, item.type, { x: 0, y: 0 }, item.title)} />
+                  <DraggablePaletteCard key={item.id} {...item} onAdd={() => addRegistryComponent(store, registry, createComponentId, item.type, undefined, item.title)} />
                 ))}
               </div>
             </section>

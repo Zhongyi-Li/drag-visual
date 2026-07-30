@@ -23,7 +23,7 @@ describe("DatasetWorkspace", () => {
 
     expect(await screen.findByText("收入")).toBeInTheDocument();
     fireEvent.change(screen.getByRole("spinbutton", { name: "年份" }), { target: { value: "2026" } });
-    const dateInput = screen.getByRole("textbox", { name: "开始日期" });
+    const dateInput = screen.getByLabelText("开始日期");
     fireEvent.change(dateInput, { target: { value: "2026-01-01" } });
     fireEvent.keyDown(dateInput, { key: "Enter", code: "Enter" });
     fireEvent.click(screen.getByRole("button", { name: /查.*询/ }));

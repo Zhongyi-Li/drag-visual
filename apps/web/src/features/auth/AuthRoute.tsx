@@ -79,10 +79,9 @@ export const AuthRoute = () => {
     setError(null);
     try {
       const session = mode === "login"
-        ? await login({ username: normalizedUsername, password })
-        : await register({ username: normalizedUsername, password });
-      if (remember) saveAuthSession(session);
-      else window.sessionStorage.setItem("zhbi.auth.session", JSON.stringify(session));
+        ? await login({ username: normalizedUsername, password, remember })
+        : await register({ username: normalizedUsername, password, remember });
+      saveAuthSession(session);
       navigate(nextPath(location.state), { replace: true });
     } catch (requestError: unknown) {
       if (requestError instanceof ApiError) {

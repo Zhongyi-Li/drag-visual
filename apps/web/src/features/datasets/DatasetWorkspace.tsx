@@ -1,6 +1,8 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
+import type { DatasetSummary } from "@drag-visual/contracts";
 import { Alert, Card, Select, Space, Spin, Tag, Typography } from "antd";
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { DataPreview } from "./DataPreview.js";
 import { getDataset, listDatasets, queryDataset } from "./datasetApi.js";
@@ -10,6 +12,7 @@ const errorMessage = (error: unknown): string => error instanceof Error ? error.
 
 export const DatasetWorkspace = () => {
   const [datasetId, setDatasetId] = useState<string>();
+  const queryClient = useQueryClient();
   const datasets = useQuery({ queryKey: ["datasets"], queryFn: () => listDatasets() });
   const schema = useQuery({
     queryKey: ["datasets", datasetId, "schema"],
@@ -18,6 +21,12 @@ export const DatasetWorkspace = () => {
   });
   const query = useMutation({
     mutationFn: (parameters: Record<string, string | number | boolean>) => queryDataset(datasetId!, parameters),
+    onSuccess: (result) => {
+      if (datasetId === undefined || result.datasetName === undefined) return;
+      queryClient.setQueryData<DatasetSummary[]>(["datasets"], (current) => current?.map((dataset) =>
+        dataset.id === datasetId ? { ...dataset, name: result.datasetName! } : dataset,
+      ));
+    },
   });
 
   return (

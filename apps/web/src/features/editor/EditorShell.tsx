@@ -14,7 +14,7 @@ import {
 import { createDefaultRegistry, type ComponentRegistry } from "@drag-visual/component-registry";
 import { ComponentType } from "@drag-visual/contracts";
 import { Card } from "antd";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { ComponentPalette } from "./ComponentPalette.js";
 import { addRegistryComponent } from "./componentActions.js";
@@ -32,6 +32,7 @@ interface EditorShellProps {
   onSave?: () => void;
   onPreview?: () => void;
   onPublish?: () => void;
+  onRename?: (name: string) => void;
   registry?: ComponentRegistry;
 }
 
@@ -45,12 +46,29 @@ export const EditorShell = ({
   onSave,
   onPreview,
   onPublish,
+  onRename = () => undefined,
   registry = defaultRegistry,
 }: EditorShellProps) => {
   const [activeTitle, setActiveTitle] = useState<string | null>(null);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
+  const [dataPanelCollapsed, setDataPanelCollapsed] = useState(false);
+  const [isPaletteHighlighted, setIsPaletteHighlighted] = useState(false);
+  const paletteHighlightTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }), useSensor(KeyboardSensor));
   useEditorShortcuts(store, onSave);
+
+  useEffect(() => () => {
+    if (paletteHighlightTimer.current) clearTimeout(paletteHighlightTimer.current);
+  }, []);
+
+  const guideToChartLibrary = () => {
+    const search = document.getElementById("component-search");
+    search?.scrollIntoView?.({ block: "nearest" });
+    search?.focus();
+    if (paletteHighlightTimer.current) clearTimeout(paletteHighlightTimer.current);
+    setIsPaletteHighlighted(true);
+    paletteHighlightTimer.current = setTimeout(() => setIsPaletteHighlighted(false), 1800);
+  };
 
   const onDragStart = (event: DragStartEvent) => {
     const parsedType = ComponentType.safeParse(event.active.data.current?.type);
@@ -88,18 +106,21 @@ export const EditorShell = ({
         onSave={onSave}
         onPreview={onPreview}
         onPublish={onPublish}
-        onAddChart={() => document.getElementById("component-search")?.focus()}
+        onRename={onRename}
+        onAddChart={guideToChartLibrary}
       />
       <DndContext sensors={sensors} collisionDetection={paletteCollisionDetection} onDragStart={onDragStart} onDragCancel={() => setActiveTitle(null)} onDragEnd={onDragEnd}>
         <div
-          className={`editor-workbench${inspectorCollapsed ? " editor-workbench--inspector-collapsed" : ""}`}
+          className={`editor-workbench${inspectorCollapsed ? " editor-workbench--inspector-collapsed" : ""}${dataPanelCollapsed ? " editor-workbench--data-panel-collapsed" : ""}`}
           data-testid="editor-workbench"
         >
-          <ComponentPalette store={store} createComponentId={createComponentId} registry={registry} />
-          <GridCanvas store={store} registry={registry} createComponentId={createComponentId} />
+          <ComponentPalette store={store} createComponentId={createComponentId} registry={registry} highlighted={isPaletteHighlighted} />
+          <GridCanvas store={store} registry={registry} createComponentId={createComponentId} onStartFromLibrary={guideToChartLibrary} />
           <InspectorPanel
             collapsed={inspectorCollapsed}
             onToggleCollapsed={() => setInspectorCollapsed((current) => !current)}
+            dataCollapsed={dataPanelCollapsed}
+            onToggleDataCollapsed={() => setDataPanelCollapsed((current) => !current)}
             store={store}
             registry={registry}
           />

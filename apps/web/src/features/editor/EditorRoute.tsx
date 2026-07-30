@@ -1,9 +1,9 @@
 import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Result, Spin } from "antd";
-import { useCallback, useRef, useState } from "react";
+import { Alert, Button, Result, Spin, message } from "antd";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
+import { DashboardSchema, type Dashboard, type Dataset, type DatasetQueryResult } from "@drag-visual/contracts";
 import { useStore } from "zustand";
 
 import { ApiError } from "../../api/ApiError.js";
@@ -11,9 +11,13 @@ import {
   createDashboard,
   getDashboard,
   publishDashboard,
+  renameDashboard,
   saveDashboard,
 } from "../dashboards/dashboardApi.js";
 import { writePreviewSnapshot } from "../preview/previewSnapshotStore.js";
+import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
+import { getDataset, listDatasets, queryDataset } from "../datasets/datasetApi.js";
+import { buildRuntimeParameters, runtimeParameters } from "../datasets/RuntimeDatasetRequestBar.js";
 import { EditorShell } from "./EditorShell.js";
 import { RevisionConflictModal } from "./RevisionConflictModal.js";
 import { useAutosave } from "./useAutosave.js";
@@ -46,6 +50,51 @@ const EditorLoader = () => {
   }
 
   return <LoadedEditor key={query.data.id} dashboard={query.data} />;
+};
+
+interface InterfaceDatasetSnapshot {
+  readonly schema: Dataset;
+  readonly result: DatasetQueryResult;
+}
+
+const loadInterfaceDatasets = async (): Promise<readonly InterfaceDatasetSnapshot[]> => {
+  const summaries = await listDatasets();
+  const snapshots = await Promise.all(summaries.map(async (summary) => {
+    const schema = await getDataset(summary.id);
+    // A dataset with non-runtime required inputs still needs a user-provided
+    // business filter, so it cannot be safely materialized on editor entry.
+    const runtime = runtimeParameters(schema.parameters);
+    // The editor currently auto-materializes paged interface datasets. Other
+    // remote datasets may still require business filters and remain opt-in.
+    if (runtime.length === 0 || schema.parameters.some((parameter) => parameter.required && parameter.runtime !== true)) return null;
+    const result = await queryDataset(schema.id, buildRuntimeParameters(runtime, {}));
+    return { schema, result };
+  }));
+  return snapshots.filter((snapshot): snapshot is InterfaceDatasetSnapshot => snapshot !== null);
+};
+
+const InterfaceDatasetBootstrap = () => {
+  const localDatasets = useLocalDatasets();
+  const bootstrapped = useRef(new Set<string>());
+  const query = useQuery({
+    queryKey: ["editor-interface-dataset-bootstrap"],
+    queryFn: loadInterfaceDatasets,
+    staleTime: Infinity,
+  });
+
+  useEffect(() => {
+    for (const snapshot of query.data ?? []) {
+      if (bootstrapped.current.has(snapshot.schema.id)) continue;
+      bootstrapped.current.add(snapshot.schema.id);
+      localDatasets.upsertRuntimeDataset({
+        schema: snapshot.result.datasetName === undefined
+          ? { ...snapshot.schema, fields: snapshot.result.columns }
+          : { ...snapshot.schema, name: snapshot.result.datasetName, fields: snapshot.result.columns },
+        result: snapshot.result,
+      });
+    }
+  }, [localDatasets, query.data]);
+  return null;
 };
 
 const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
@@ -99,8 +148,35 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
   useAutosave({ dashboard: currentWritableDashboard, dirty, save });
 
   const onSave = useCallback(() => {
-    void save(DashboardSchema.parse(editorSelectors.dashboard(store.getState()))).catch(() => undefined);
+    if (!store.getState().dirty) {
+      void message.info("当前看板已保存，没有需要提交的更改");
+      return;
+    }
+    void save(DashboardSchema.parse(editorSelectors.dashboard(store.getState()))).then(
+      () => message.success("看板已保存"),
+      () => message.error("保存失败，请检查后端服务后重试"),
+    );
   }, [save, store]);
+
+  const onRename = useCallback((name: string) => {
+    const hadPendingChanges = store.getState().dirty;
+    store.getState().dispatch({ type: "dashboard.name.update", nextName: name });
+    if (hadPendingChanges) return;
+
+    const snapshot = DashboardSchema.parse(editorSelectors.dashboard(store.getState()));
+    store.getState().markSaving();
+    const request = renameDashboard(snapshot.id, snapshot.name, snapshot.revision);
+    savingPromise.current = request;
+    void request.then(
+      (saved) => store.getState().markSaved(saved),
+      (error: unknown) => {
+        store.getState().markSaveFailed();
+        if (error instanceof ApiError && error.status === 409) setConflictOpen(true);
+      },
+    ).finally(() => {
+      if (savingPromise.current === request) savingPromise.current = null;
+    });
+  }, [store]);
 
   const onPublish = useCallback(() => {
     void (async () => {
@@ -147,6 +223,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
 
   return (
     <>
+      <InterfaceDatasetBootstrap />
       {(publishedId || publishFailed) && (
         <div className="editor-route-alerts">
           {publishedId && (
@@ -167,7 +244,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
           )}
         </div>
       )}
-      <EditorShell store={store} onSave={onSave} onPreview={onPreview} onPublish={onPublish} />
+      <EditorShell store={store} onSave={onSave} onPreview={onPreview} onPublish={onPublish} onRename={onRename} />
       <RevisionConflictModal
         open={conflictOpen}
         onReload={onReloadServerVersion}

@@ -59,6 +59,7 @@ pnpm exec playwright test --repeat-each=2
 
 - `VITE_API_BASE_URL`: API base URL used by `apps/web/src/api/client.ts`. Leave empty for same-origin requests.
 - `VITE_USE_MOCKS`: set to `true` to start the browser MSW worker from `apps/web/src/mocks/browser.ts`.
+- `COOKIE_SECURE`: defaults to `true` when `NODE_ENV=production`. Set it to `false` only when the service is restricted to a trusted intranet and must be accessed over HTTP by IP; use HTTPS and keep the default whenever possible.
 
 Do not commit credentials, internal service URLs, or environment-specific secrets.
 

@@ -65,4 +65,15 @@ describe("PublishingService", () => {
 
     await expect(new PublishingService(repository).getPublished(dashboard().id)).rejects.toBeInstanceOf(PublishedDashboardNotFoundError);
   });
+
+  it("takes a published page offline without deleting its draft", async () => {
+    const repository = new InMemoryPublishingRepository();
+    repository.seed({ id: dashboard().id, draftSchema: dashboard(), publishedSchema: dashboard() });
+    const service = new PublishingService(repository);
+
+    await service.unpublish(dashboard().id);
+
+    await expect(repository.getDraft(dashboard().id)).resolves.toEqual(dashboard());
+    await expect(service.getPublished(dashboard().id)).rejects.toBeInstanceOf(PublishedDashboardNotFoundError);
+  });
 });

@@ -62,6 +62,31 @@ describe("Dataset contracts", () => {
     expect(DatasetQueryResult.parse(validResult())).toEqual(validResult());
   });
 
+  it("parses a source-neutral grouped aggregation request", () => {
+    const request = DatasetQueryRequest.parse({
+      parameters: { region: "华东" },
+      aggregation: {
+        groupBy: ["month"],
+        measures: [
+          { fieldKey: "revenue", aggregation: "sum" },
+          { fieldKey: "orders", aggregation: "count" },
+        ],
+      },
+    });
+
+    expect(request.aggregation).toEqual({
+      groupBy: ["month"],
+      measures: [
+        { fieldKey: "revenue", aggregation: "sum" },
+        { fieldKey: "orders", aggregation: "count" },
+      ],
+    });
+    expect(DatasetQueryRequest.safeParse({
+      parameters: {},
+      aggregation: { groupBy: ["month"], measures: [{ fieldKey: "month", aggregation: "sum" }] },
+    }).success).toBe(false);
+  });
+
   it.each([
     ["dataset", Dataset, { ...validDataset(), extra: true }],
     [

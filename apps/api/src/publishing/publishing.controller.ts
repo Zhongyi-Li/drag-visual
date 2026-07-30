@@ -2,6 +2,7 @@ import {
   ArgumentsHost,
   Catch,
   Controller,
+  Delete,
   ExceptionFilter,
   Get,
   HttpException,
@@ -10,11 +11,15 @@ import {
   Logger,
   Param,
   Post,
+  UseGuards,
   UseFilters,
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 
+import type { AuthenticatedUser } from "../auth/auth.service.js";
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import {
   DashboardNotFoundForPublishingError,
   InvalidDraftSchemaError,
@@ -86,7 +91,7 @@ export class PublishingExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const reply = http.getResponse<FastifyReply>();
-    if (exception instanceof PublishingHttpException) {
+    if (exception instanceof PublishingHttpException || (exception instanceof HttpException && exception.getStatus() === HttpStatus.UNAUTHORIZED)) {
       const response = exception.getResponse();
       if (
         typeof response === "object" &&
@@ -115,10 +120,23 @@ export class PublishingController {
   constructor(@Inject(PublishingService) private readonly publishing: PublishingService) {}
 
   @Post("dashboards/:id/publish")
-  async publish(@Param("id") id: string) {
+  @UseGuards(SessionAuthGuard)
+  async publish(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser) {
     const dashboardId = parseRequest(() => DashboardId.parse(id));
     try {
-      return await this.publishing.publish(dashboardId);
+      return await this.publishing.publish(dashboardId, user.id);
+    } catch (error: unknown) {
+      return httpError(error);
+    }
+  }
+
+  @Delete("dashboards/:id/publish")
+  @UseGuards(SessionAuthGuard)
+  async unpublish(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser) {
+    const dashboardId = parseRequest(() => DashboardId.parse(id));
+    try {
+      await this.publishing.unpublish(dashboardId, user.id);
+      return { unpublished: true };
     } catch (error: unknown) {
       return httpError(error);
     }

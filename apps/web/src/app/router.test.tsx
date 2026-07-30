@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { RouterProvider, createMemoryRouter } from "react-router-dom";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { AppProviders } from "./AppProviders.js";
 import { appRoutes } from "./router.js";
@@ -36,12 +37,17 @@ describe("application routes", () => {
 
   it("loads a preview route from the draft dashboard API", async () => {
     server.use(http.get(`http://localhost/dashboards/${dashboard.id}`, () => HttpResponse.json(dashboard)));
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
 
     renderRoute(`/preview/${dashboard.id}`);
 
     expect(await screen.findByRole("heading", { name: "经营看板" })).toBeInTheDocument();
     expect(screen.getByText("月收入")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "返回看板首页" })).toHaveAttribute("href", "/");
+    expect(screen.getByRole("link", { name: "继续编辑" })).toHaveAttribute("href", `/editor/${dashboard.id}`);
+
+    await userEvent.click(screen.getByRole("button", { name: "分享" }));
+    expect(writeText).toHaveBeenCalledWith(`${globalThis.location.origin}/view/${dashboard.id}`);
   });
 
   it("loads a published route from the published snapshot API", async () => {
@@ -51,7 +57,8 @@ describe("application routes", () => {
 
     expect(await screen.findByRole("heading", { name: "发布看板" })).toBeInTheDocument();
     expect(screen.getByText("月收入")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "返回看板首页" })).toHaveAttribute("href", "/");
+    expect(screen.queryByRole("link", { name: "返回看板首页" })).not.toBeInTheDocument();
+    expect(screen.queryByText("修订版本 1")).not.toBeInTheDocument();
   });
 
   it("renders an accessible fallback for an unknown route", async () => {

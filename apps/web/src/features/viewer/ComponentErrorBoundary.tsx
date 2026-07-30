@@ -63,6 +63,15 @@ export class ComponentErrorBoundary extends Component<
       );
     }
 
-    return <div key={this.state.retryKey}>{this.props.children}</div>;
+    // 预览卡片是纵向 Flex 布局。此包装层也必须参与尺寸传递，
+    // 否则表格页脚和图表坐标轴会在内容高度超过卡片时被裁切。
+    return (
+      <div
+        key={this.state.retryKey}
+        style={{ display: "flex", flex: "1 1 auto", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
+      >
+        {this.props.children}
+      </div>
+    );
   }
 }

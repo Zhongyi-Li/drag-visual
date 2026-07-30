@@ -1,4 +1,5 @@
 import { ApiError } from "./ApiError.js";
+import { clearAuthSession } from "../features/auth/authSession.js";
 
 export interface ApiClient {
   request<T = unknown>(path: string, init?: RequestInit): Promise<T>;
@@ -21,7 +22,9 @@ export const createApiClient = (baseUrl: string): ApiClient => {
       const response = await fetch(`${normalizedBaseUrl}/${path.replace(/^\/+/, "")}`, {
         ...init,
         headers,
+        credentials: "include",
       });
+      if (response.status === 401) clearAuthSession();
       const text = await response.text();
       if (text.length === 0) {
         if (response.ok) return null as T;

@@ -7,7 +7,10 @@ import {
   validateTimeSeriesBinding,
 } from "./line.js";
 
-const PercentBarPropsSchema = TimeSeriesPropsSchema.extend({ area: z.literal(true) });
+const PercentBarPropsSchema = TimeSeriesPropsSchema.extend({
+  aggregation: z.enum(["sum", "avg", "count", "max", "min"]),
+  area: z.literal(true),
+});
 
 export type PercentBarProps = z.infer<typeof PercentBarPropsSchema>;
 
@@ -16,7 +19,7 @@ export const percentBarDefinition: ComponentDefinition<PercentBarProps> = Object
   title: "百分比堆积柱图",
   category: "柱/条图",
   defaultLayout: Object.freeze({ w: 6, h: 5 }),
-  createDefaults: (): PercentBarProps => ({ color: "#1677ff", showLegend: true, smooth: true, area: true }),
+  createDefaults: (): PercentBarProps => ({ aggregation: "sum", color: "#1677ff", showLegend: true, smooth: true, area: true }),
   dataSlots: timeSeriesDataSlots,
   propsSchema: PercentBarPropsSchema,
   validateBinding: validateTimeSeriesBinding,

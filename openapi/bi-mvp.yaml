@@ -283,6 +283,21 @@ paths:
                   value: { code: INTERNAL_ERROR, message: Internal server error }
                 persistenceFailure:
                   value: { code: PUBLISH_FAILED, message: Dashboard publish failed }
+    delete:
+      tags: [Dashboards]
+      operationId: unpublishDashboard
+      summary: Take a published dashboard page offline
+      description: Removes the public snapshot while retaining the editable draft.
+      responses:
+        '200':
+          description: The published page is no longer publicly available.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UnpublishResult' }
+              example: { unpublished: true }
+        '400': *dashboardSchemaInvalid
+        '404': *dashboardNotFound
+        '500': *internalError
   /published-dashboards/{dashboardId}:
     parameters:
       - $ref: '#/components/parameters/DashboardId'
@@ -485,7 +500,14 @@ components:
           items: { $ref: '#/components/schemas/DashboardDataset' }
         revision: { type: integer, minimum: 1 }
         updatedAt: { type: string, format: date-time }
+        publishedAt: { type: [string, 'null'], format: date-time, readOnly: true }
       example: *dashboardExample
+    UnpublishResult:
+      type: object
+      additionalProperties: false
+      required: [unpublished]
+      properties:
+        unpublished: { type: boolean, const: true }
     DatasetField:
       type: object
       additionalProperties: false

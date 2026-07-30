@@ -10,18 +10,59 @@ datasource db {
 
 model DashboardRecord {
   id              String   @id @default(cuid())
+  ownerId         String?
   name            String
   revision        Int      @default(1)
   draftSchema     Json
   publishedSchema Json?
+  publishedAt     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  owner           UserRecord? @relation("DashboardOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId, updatedAt])
 }
 
 model UserRecord {
   id           String   @id @default(cuid())
   username     String   @unique
   passwordHash String
+  displayName  String?
+  avatarUrl    String?
+  lastLoginAt  DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  sessions     SessionRecord[]
+  preference   UserPreference?
+  dashboards   DashboardRecord[] @relation("DashboardOwner")
+}
+
+model SessionRecord {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  userAgent  String?
+  ipHash     String?
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user       UserRecord @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model UserPreference {
+  userId            String   @id
+  themeMode         String   @default("system")
+  locale            String   @default("zh-CN")
+  timezone          String   @default("Asia/Shanghai")
+  dashboardListView String   @default("grid")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              UserRecord @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

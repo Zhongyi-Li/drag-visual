@@ -231,4 +231,21 @@ describe("PrismaDashboardRepository", () => {
 
     await expect(repository.updateIfRevision(validDashboard())).resolves.toBeNull();
   });
+
+  it("renames the synchronized column and draft schema with the current revision", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-02T10:00:00.000Z"));
+    const { repository, dashboardRecord } = createRepository();
+    const dashboard = validDashboard();
+    dashboardRecord.findUnique.mockResolvedValue({ revision: 1, draftSchema: dashboard });
+    dashboardRecord.updateMany.mockResolvedValue({ count: 1 });
+
+    const result = await repository.renameIfRevision(dashboard.id, "经营总览", 1);
+
+    expect(result).toEqual({ ...dashboard, name: "经营总览", revision: 2, updatedAt: "2026-07-02T10:00:00.000Z" });
+    expect(dashboardRecord.updateMany).toHaveBeenCalledWith({
+      where: { id: dashboard.id, revision: 1 },
+      data: { name: "经营总览", revision: 2, draftSchema: result },
+    });
+  });
 });

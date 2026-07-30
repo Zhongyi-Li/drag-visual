@@ -5,7 +5,7 @@ import type { ComponentDefinition } from "../types.js";
 import { requireSlot } from "./helpers.js";
 
 const TrendPropsSchema = z.object({
-  aggregation: z.enum(["sum", "avg", "max", "min"]),
+  aggregation: z.enum(["sum", "avg", "count", "max", "min"]),
   showSummary: z.boolean(),
   timeGranularity: z.enum(["day", "week", "month", "quarter", "year"]),
 }).strict();
@@ -20,7 +20,7 @@ const dataSlots = Object.freeze([
   }),
   Object.freeze({
     key: "measure",
-    title: "指标",
+    title: "指标/列",
     acceptedTypes: Object.freeze(["number"] as const),
     required: true,
     multiple: false,

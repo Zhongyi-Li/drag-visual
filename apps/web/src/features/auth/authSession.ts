@@ -1,36 +1,71 @@
 export interface AuthUser {
   id: string;
   username: string;
+  displayName: string | null;
+  avatarUrl: string | null;
 }
 
 export interface AuthSession {
-  accessToken: string;
   user: AuthUser;
 }
 
-const sessionKey = "zhbi.auth.session";
+export type AuthStatus = "unknown" | "authenticated" | "anonymous";
 
-const storage = (): Storage | null => {
-  if (typeof window === "undefined") return null;
-  return window.localStorage;
+interface AuthState {
+  status: AuthStatus;
+  session: AuthSession | null;
+}
+
+let state: AuthState = { status: "unknown", session: null };
+let restorePromise: Promise<void> | null = null;
+const listeners = new Set<() => void>();
+
+const notify = (): void => listeners.forEach((listener) => listener());
+
+const setState = (next: AuthState): void => {
+  state = next;
+  notify();
 };
 
-export const readAuthSession = (): AuthSession | null => {
-  const value = storage()?.getItem(sessionKey) ?? (typeof window === "undefined" ? null : window.sessionStorage.getItem(sessionKey));
-  if (!value) return null;
-  try {
-    const session = JSON.parse(value) as AuthSession;
-    return typeof session.accessToken === "string" && typeof session.user?.id === "string" && typeof session.user?.username === "string"
-      ? session
-      : null;
-  } catch {
-    return null;
-  }
+const apiBaseUrl = (): string => (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/+$/, "");
+
+export const readAuthSession = (): AuthSession | null => state.session;
+export const readAuthStatus = (): AuthStatus => state.status;
+export const subscribeAuthSession = (listener: () => void): (() => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 };
 
-export const saveAuthSession = (session: AuthSession): void => storage()?.setItem(sessionKey, JSON.stringify(session));
-
+export const saveAuthSession = (session: AuthSession): void => setState({ status: "authenticated", session });
 export const clearAuthSession = (): void => {
-  storage()?.removeItem(sessionKey);
-  if (typeof window !== "undefined") window.sessionStorage.removeItem(sessionKey);
+  if (typeof window !== "undefined") {
+    window.localStorage.removeItem("zhbi.auth.session");
+    window.sessionStorage.removeItem("zhbi.auth.session");
+  }
+  setState({ status: "anonymous", session: null });
+};
+
+export const restoreAuthSession = async (): Promise<void> => {
+  if (restorePromise) return restorePromise;
+  restorePromise = (async () => {
+    try {
+      const response = await fetch(`${apiBaseUrl()}/api/auth/me`, {
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      });
+      if (!response.ok) {
+        clearAuthSession();
+        return;
+      }
+      const value = await response.json() as { user?: AuthUser };
+      if (!value.user || typeof value.user.id !== "string" || typeof value.user.username !== "string") {
+        clearAuthSession();
+        return;
+      }
+      saveAuthSession({ user: value.user });
+    } catch {
+      clearAuthSession();
+    }
+  })();
+  return restorePromise;
 };

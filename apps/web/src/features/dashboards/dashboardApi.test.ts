@@ -10,7 +10,9 @@ import {
   getDashboard,
   getPublishedDashboard,
   publishDashboard,
+  renameDashboard,
   saveDashboard,
+  unpublishDashboard,
 } from "./dashboardApi.js";
 
 const dashboard = {
@@ -66,6 +68,17 @@ describe("dashboardApi", () => {
     expect(body).toEqual(dashboard);
   });
 
+  it("renames through the dedicated endpoint with an optimistic revision", async () => {
+    let body: unknown;
+    server.use(http.patch(`http://localhost/dashboards/${dashboard.id}/name`, async ({ request }) => {
+      body = await request.json();
+      return HttpResponse.json({ ...dashboard, name: "经营总览", revision: 2 });
+    }));
+
+    await expect(renameDashboard(dashboard.id, "经营总览", 1, createApiClient("http://localhost"))).resolves.toMatchObject({ name: "经营总览", revision: 2 });
+    expect(body).toEqual({ name: "经营总览", revision: 1 });
+  });
+
   it("deletes a dashboard", async () => {
     server.use(http.delete(`http://localhost/dashboards/${dashboard.id}`, () => HttpResponse.json({ deleted: true })));
 
@@ -80,5 +93,11 @@ describe("dashboardApi", () => {
 
     await expect(publishDashboard(dashboard.id, createApiClient("http://localhost"))).resolves.toEqual(dashboard);
     await expect(getPublishedDashboard(dashboard.id, createApiClient("http://localhost"))).resolves.toMatchObject({ name: "发布快照" });
+  });
+
+  it("takes a published page offline", async () => {
+    server.use(http.delete(`http://localhost/dashboards/${dashboard.id}/publish`, () => HttpResponse.json({ unpublished: true })));
+
+    await expect(unpublishDashboard(dashboard.id, createApiClient("http://localhost"))).resolves.toBeUndefined();
   });
 });

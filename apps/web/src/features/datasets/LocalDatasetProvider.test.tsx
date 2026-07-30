@@ -55,6 +55,18 @@ describe("LocalDatasetProvider", () => {
     expect(second.result.current.queryDataset("local-sales")?.rows).toEqual([
       { month: "1月", revenue: 120000 },
     ]);
+    expect(second.result.current.isUploadedDataset("local-sales")).toBe(true);
+  });
+
+  it("keeps interface snapshots in memory without persisting them as uploaded files", () => {
+    const { result } = renderHook(() => useLocalDatasets(), { wrapper });
+
+    act(() => result.current.upsertRuntimeDataset(importedDataset({ id: "retail-delivery-orders", name: "零售发货单（业务表）" })));
+
+    expect(result.current.getDataset("retail-delivery-orders")?.name).toBe("零售发货单（业务表）");
+    expect(result.current.queryDataset("retail-delivery-orders")?.rows).toHaveLength(1);
+    expect(result.current.isUploadedDataset("retail-delivery-orders")).toBe(false);
+    expect(JSON.parse(localStorage.getItem(storageKey) ?? "[]")).toEqual([]);
   });
 
   it("renames, deletes, replaces, and updates field metadata", () => {

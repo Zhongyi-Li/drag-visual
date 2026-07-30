@@ -1,9 +1,11 @@
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import { Button, Result } from "antd";
 import { Navigate, Outlet, createBrowserRouter, type RouteObject, useLocation } from "react-router-dom";
+import { Spin } from "antd";
+import { useEffect, useSyncExternalStore } from "react";
 
 import { AuthRoute } from "../features/auth/AuthRoute.js";
-import { readAuthSession } from "../features/auth/authSession.js";
+import { readAuthSession, readAuthStatus, restoreAuthSession, subscribeAuthSession } from "../features/auth/authSession.js";
 import { DashboardHome } from "../features/dashboards/DashboardHome.js";
 
 const NotFound = () => (
@@ -19,6 +21,13 @@ const NotFound = () => (
 
 const ProtectedRoute = () => {
   const location = useLocation();
+  const status = useSyncExternalStore(subscribeAuthSession, readAuthStatus, readAuthStatus);
+  useEffect(() => {
+    if (status === "unknown") void restoreAuthSession();
+  }, [status]);
+  if (status === "unknown") {
+    return <main style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f5f7fa" }} aria-label="正在恢复登录状态"><Spin /></main>;
+  }
   return readAuthSession() ? <Outlet /> : <Navigate to="/auth" replace state={{ from: location.pathname }} />;
 };
 

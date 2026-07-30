@@ -27,9 +27,15 @@ export const queryDataset = async (
   id: string,
   parameters: DatasetQueryRequest["parameters"],
   client: ApiClient = apiClient,
+): Promise<DatasetQueryResultValue> => queryDatasetRequest(id, { parameters }, client);
+
+export const queryDatasetRequest = async (
+  id: string,
+  request: DatasetQueryRequest,
+  client: ApiClient = apiClient,
 ): Promise<DatasetQueryResultValue> => DatasetQueryResult.parse(
   await client.request(`datasets/${encodeURIComponent(id)}/query`, {
     method: "POST",
-    body: JSON.stringify({ parameters }),
+    body: JSON.stringify(request),
   }),
 );

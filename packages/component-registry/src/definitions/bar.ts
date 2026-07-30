@@ -4,6 +4,7 @@ import type { DataBinding } from "@drag-visual/contracts";
 import type { ComponentDefinition } from "../types.js";
 
 export const BarPropsSchema = z.object({
+  aggregation: z.enum(["sum", "avg", "max", "min"]),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
   showLegend: z.boolean(),
 }).strict();
@@ -20,7 +21,7 @@ const dataSlots = Object.freeze([
   }),
   Object.freeze({
     key: "measure",
-    title: "指标",
+    title: "指标/列",
     acceptedTypes: Object.freeze(["number"] as const),
     required: true,
     multiple: true,
@@ -32,7 +33,7 @@ export const barDefinition: ComponentDefinition<BarProps> = Object.freeze({
   title: "柱图",
   category: "柱/条图",
   defaultLayout: Object.freeze({ w: 6, h: 5 }),
-  createDefaults: (): BarProps => ({ color: "#1677ff", showLegend: true }),
+  createDefaults: (): BarProps => ({ aggregation: "sum", color: "#1677ff", showLegend: true }),
   dataSlots,
   propsSchema: BarPropsSchema,
   validateBinding: (binding: DataBinding | undefined) => {

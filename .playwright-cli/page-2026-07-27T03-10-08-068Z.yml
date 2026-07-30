@@ -1,0 +1,43 @@
+- main [ref=e3]:
+  - generic "ZHBi" [ref=e5]:
+    - generic [ref=e6]: ZH
+    - generic [ref=e7]: Bi
+  - region "ZHBi 账号入口" [ref=e9]:
+    - complementary [ref=e10]:
+      - heading "进入你的数据工作台" [level=1] [ref=e11]
+      - paragraph [ref=e12]: ZHBi 帮助企业汇通数据、洞察趋势、驱动决策，让数据真正创造业务价值。
+      - list [ref=e13]:
+        - listitem [ref=e14]:
+          - generic [ref=e19]:
+            - strong [ref=e20]: 连通全域数据
+            - generic [ref=e21]: 连接多源数据，统一治理，打破数据孤岛。
+        - listitem [ref=e22]:
+          - generic [ref=e27]:
+            - strong [ref=e28]: 洞察业务趋势
+            - generic [ref=e29]: 丰富分析模型与可视化，洞察趋势，发现机会。
+        - listitem [ref=e30]:
+          - generic [ref=e35]:
+            - strong [ref=e36]: 驱动高效决策
+            - generic [ref=e37]: 数据驱动业务闭环，提升效率，加速增长。
+    - generic [ref=e38]:
+      - tablist "账号入口模式" [ref=e39]:
+        - tab "登录" [selected] [ref=e40] [cursor=pointer]
+        - tab "注册" [ref=e41] [cursor=pointer]
+      - paragraph [ref=e42]: 登录后即可进入 ZHBi 数据工作台
+      - generic [ref=e43]:
+        - generic [ref=e44]: 账号
+        - textbox "账号" [ref=e50]:
+          - /placeholder: 请输入账号
+        - generic [ref=e51]: 密码
+        - generic [ref=e52]:
+          - textbox "密码" [ref=e57]:
+            - /placeholder: 请输入密码
+          - button "显示密码" [ref=e59] [cursor=pointer]:
+            - img "eye-invisible" [ref=e60]
+        - generic [ref=e64] [cursor=pointer]:
+          - checkbox "记住我" [checked] [ref=e66]
+          - generic [ref=e67]: 记住我
+        - button "登 录" [ref=e68] [cursor=pointer]
+      - paragraph [ref=e70]:
+        - text: 没有账号？
+        - button "立即注册" [ref=e71] [cursor=pointer]

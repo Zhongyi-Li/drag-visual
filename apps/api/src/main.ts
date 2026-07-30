@@ -22,6 +22,10 @@ async function bootstrap(): Promise<void> {
     AppModule,
     new FastifyAdapter({ ...safeJsonFastifyOptions, logger: true }),
   );
+  app.enableCors({
+    origin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
+    credentials: true,
+  });
   app
     .getHttpAdapter()
     .getInstance()

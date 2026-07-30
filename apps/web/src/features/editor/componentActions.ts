@@ -11,16 +11,24 @@ export const addRegistryComponent = (
   registry: ComponentRegistry,
   createComponentId: () => string,
   type: ComponentType,
-  point: GridPoint = { x: 0, y: 0 },
+  point?: GridPoint,
   title?: string,
 ): string => {
   const definition = registry.get(type);
   const id = createComponentId();
+  const existingLayout = store.getState().history.present.layout;
+  // Clicking a palette item should extend the dashboard instead of reusing the
+  // top-left origin and letting the grid displace a component that is already
+  // on the last occupied row. Drag-and-drop still honors its explicit point.
+  const placement = point ?? {
+    x: 0,
+    y: existingLayout.reduce((bottom, item) => Math.max(bottom, item.y + item.h), 0),
+  };
   const candidate = clampLayoutItem(
-    { i: id, x: point.x, y: point.y, ...definition.defaultLayout },
+    { i: id, x: placement.x, y: placement.y, ...definition.defaultLayout },
     definition.defaultLayout,
   );
-  const layout = findAvailableLayout(store.getState().history.present.layout, candidate);
+  const layout = findAvailableLayout(existingLayout, candidate);
   store.getState().dispatch({
     type: "component.add",
     component: { id, type, title: title ?? definition.title, props: definition.createDefaults() },

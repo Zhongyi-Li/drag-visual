@@ -1,5 +1,5 @@
 import type { QueryParameter } from "@drag-visual/contracts";
-import { Button, DatePicker, Form, Input, InputNumber, Space, Switch } from "antd";
+import { Button, Form, Input, InputNumber, Space, Switch } from "antd";
 
 type ParameterValues = Readonly<Record<string, unknown>>;
 
@@ -70,18 +70,21 @@ export interface ParameterFormProps {
   readonly parameters: readonly QueryParameter[];
   readonly onSubmit: (parameters: Record<string, string | number | boolean>) => void;
   readonly submitting?: boolean;
+  readonly initialValues?: ParameterValues;
+  readonly submitLabel?: string;
 }
 
 const control = (parameter: QueryParameter) => {
   if (parameter.type === "number") return <InputNumber style={{ width: "100%" }} />;
-  if (parameter.type === "date") return <DatePicker format="YYYY-MM-DD" style={{ width: "100%" }} />;
+  if (parameter.type === "date") return <Input type="date" />;
   if (parameter.type === "boolean") return <Switch />;
   return <Input />;
 };
 
-export const ParameterForm = ({ parameters, onSubmit, submitting = false }: ParameterFormProps) => (
+export const ParameterForm = ({ parameters, onSubmit, submitting = false, initialValues, submitLabel = "查询" }: ParameterFormProps) => (
   <Form
     layout="vertical"
+    {...(initialValues === undefined ? {} : { initialValues })}
     onFinish={(values: Record<string, unknown>) => onSubmit(buildQueryParameters(parameters, values))}
   >
     {parameters.map((parameter) => (
@@ -100,7 +103,7 @@ export const ParameterForm = ({ parameters, onSubmit, submitting = false }: Para
       </Form.Item>
     ))}
     <Space>
-      <Button type="primary" htmlType="submit" loading={submitting}>查询</Button>
+      <Button type="primary" htmlType="submit" loading={submitting}>{submitLabel}</Button>
     </Space>
   </Form>
 );

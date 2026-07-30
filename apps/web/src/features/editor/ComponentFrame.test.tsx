@@ -2,18 +2,21 @@
 
 import { DashboardSchema } from "@drag-visual/contracts";
 import { DashboardComponentRenderer } from "@drag-visual/chart-renderer";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactElement } from "react";
+import { http, HttpResponse } from "msw";
+import type { ReactElement, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AppProviders } from "../../app/AppProviders.js";
+import { server } from "../../mocks/server.js";
 import { ComponentFrame } from "./ComponentFrame.js";
 import { createEditorStore } from "./store/editorStore.js";
 import { useEditorShortcuts } from "./useEditorShortcuts.js";
 
 vi.mock("@drag-visual/chart-renderer", () => ({
   DashboardComponentRenderer: vi.fn(() => <div>当前图表无数据</div>),
+  ResponsiveChartContainer: ({ children }: { readonly children: ReactNode }) => <>{children}</>,
 }));
 
 const dashboard = DashboardSchema.parse({
@@ -39,6 +42,38 @@ const remoteDashboard = DashboardSchema.parse({
     binding: {
       datasetId: "sales",
       slots: { dimension: { fieldKey: "month" }, measure: { fieldKey: "revenue" } },
+    },
+  }],
+});
+
+const retailFields = [
+  { key: "billNo", label: "单据编号", type: "string", nullable: false },
+  { key: "orderAmt", label: "订单总额", type: "number", nullable: false },
+] as const;
+
+const retailDashboard = DashboardSchema.parse({
+  ...dashboard,
+  datasets: [{ datasetId: "retail-delivery-orders", schemaVersion: "retail-delivery-orders-v1", parameters: {} }],
+  components: [{
+    id: "bar-1",
+    type: "bar",
+    title: "零售订单金额",
+    props: { color: "#1677ff", showLegend: true },
+    binding: {
+      datasetId: "retail-delivery-orders",
+      slots: { dimension: { fieldKey: "billNo" }, measure: { fieldKey: "orderAmt" } },
+    },
+  }],
+});
+
+const transformedRemoteDashboard = DashboardSchema.parse({
+  ...remoteDashboard,
+  components: [{
+    ...remoteDashboard.components[0]!,
+    binding: {
+      ...remoteDashboard.components[0]!.binding!,
+      sort: { fieldKey: "revenue", direction: "desc" },
+      limit: 1,
     },
   }],
 });
@@ -123,7 +158,18 @@ describe("ComponentFrame", () => {
     expect(screen.getByRole("menuitem", { name: "复制" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "删除" })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: "刷新" })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "查看数据" })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByRole("menuitem", { name: "查看数据" })).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("opens the component data drawer from the overflow menu", async () => {
+    const store = createEditorStore(dashboard);
+    renderFrame(<ComponentFrame component={dashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    await openMoreActions();
+    await userEvent.click(screen.getByRole("menuitem", { name: "查看数据" }));
+
+    expect(await screen.findByText("销售额的数据")).toBeInTheDocument();
+    expect(screen.getByText("暂无可查看的数据")).toBeInTheDocument();
   });
 
   it("shows a refresh-in-progress state before remounting the chart", async () => {
@@ -147,6 +193,122 @@ describe("ComponentFrame", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "刷新" }));
     await waitFor(() => expect(queryCallCount()).toBe(2));
     fetchSpy.mockRestore();
+  });
+
+  it("queries an edited aggregation only after the inspector applies its update", async () => {
+    const requests: unknown[] = [];
+    server.use(
+      http.post("http://localhost/datasets/sales/query", async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json({
+          columns: [
+            { key: "month", label: "月份", type: "string", nullable: false },
+            { key: "revenue", label: "销售额", type: "number", nullable: false },
+          ],
+          rows: [{ month: "2026-01", revenue: 100 }],
+          total: 1,
+          sampledAt: "2026-07-24T00:00:00.000Z",
+        });
+      }),
+    );
+    const store = createEditorStore(remoteDashboard);
+    renderFrame(<ComponentFrame component={remoteDashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    await act(async () => {
+      store.getState().dispatch({
+        type: "component.binding.update",
+        componentId: "bar-1",
+        nextBinding: {
+          datasetId: "sales",
+          slots: {
+            dimension: { fieldKey: "month" },
+            measure: { fieldKey: "revenue", aggregation: "avg" },
+          },
+        },
+      });
+    });
+    expect(requests).toHaveLength(1);
+
+    await act(async () => {
+      const current = store.getState().history.present.components[0]!;
+      store.getState().dispatch({
+        type: "component.props.update",
+        componentId: "bar-1",
+        nextProps: { ...current.props, dataRefreshVersion: 1 },
+      });
+    });
+    await waitFor(() => expect(requests).toHaveLength(2));
+    expect(requests[1]).toEqual({
+      parameters: { year: 2026, fromDate: "2026-01-01" },
+      aggregation: { groupBy: ["month"], measures: [{ fieldKey: "revenue", aggregation: "avg" }] },
+    });
+  });
+
+  it("uses a result cap for retail charts without rendering pagination controls", async () => {
+    const requests: unknown[] = [];
+    server.use(
+      http.get("http://localhost/datasets/retail-delivery-orders/schema", () => HttpResponse.json({
+        id: "retail-delivery-orders",
+        name: "零售发货单（业务表）",
+        fields: retailFields,
+        parameters: [
+          { key: "limit", label: "结果展示", type: "number", required: false, defaultValue: 1000 },
+        ],
+        schemaVersion: "retail-delivery-orders-v2",
+      })),
+      http.post("http://localhost/datasets/retail-delivery-orders/query", async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json({ columns: retailFields, rows: [{ billNo: "OM001", orderAmt: 100 }], total: 1, sampledAt: "2026-07-24T00:00:00.000Z" });
+      }),
+    );
+    const store = createEditorStore(retailDashboard);
+    renderFrame(<ComponentFrame component={retailDashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    await waitFor(() => expect(requests).toEqual([{ parameters: { limit: 1000 } }]));
+    expect(screen.queryByRole("spinbutton", { name: "当前页" })).toBeNull();
+    expect(screen.queryByRole("spinbutton", { name: "每页条数" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "查询" })).toBeNull();
+    expect(store.getState().history.present.datasets[0]!.parameters).toEqual({});
+  });
+
+  it("shows a query error instead of rendering an empty chart when remote data fails", async () => {
+    server.use(
+      http.post("http://localhost/datasets/sales/query", () =>
+        HttpResponse.json({ code: "DATASET_UPSTREAM_ERROR", message: "数据服务暂时不可用" }, { status: 502 }),
+      ),
+    );
+    const store = createEditorStore(remoteDashboard);
+    renderFrame(<ComponentFrame component={remoteDashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    expect(await screen.findByText("加载图表数据失败")).toBeInTheDocument();
+    expect(screen.getByText("数据服务暂时不可用")).toBeInTheDocument();
+  });
+
+  it("applies the binding sort and Top N before rendering editor data", async () => {
+    const store = createEditorStore(transformedRemoteDashboard);
+    renderFrame(<ComponentFrame component={transformedRemoteDashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    await waitFor(() => expect(DashboardComponentRenderer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ rows: [expect.objectContaining({ month: "4月", revenue: 120_999 })] }),
+      undefined,
+    ));
+  });
+
+  it("shows the same transformed rows in the component data drawer", async () => {
+    const store = createEditorStore(transformedRemoteDashboard);
+    renderFrame(<ComponentFrame component={transformedRemoteDashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    await waitFor(() => expect(DashboardComponentRenderer).toHaveBeenLastCalledWith(
+      expect.objectContaining({ rows: [expect.objectContaining({ revenue: 120_999 })] }),
+      undefined,
+    ));
+    await openMoreActions();
+    await userEvent.click(screen.getByRole("menuitem", { name: "查看数据" }));
+
+    expect(await screen.findByText("已应用组件配置：收入降序 · Top 1")).toBeInTheDocument();
+    expect(screen.getByText("4月")).toBeInTheDocument();
+    expect(screen.queryByText("3月")).not.toBeInTheDocument();
   });
 
   it("places the sunburst metric selector immediately before the overflow menu", async () => {

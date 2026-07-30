@@ -3,7 +3,7 @@
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -41,10 +41,25 @@ const stacked = DashboardSchema.parse({
 describe("GridCanvas", () => {
   it("renders an empty state only without components", () => {
     const { rerender } = renderCanvas(<GridCanvas store={createEditorStore(empty)} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} />);
-    expect(screen.getByText("从左侧添加图表")).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "从一个图表开始" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "从图表库开始" })).toBeInTheDocument();
+    expect(document.querySelector(".editor-canvas__grid-container")).toBeInTheDocument();
     rerender(<QueryClientProvider client={new QueryClient()}><GridCanvas store={createEditorStore(populated)} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} /></QueryClientProvider>);
-    expect(screen.queryByText("从左侧添加图表")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "从一个图表开始" })).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "销售额" })).toBeInTheDocument();
+  });
+
+  it("moves focus to the chart library from the empty-state action", () => {
+    renderCanvas(<><input id="component-search" aria-label="搜索图表" /><GridCanvas store={createEditorStore(empty)} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} /></>);
+    fireEvent.click(screen.getByRole("button", { name: "从图表库开始" }));
+    expect(screen.getByRole("textbox", { name: "搜索图表" })).toHaveFocus();
+  });
+
+  it("uses the supplied chart-library guide action from the empty state", () => {
+    const onStartFromLibrary = vi.fn();
+    renderCanvas(<GridCanvas store={createEditorStore(empty)} registry={createDefaultRegistry()} createComponentId={() => "copy"} onStartFromLibrary={onStartFromLibrary} gridWidth={900} />);
+    fireEvent.click(screen.getByRole("button", { name: "从图表库开始" }));
+    expect(onStartFromLibrary).toHaveBeenCalledOnce();
   });
 
   it("passes controlled 12-column layout and compact resize minimums to the grid", () => {

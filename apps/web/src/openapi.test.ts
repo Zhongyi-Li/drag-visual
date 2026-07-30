@@ -20,7 +20,7 @@ const loadDocument = async (): Promise<JsonObject> =>
   parse(await readFile(specificationPath, "utf8")) as JsonObject;
 
 describe("OpenAPI BI MVP contract", () => {
-  it("is a valid, fully resolvable OpenAPI 3.1 document with exactly eight operations", async () => {
+  it("is a valid, fully resolvable OpenAPI 3.1 document with exactly nine operations", async () => {
     const validation = await validate(specificationPath);
     expect(validation.valid, validation.valid ? "" : compileErrors(validation)).toBe(true);
     await expect(bundle(specificationPath)).resolves.toBeDefined();
@@ -39,7 +39,7 @@ describe("OpenAPI BI MVP contract", () => {
     const operations = (Object.values(document.paths) as JsonObject[]).flatMap((path) =>
       Object.keys(path).filter((key) => ["get", "post", "put", "delete", "patch"].includes(key)),
     );
-    expect(operations).toHaveLength(8);
+    expect(operations).toHaveLength(9);
   });
 
   it("declares UUIDs, strict fixed objects, JSON open maps, typed slots, and size/count limits", async () => {
@@ -63,13 +63,14 @@ describe("OpenAPI BI MVP contract", () => {
       updateDashboard: DashboardSchema,
       publishDashboard: DashboardSchema,
       getPublishedDashboard: DashboardSchema,
+      unpublishDashboard: { parse: (value: unknown) => expect(value).toEqual({ unpublished: true }) },
       listDatasets: DatasetSummary.array(),
       getDatasetSchema: Dataset,
       queryDataset: DatasetQueryResult,
     };
 
     for (const path of Object.values(document.paths) as JsonObject[]) {
-      for (const method of ["get", "post", "put"] as const) {
+      for (const method of ["get", "post", "put", "delete"] as const) {
         const operation = path[method] as JsonObject | undefined;
         if (!operation) continue;
         if (operation.requestBody) {
@@ -93,7 +94,7 @@ describe("OpenAPI BI MVP contract", () => {
   it("documents all stable error codes and distinguishes publish failure classes", async () => {
     const document = await loadDocument();
     const examples = Object.values(document.paths).flatMap((path: any) =>
-      [path.get, path.post, path.put].filter(Boolean).flatMap((operation: any) =>
+      [path.get, path.post, path.put, path.delete].filter(Boolean).flatMap((operation: any) =>
         Object.entries(operation.responses)
           .filter(([status]) => !status.startsWith("2"))
           .flatMap(([, response]: any) => {

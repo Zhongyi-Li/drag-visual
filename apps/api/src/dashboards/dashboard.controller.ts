@@ -12,13 +12,18 @@ import {
   Inject,
   Logger,
   Param,
+  Patch,
   Post,
   Put,
+  UseGuards,
   UseFilters,
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { z, ZodError } from "zod";
 
+import type { AuthenticatedUser } from "../auth/auth.service.js";
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import {
   DashboardNotFoundError,
   DashboardService,
@@ -28,6 +33,10 @@ import {
 const CreateDashboardBody = z
   .object({ name: z.string().max(100).nullable().optional() })
   .strict();
+const RenameDashboardBody = z.object({
+  name: z.string().trim().min(1).max(100),
+  revision: z.number().int().positive(),
+}).strict();
 const DashboardId = z.uuid();
 
 const API_ERRORS = {
@@ -67,7 +76,7 @@ export class DashboardExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const reply = http.getResponse<FastifyReply>();
-    if (exception instanceof DashboardHttpException) {
+    if (exception instanceof DashboardHttpException || (exception instanceof HttpException && exception.getStatus() === HttpStatus.UNAUTHORIZED)) {
       const response = exception.getResponse();
       if (
         typeof response === "object" &&
@@ -120,39 +129,40 @@ const httpError = (error: unknown): never => {
 
 @Controller("dashboards")
 @UseFilters(DashboardExceptionFilter)
+@UseGuards(SessionAuthGuard)
 export class DashboardController {
   constructor(@Inject(DashboardService) private readonly dashboards: DashboardService) {}
 
   @Post()
-  async create(@Body() body: unknown) {
+  async create(@Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     const { name } = parseRequest(() => CreateDashboardBody.parse(body));
     try {
-      return await this.dashboards.create(name);
+      return await this.dashboards.create(user.id, name);
     } catch (error: unknown) {
       return httpError(error);
     }
   }
 
   @Get()
-  async list() {
-    return this.dashboards.list();
+  async list(@CurrentUser() user: AuthenticatedUser) {
+    return this.dashboards.list(user.id);
   }
 
   @Get(":id")
-  async get(@Param("id") id: string) {
+  async get(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser) {
     const dashboardId = parseRequest(() => DashboardId.parse(id));
     try {
-      return await this.dashboards.get(dashboardId);
+      return await this.dashboards.get(dashboardId, user.id);
     } catch (error: unknown) {
       return httpError(error);
     }
   }
 
   @Delete(":id")
-  async delete(@Param("id") id: string) {
+  async delete(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser) {
     const dashboardId = parseRequest(() => DashboardId.parse(id));
     try {
-      await this.dashboards.delete(dashboardId);
+      await this.dashboards.delete(dashboardId, user.id);
       return { deleted: true };
     } catch (error: unknown) {
       return httpError(error);
@@ -160,14 +170,25 @@ export class DashboardController {
   }
 
   @Put(":id")
-  async save(@Param("id") id: string, @Body() body: unknown) {
+  async save(@Param("id") id: string, @Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
     const dashboard = parseRequest(() => DashboardSchema.parse(body));
     const routeId = parseRequest(() => DashboardId.parse(id));
     if (dashboard.id !== routeId) {
       throw apiException(HttpStatus.CONFLICT, API_ERRORS.idMismatch);
     }
     try {
-      return await this.dashboards.save(dashboard);
+      return await this.dashboards.save(dashboard, user.id);
+    } catch (error: unknown) {
+      return httpError(error);
+    }
+  }
+
+  @Patch(":id/name")
+  async rename(@Param("id") id: string, @Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    const dashboardId = parseRequest(() => DashboardId.parse(id));
+    const { name, revision } = parseRequest(() => RenameDashboardBody.parse(body));
+    try {
+      return await this.dashboards.rename(dashboardId, name, revision, user.id);
     } catch (error: unknown) {
       return httpError(error);
     }

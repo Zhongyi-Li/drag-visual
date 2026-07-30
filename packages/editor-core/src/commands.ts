@@ -53,6 +53,11 @@ export interface DashboardThemeUpdateCommand {
   readonly nextTheme: Dashboard["theme"];
 }
 
+export interface DashboardNameUpdateCommand {
+  readonly type: "dashboard.name.update";
+  readonly nextName: string;
+}
+
 export interface DashboardDatasetUpsertCommand {
   readonly type: "dashboard.dataset.upsert";
   readonly dataset: Dashboard["datasets"][number];
@@ -67,6 +72,7 @@ export type EditorCommand =
   | ComponentTitleUpdateCommand
   | ComponentBindingUpdateCommand
   | DashboardThemeUpdateCommand
+  | DashboardNameUpdateCommand
   | DashboardDatasetUpsertCommand;
 
 export type EditorCommandErrorCode =

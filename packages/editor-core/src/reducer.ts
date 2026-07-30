@@ -212,6 +212,11 @@ const applyKnownCommand = (
         ...dashboard,
         theme: command.nextTheme,
       });
+    case "dashboard.name.update":
+      return validateDashboardSnapshot({
+        ...dashboard,
+        name: command.nextName,
+      });
     case "dashboard.dataset.upsert": {
       const nextDataset = command.dataset;
       const exists = dashboard.datasets.some(

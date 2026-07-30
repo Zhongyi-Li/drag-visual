@@ -4,7 +4,8 @@ export const PUBLISHING_REPOSITORY = Symbol("PUBLISHING_REPOSITORY");
 
 export interface PublishingRepository {
   getDraft(id: string): Promise<unknown | null>;
-  publishDraft(id: string, validate: (draft: unknown) => Dashboard): Promise<Dashboard | null>;
+  publishDraft(id: string, validate: (draft: unknown) => Dashboard, ownerId?: string): Promise<Dashboard | null>;
+  unpublish(id: string, ownerId?: string): Promise<boolean>;
   replacePublished(id: string, snapshot: Dashboard): Promise<void>;
   getPublished(id: string): Promise<unknown | null>;
 }
@@ -12,12 +13,13 @@ export interface PublishingRepository {
 const cloneDashboard = (value: unknown): unknown => structuredClone(value);
 
 export class InMemoryPublishingRepository implements PublishingRepository {
-  readonly #records = new Map<string, { draftSchema: unknown; publishedSchema: unknown | null }>();
+  readonly #records = new Map<string, { draftSchema: unknown; publishedSchema: unknown | null; ownerId?: string }>();
 
-  seed(value: { id: string; draftSchema: unknown; publishedSchema: unknown | null }): void {
+  seed(value: { id: string; draftSchema: unknown; publishedSchema: unknown | null; ownerId?: string }): void {
     this.#records.set(value.id, {
       draftSchema: cloneDashboard(value.draftSchema),
       publishedSchema: cloneDashboard(value.publishedSchema),
+      ownerId: value.ownerId ?? "test-user",
     });
   }
 
@@ -36,15 +38,27 @@ export class InMemoryPublishingRepository implements PublishingRepository {
     });
   }
 
-  async publishDraft(id: string, validate: (draft: unknown) => Dashboard): Promise<Dashboard | null> {
+  async publishDraft(id: string, validate: (draft: unknown) => Dashboard, ownerId?: string): Promise<Dashboard | null> {
     const current = this.#records.get(id);
-    if (!current) return null;
+    if (!current || (ownerId !== undefined && current.ownerId !== ownerId)) return null;
     const snapshot = validate(cloneDashboard(current.draftSchema));
     this.#records.set(id, {
       draftSchema: cloneDashboard(current.draftSchema),
       publishedSchema: cloneDashboard(snapshot),
+      ...(current.ownerId ? { ownerId: current.ownerId } : {}),
     });
     return cloneDashboard(snapshot) as Dashboard;
+  }
+
+  async unpublish(id: string, ownerId?: string): Promise<boolean> {
+    const current = this.#records.get(id);
+    if (!current || (ownerId !== undefined && current.ownerId !== ownerId)) return false;
+    this.#records.set(id, {
+      draftSchema: cloneDashboard(current.draftSchema),
+      publishedSchema: null,
+      ...(current.ownerId ? { ownerId: current.ownerId } : {}),
+    });
+    return true;
   }
 
   async getPublished(id: string): Promise<unknown | null> {

@@ -10,6 +10,7 @@ import { AppProviders } from "../../app/AppProviders.js";
 import { appRoutes } from "../../app/router.js";
 import { server } from "../../mocks/server.js";
 import { clearPreviewSnapshot, readPreviewSnapshot } from "../preview/previewSnapshotStore.js";
+import { saveAuthSession } from "../auth/authSession.js";
 
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const dashboard = {
@@ -19,6 +20,7 @@ const dashboard = {
 };
 
 const renderEditor = () => {
+  saveAuthSession({ user: { id: "test-user", username: "test", displayName: null, avatarUrl: null } });
   const router = createMemoryRouter(appRoutes, { initialEntries: [`/editor/${id}`] });
   render(<AppProviders><RouterProvider router={router} /></AppProviders>);
 };
@@ -39,6 +41,38 @@ describe("EditorRoute", () => {
     renderEditor();
     expect(await screen.findByRole("status", { name: "正在加载看板" })).toBeInTheDocument();
     expect(await screen.findByText("经营看板")).toBeInTheDocument();
+  });
+
+  it("materializes paged interface data when the editor opens", async () => {
+    const requests: unknown[] = [];
+    server.use(
+      http.get(`http://localhost/dashboards/${id}`, () => HttpResponse.json(dashboard)),
+      http.get("http://localhost/datasets", () => HttpResponse.json([
+        { id: "retail-delivery-orders", name: "零售发货单（业务表）", schemaVersion: "retail-delivery-orders-v1" },
+      ])),
+      http.get("http://localhost/datasets/retail-delivery-orders/schema", () => HttpResponse.json({
+        id: "retail-delivery-orders",
+        name: "零售发货单（业务表）",
+        fields: [{ key: "billNo", label: "单据编号", type: "string", nullable: false }],
+        parameters: [
+          { key: "current", label: "当前页", type: "number", required: false, runtime: true, defaultValue: 1 },
+          { key: "size", label: "每页条数", type: "number", required: false, runtime: true, defaultValue: 20 },
+        ],
+        schemaVersion: "retail-delivery-orders-v1",
+      })),
+      http.post("http://localhost/datasets/retail-delivery-orders/query", async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json({
+          columns: [{ key: "billNo", label: "单据编号", type: "string", nullable: false }],
+          rows: [{ billNo: "OM001" }], total: 1, sampledAt: "2026-07-24T00:00:00.000Z",
+        });
+      }),
+    );
+
+    renderEditor();
+
+    expect(await screen.findByText("经营看板")).toBeInTheDocument();
+    await waitFor(() => expect(requests).toEqual([{ parameters: { current: 1, size: 20 } }]));
   });
 
   it("shows an accessible not-found error", async () => {
@@ -70,6 +104,7 @@ describe("EditorRoute", () => {
       http.get(`http://localhost/dashboards/${id}`, () => HttpResponse.json(dashboard)),
       http.get(`http://localhost/dashboards/${secondId}`, () => HttpResponse.json(second)),
     );
+    saveAuthSession({ user: { id: "test-user", username: "test", displayName: null, avatarUrl: null } });
     const router = createMemoryRouter(appRoutes, { initialEntries: [`/editor/${id}`] });
     render(<AppProviders><RouterProvider router={router} /></AppProviders>);
     expect(await screen.findByText("经营看板")).toBeInTheDocument();

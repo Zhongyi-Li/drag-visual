@@ -25,16 +25,22 @@ import {
   buildRankingModel,
   buildRingBarOption,
   buildProgressBarModel,
+  buildTargetProgressModel,
   buildTableModel,
   buildTrendModel,
   buildTrendOption,
   buildTreemapOption,
+  isCurrencyMetric,
 } from "./options.js";
 
 interface Props {
   readonly component: ComponentInstance;
   readonly fields?: readonly DatasetField[] | undefined;
   readonly rows: readonly Readonly<Record<string, unknown>>[];
+  /** Remote dataset queries may already have applied per-metric aggregation. */
+  readonly rowsAreAggregated?: boolean | undefined;
+  /** Hides renderer-owned headers when an editor frame already provides the editable title. */
+  readonly hideSurfaceHeaders?: boolean | undefined;
   readonly activeSunburstMeasure?: string | undefined;
   readonly onSunburstMeasureChange?: ((measure: string) => void) | undefined;
   readonly activeTreemapMeasure?: string | undefined;
@@ -269,6 +275,7 @@ const chipStyle: CSSProperties = {
 
 const tableScrollStyle: CSSProperties = {
   flex: "1 1 auto",
+  margin: "0 14px",
   minHeight: 0,
   overflow: "auto",
   scrollbarColor: "#cbd5e1 transparent",
@@ -283,11 +290,11 @@ const dataTableStyle: CSSProperties = {
 };
 
 const tableHeaderCellStyle: CSSProperties = {
-  background: "#f8fafc",
-  borderBottom: "1px solid #e8eef6",
-  color: "#475569",
+  background: "#ffffff",
+  borderBottom: "1px solid #dce9ff",
+  color: "#334155",
   fontWeight: 650,
-  padding: "9px 12px",
+  padding: "11px 12px",
   position: "sticky",
   textAlign: "left",
   top: 0,
@@ -296,11 +303,11 @@ const tableHeaderCellStyle: CSSProperties = {
 };
 
 const tableCellStyle: CSSProperties = {
-  borderBottom: "1px solid #eef2f7",
+  borderBottom: "none",
   color: "#1e293b",
   maxWidth: 260,
   overflow: "hidden",
-  padding: "8px 12px",
+  padding: "10px 12px",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
 };
@@ -346,16 +353,16 @@ const heatmapCellBaseStyle: CSSProperties = {
 
 const tableFooterStyle: CSSProperties = {
   alignItems: "center",
-  background: "#fbfdff",
-  borderTop: "1px solid #edf2f7",
-  color: "#64748b",
+  background: "#ffffff",
+  borderTop: "1px solid #f1f5f9",
+  color: "#7b8798",
   display: "flex",
   flex: "0 0 auto",
   fontSize: 11,
   gap: 8,
   justifyContent: "space-between",
-  minHeight: 34,
-  padding: "7px 12px",
+  minHeight: 38,
+  padding: "8px 14px",
 };
 
 const tableStatusStyle: CSSProperties = {
@@ -405,11 +412,45 @@ const trendSummaryStyle: CSSProperties = {
 };
 
 const trendSummaryItemStyle: CSSProperties = {
-  background: "linear-gradient(180deg, #ffffff 0%, #f7fbff 100%)",
-  border: "1px solid #e2eaf4",
-  borderRadius: 8,
+  background: "#ffffff",
+  border: "1px solid #e6edf6",
+  borderRadius: 6,
+  boxSizing: "border-box",
+  display: "flex",
+  flexDirection: "column",
+  gap: 3,
+  justifyContent: "center",
+  minHeight: 60,
   minWidth: 0,
-  padding: "9px 10px",
+  padding: "8px 12px",
+};
+
+const trendLatestSummaryItemStyle: CSSProperties = {
+  ...trendSummaryItemStyle,
+  background: "#f5f9ff",
+  borderColor: "#cfe2ff",
+  boxShadow: "inset 3px 0 0 #1677ff",
+};
+
+const trendPositiveSummaryItemStyle: CSSProperties = {
+  ...trendSummaryItemStyle,
+  background: "#f4fcf8",
+  borderColor: "#cceedd",
+  boxShadow: "inset 3px 0 0 #12a06a",
+};
+
+const trendNegativeSummaryItemStyle: CSSProperties = {
+  ...trendSummaryItemStyle,
+  background: "#fff7f6",
+  borderColor: "#ffd9d5",
+  boxShadow: "inset 3px 0 0 #e05252",
+};
+
+const trendPeakSummaryItemStyle: CSSProperties = {
+  ...trendSummaryItemStyle,
+  background: "#fafcff",
+  borderColor: "#e0eaf7",
+  boxShadow: "inset 3px 0 0 #7b9bc8",
 };
 
 const trendSummaryLabelStyle: CSSProperties = {
@@ -422,10 +463,11 @@ const trendSummaryLabelStyle: CSSProperties = {
 const trendSummaryValueStyle: CSSProperties = {
   color: "#0f172a",
   display: "block",
-  fontSize: 19,
+  fontSize: 20,
   fontVariantNumeric: "tabular-nums",
-  fontWeight: 750,
-  lineHeight: 1.35,
+  fontWeight: 700,
+  letterSpacing: "-0.01em",
+  lineHeight: 1.2,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
@@ -438,73 +480,108 @@ const trendChartStyle: CSSProperties = {
 
 const metricTrendShellStyle: CSSProperties = {
   display: "grid",
-  gridTemplateRows: "auto minmax(150px, 1fr)",
+  gridTemplateRows: "auto minmax(0, 1fr)",
   height: "100%",
   minHeight: 0,
-  padding: 12,
+  padding: "12px 16px 14px",
   rowGap: 12,
 };
 
-const metricTrendCardsStyle: CSSProperties = {
-  display: "flex",
-  gap: 8,
+const metricTrendHeaderStyle: CSSProperties = {
+  alignItems: "end",
+  display: "grid",
+  gap: "12px 20px",
+  gridTemplateColumns: "minmax(0, 1fr) auto",
   minWidth: 0,
-  overflowX: "auto",
-  paddingBottom: 2,
-  scrollbarWidth: "thin",
 };
 
-const metricTrendCardStyle: CSSProperties = {
-  alignItems: "center",
-  appearance: "none",
-  background: "#f8fafc",
-  border: 0,
-  borderRadius: 6,
-  boxShadow: "none",
-  cursor: "pointer",
+const metricTrendSummaryStyle: CSSProperties = {
   display: "flex",
-  flex: "0 0 clamp(176px, 24%, 360px)",
   flexDirection: "column",
-  font: "inherit",
-  justifyContent: "center",
-  minHeight: 80,
+  gap: 3,
   minWidth: 0,
-  outline: 0,
-  padding: "12px 16px",
-  textAlign: "center",
 };
 
-const metricTrendPrimaryCardStyle: CSSProperties = {
-  ...metricTrendCardStyle,
-  background: "#e8f1ff",
-};
-
-const metricTrendLabelStyle: CSSProperties = {
-  color: "#1f2937",
-  display: "block",
-  fontSize: 12,
-  fontWeight: 500,
-  lineHeight: 1.3,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
+const metricTrendEyebrowStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 11,
+  fontWeight: 600,
+  lineHeight: 1.35,
 };
 
 const metricTrendValueStyle: CSSProperties = {
-  color: "#020617",
+  color: "#0f172a",
   display: "block",
-  fontSize: 24,
+  fontSize: 28,
+  fontVariantNumeric: "tabular-nums",
   fontWeight: 760,
-  lineHeight: 1.2,
-  marginTop: 8,
+  letterSpacing: "-0.025em",
+  lineHeight: 1.12,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
 };
 
+const metricTrendTabsStyle: CSSProperties = {
+  alignItems: "flex-end",
+  borderBottom: "1px solid #edf2f7",
+  display: "flex",
+  flex: "0 1 auto",
+  flexWrap: "wrap",
+  gap: 4,
+  justifyContent: "flex-end",
+  minWidth: 0,
+};
+
+const metricTrendTabStyle: CSSProperties = {
+  alignItems: "center",
+  appearance: "none",
+  background: "transparent",
+  border: 0,
+  borderBottomColor: "transparent",
+  borderBottomStyle: "solid",
+  borderBottomWidth: 2,
+  borderRadius: 0,
+  color: "#64748b",
+  cursor: "pointer",
+  display: "inline-flex",
+  font: "inherit",
+  fontSize: 12,
+  fontWeight: 600,
+  gap: 6,
+  height: 34,
+  marginBottom: -1,
+  minWidth: 0,
+  outline: 0,
+  overflow: "hidden",
+  padding: "0 8px 6px",
+  textAlign: "left",
+  textOverflow: "ellipsis",
+  transition: "border-color 160ms ease, color 160ms ease",
+  whiteSpace: "nowrap",
+};
+
+const metricTrendTabValueStyle: CSSProperties = {
+  color: "inherit",
+  fontSize: 11,
+  fontVariantNumeric: "tabular-nums",
+  fontWeight: 500,
+  opacity: 0.78,
+};
+
+const metricTrendActiveTabStyle: CSSProperties = {
+  ...metricTrendTabStyle,
+  borderBottomColor: "#1677ff",
+  color: "#1677ff",
+};
+
 const metricTrendChartStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
   minHeight: 150,
   minWidth: 0,
+  overflow: "hidden",
+  padding: "8px 0 0",
 };
 
 const kpiShellStyle: CSSProperties = {
@@ -569,6 +646,7 @@ const kpiProgressTrackStyle: CSSProperties = {
 const kpiProgressBarStyle: CSSProperties = {
   background: "#1677ff",
   borderRadius: 999,
+  display: "block",
   height: "100%",
 };
 
@@ -683,6 +761,76 @@ const progressBarValueStyle: CSSProperties = {
   fontVariantNumeric: "tabular-nums",
   fontWeight: 600,
   lineHeight: 1.35,
+};
+
+const targetProgressShellStyle: CSSProperties = {
+  boxSizing: "border-box",
+  display: "flex",
+  flex: "1 1 auto",
+  flexDirection: "column",
+  minHeight: 0,
+  overflow: "auto",
+  padding: "12px 18px 14px",
+};
+
+const targetProgressListStyle: CSSProperties = {
+  display: "flex",
+  flex: "1 1 auto",
+  flexDirection: "column",
+  gap: 10,
+  justifyContent: "space-between",
+  minHeight: 0,
+  minWidth: 0,
+};
+
+const targetProgressRowStyle: CSSProperties = {
+  alignItems: "center",
+  columnGap: 16,
+  display: "grid",
+  // Let the row itself absorb width changes. The former 620px minimum made
+  // the value and percentage columns disappear outside a narrow editor card.
+  gridTemplateColumns: "minmax(84px, 1fr) minmax(96px, 2fr) minmax(84px, max-content) 40px",
+  minWidth: 0,
+};
+
+const targetProgressLabelStyle: CSSProperties = {
+  color: "#334155",
+  fontSize: 12,
+  lineHeight: 1.4,
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+};
+
+const targetProgressTrackStyle: CSSProperties = {
+  background: "#edf0f3",
+  borderRadius: 999,
+  height: 22,
+  overflow: "hidden",
+  width: "100%",
+};
+
+const targetProgressBarStyle: CSSProperties = {
+  borderRadius: 999,
+  display: "block",
+  height: "100%",
+  minWidth: 6,
+};
+
+const targetProgressValueStyle: CSSProperties = {
+  color: "#475569",
+  fontSize: 12,
+  fontVariantNumeric: "tabular-nums",
+  textAlign: "right",
+  whiteSpace: "nowrap",
+};
+
+const targetProgressPercentStyle: CSSProperties = {
+  color: "#334155",
+  fontSize: 12,
+  fontVariantNumeric: "tabular-nums",
+  fontWeight: 700,
+  textAlign: "right",
+  whiteSpace: "nowrap",
 };
 
 const metricBreakdownShellStyle: CSSProperties = {
@@ -852,16 +1000,16 @@ const rankingHeaderStyle: CSSProperties = {
   fontWeight: 600,
   gap: 10,
   lineHeight: 1.25,
-  minWidth: 420,
+  minWidth: 320,
   paddingBottom: 2,
 };
 
 const rankingRowStyle: CSSProperties = {
-  alignItems: "center",
+  alignItems: "start",
   display: "grid",
   gap: 10,
-  minWidth: 420,
-  padding: "3px 0",
+  minWidth: 320,
+  padding: "4px 0",
 };
 
 const rankingBadgeStyle: CSSProperties = {
@@ -888,10 +1036,19 @@ const rankingOrdinalStyle: CSSProperties = {
 
 const rankingLabelStyle: CSSProperties = {
   color: "#334155",
+  display: "block",
   fontSize: 12,
-  overflow: "hidden",
-  textOverflow: "ellipsis",
-  whiteSpace: "nowrap",
+  fontWeight: 500,
+  lineHeight: 1.45,
+  overflowWrap: "anywhere",
+  wordBreak: "break-word",
+};
+
+const rankingProgressGroupStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 5,
+  minWidth: 0,
 };
 
 const rankingTrackStyle: CSSProperties = {
@@ -910,9 +1067,19 @@ const rankingBarStyle: CSSProperties = {
 };
 
 const rankingValueStyle: CSSProperties = {
+  alignSelf: "end",
   color: "#334155",
   fontSize: 12,
   fontVariantNumeric: "tabular-nums",
+  lineHeight: 1.45,
+  overflow: "hidden",
+  textAlign: "right",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const rankingMeasureHeaderStyle: CSSProperties = {
+  minWidth: 0,
   overflow: "hidden",
   textAlign: "right",
   textOverflow: "ellipsis",
@@ -926,40 +1093,45 @@ const progressBarColors = ["#3b82f6", "#35c7c9", "#a78bfa", "#f6bd7b", "#8b8aa8"
 const kpiBoardGridStyle: CSSProperties = {
   display: "grid",
   flex: "1 1 auto",
-  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+  gap: 8,
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
   minHeight: 0,
   overflow: "auto",
 };
 
 const kpiBoardCardStyle: CSSProperties = {
-  borderRight: "1px solid #edf2f7",
-  borderBottom: "1px solid #edf2f7",
-  minHeight: 150,
+  background: "#f7f9fc",
+  border: "none",
+  borderRadius: 9,
+  boxShadow: "none",
+  minHeight: 156,
   minWidth: 0,
-  padding: "12px 10px",
+  padding: "13px 14px",
 };
 
 const kpiBoardPeriodStyle: CSSProperties = {
-  color: "#334155",
-  fontSize: 12,
+  color: "#243b5d",
+  fontSize: 13,
   fontWeight: 700,
-  lineHeight: 1.3,
-  marginBottom: 4,
+  lineHeight: 1.35,
+  marginBottom: 8,
+  maxHeight: 36,
+  overflow: "hidden",
 };
 
 const kpiBoardMetricNameStyle: CSSProperties = {
-  color: "#111827",
-  fontSize: 12,
+  color: "#64748b",
+  fontSize: 11,
   lineHeight: 1.35,
 };
 
 const kpiBoardValueStyle: CSSProperties = {
-  color: "#020617",
-  fontSize: 28,
+  color: "#0f172a",
+  fontSize: 27,
   fontVariantNumeric: "tabular-nums",
   fontWeight: 800,
   lineHeight: 1.2,
-  margin: "4px 0 12px",
+  margin: "5px 0 13px",
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
@@ -968,7 +1140,8 @@ const kpiBoardValueStyle: CSSProperties = {
 const kpiBoardRowsStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: 8,
+  gap: 7,
+  paddingTop: 2,
 };
 
 const kpiBoardRowStyle: CSSProperties = {
@@ -980,16 +1153,16 @@ const kpiBoardRowStyle: CSSProperties = {
 };
 
 const kpiBoardRowLabelStyle: CSSProperties = {
-  color: "#334155",
-  fontSize: 12,
+  color: "#64748b",
+  fontSize: 11,
   overflow: "hidden",
   textOverflow: "ellipsis",
   whiteSpace: "nowrap",
 };
 
 const kpiBoardRowValueStyle: CSSProperties = {
-  color: "#0f172a",
-  fontSize: 16,
+  color: "#1e293b",
+  fontSize: 15,
   fontVariantNumeric: "tabular-nums",
   fontWeight: 800,
   whiteSpace: "nowrap",
@@ -1229,7 +1402,7 @@ const LiquidChart = ({ component, model, groupLabel }: {
   const primaryWave = `M0 ${waterY} C42 ${waterY - 10} 74 ${waterY + 10} 116 ${waterY} S190 ${waterY - 10} 232 ${waterY} S306 ${waterY + 10} 320 ${waterY} V240 H0 Z`;
   const secondaryWave = `M0 ${waterY + 5} C46 ${waterY + 15} 78 ${waterY - 5} 122 ${waterY + 5} S196 ${waterY + 15} 238 ${waterY + 5} S304 ${waterY - 5} 320 ${waterY + 5} V240 H0 Z`;
   const displayPercentage = model.percentage === null ? "—" : `${model.percentage.toFixed(model.decimals)}%`;
-  const summary = `实际 ${formatCompactMetricNumber(model.value)} / 目标 ${formatCompactMetricNumber(model.target)}`;
+  const summary = `实际 ${formatCurrencyMetricNumber(model.value, model.measureIsCurrency)} / 目标 ${formatCurrencyMetricNumber(model.target, model.targetIsCurrency)}`;
 
   return (
     <section data-testid="liquid-chart-surface" role="img" aria-label={`${component.title ?? "水波图"}${groupLabel === undefined ? "" : ` ${groupLabel}`}图表`} style={liquidShellStyle}>
@@ -1350,6 +1523,7 @@ const TableDemo = () => (
 const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
   if (component.type === "flipNumber") return <FlipNumberDemo />;
   if (component.type === "progressBar") return <ProgressDemo />;
+  if (component.type === "targetProgress") return <ProgressDemo />;
   if (component.type === "trend") {
     return <LineDemo area />;
   }
@@ -1367,6 +1541,7 @@ const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
   }
   if (component.type === "stackedBar") return <BarDemo stacked />;
   if (component.type === "ringBar") return <RingBarDemo />;
+  if (component.type === "donut") return <PieDemo donut />;
   if (component.type === "ranking") return <BarDemo horizontal />;
   if (component.type === "bar") {
     if (titleIncludes(component, "漏斗")) return <FunnelDemo />;
@@ -1416,18 +1591,14 @@ const formatCrosstabNumber = (value: number): string => new Intl.NumberFormat("z
   maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
 }).format(value);
 
+const formatCrosstabMetric = (value: number, isCurrency: boolean): string =>
+  `${formatCrosstabNumber(value)}${isCurrency ? " ¥" : ""}`;
+
 const heatmapCellFill = (intensity: number): string => {
   const clamped = Math.max(0, Math.min(1, intensity));
   const lightness = 96 - clamped * 48;
   const saturation = 82 - clamped * 16;
   return `hsl(213deg ${saturation}% ${lightness}%)`;
-};
-
-const formatTrendNumber = (value: number | null | undefined): string => {
-  if (value === null || value === undefined) return "—";
-  return new Intl.NumberFormat("zh-CN", {
-    maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
-  }).format(value);
 };
 
 const formatMetricNumber = (value: number | null | undefined, decimals: number): string => {
@@ -1451,6 +1622,19 @@ const formatCompactMetricNumber = (value: number | null | undefined): string => 
     maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
   }).format(value);
 };
+
+const formatCurrencyMetricNumber = (value: number | null | undefined, isCurrency: boolean): string =>
+  `${formatCompactMetricNumber(value)}${isCurrency ? " ¥" : ""}`;
+
+const formatCurrencyNumber = (value: number | null | undefined, decimals: number, isCurrency: boolean): string =>
+  `${formatMetricNumber(value, decimals)}${isCurrency ? " ¥" : ""}`;
+
+const currencyAffixes = (prefix: string, suffix: string, isCurrency: boolean): { readonly prefix: string; readonly suffix: string } => ({
+  // Earlier cards often used a leading ¥ manually. Move that common legacy
+  // setting to the shared trailing unit without duplicating the symbol.
+  prefix: isCurrency && prefix === "¥" ? "" : prefix,
+  suffix: isCurrency && !suffix.includes("¥") ? `${suffix} ¥` : suffix,
+});
 
 const formatFlipNumber = (
   value: number | null | undefined,
@@ -1556,6 +1740,7 @@ const DataSurface = ({
   title,
   chips = [],
   variant = "default",
+  hideHeader = false,
 }: {
   readonly children: React.ReactNode;
   readonly eyebrow?: string;
@@ -1563,16 +1748,23 @@ const DataSurface = ({
   readonly testId: string;
   readonly title?: string;
   readonly chips?: readonly React.ReactNode[];
-  readonly variant?: "default" | "flat";
+  readonly variant?: "default" | "flat" | "borderless";
+  readonly hideHeader?: boolean;
 }) => (
   <section
     data-testid={testId}
     style={variant === "flat"
       ? { ...dataSurfaceStyle, background: "transparent", border: "none", borderRadius: 0, boxShadow: "none" }
-      : dataSurfaceStyle}
+      : variant === "borderless"
+        ? { ...dataSurfaceStyle, border: "none", boxShadow: "none" }
+        : dataSurfaceStyle}
   >
-    {(eyebrow !== undefined || title !== undefined || chips.length > 0) && (
-      <header style={variant === "flat" ? { ...dataSurfaceHeaderStyle, borderBottom: "none", padding: "4px 14px 6px" } : dataSurfaceHeaderStyle}>
+    {!hideHeader && (eyebrow !== undefined || title !== undefined || chips.length > 0) && (
+      <header style={variant === "flat"
+        ? { ...dataSurfaceHeaderStyle, borderBottom: "none", padding: "4px 14px 6px" }
+        : variant === "borderless"
+          ? { ...dataSurfaceHeaderStyle, borderBottom: "none" }
+          : dataSurfaceHeaderStyle}>
         {(eyebrow !== undefined || title !== undefined) && (
           <div style={dataSurfaceTitleBlockStyle}>
             {eyebrow !== undefined && <span style={dataSurfaceEyebrowStyle}>{eyebrow}</span>}
@@ -1591,10 +1783,56 @@ const TableStatus = ({ children }: { readonly children: React.ReactNode }) => (
   <div style={tableStatusStyle}>{children}</div>
 );
 
+interface ResponsiveBarChartProps {
+  readonly component: ComponentInstance;
+  readonly fields: readonly DatasetField[];
+  readonly rows: readonly Row[];
+  readonly rowsAreAggregated: boolean;
+  readonly ariaLabel: string;
+}
+
+const responsiveBarChartStyle: CSSProperties = {
+  alignSelf: "stretch",
+  display: "flex",
+  flex: "1 1 0",
+  minHeight: 0,
+  minWidth: 0,
+};
+
+const ResponsiveBarChart = ({ component, fields, rows, rowsAreAggregated, ariaLabel }: ResponsiveBarChartProps) => {
+  const container = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | undefined>();
+
+  useEffect(() => {
+    const element = container.current;
+    if (element === null) return undefined;
+    const updateHeight = (nextHeight: number) => {
+      if (nextHeight <= 0) return;
+      setHeight((current) => current !== undefined && Math.abs(current - nextHeight) < 1 ? current : nextHeight);
+    };
+    const bounds = element.getBoundingClientRect();
+    updateHeight(bounds.height);
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry !== undefined) updateHeight(entry.contentRect.height);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div ref={container} style={responsiveBarChartStyle}>
+      <EChart option={buildBarOption(component, rows, fields, rowsAreAggregated, height)} ariaLabel={ariaLabel} />
+    </div>
+  );
+};
+
 export const DashboardComponentRenderer = ({
   component,
   fields = [],
   rows,
+  rowsAreAggregated = false,
+  hideSurfaceHeaders = false,
   activeSunburstMeasure: externallySelectedSunburstMeasure,
   onSunburstMeasureChange,
   activeTreemapMeasure: externallySelectedTreemapMeasure,
@@ -1620,7 +1858,15 @@ export const DashboardComponentRenderer = ({
       : component.type === "percentBar"
         ? "百分比堆积柱图"
         : "柱图";
-    return <EChart option={buildBarOption(component, rows, fields)} ariaLabel={`${component.title ?? fallbackTitle}图表`} />;
+    return (
+      <ResponsiveBarChart
+        component={component}
+        fields={fields}
+        rows={rows}
+        rowsAreAggregated={rowsAreAggregated}
+        ariaLabel={`${component.title ?? fallbackTitle}图表`}
+      />
+    );
   }
   if (component.type === "line" || component.type === "area" || component.type === "stackedArea" || component.type === "percentArea") {
     const fallbackTitle = component.type === "area"
@@ -1634,9 +1880,14 @@ export const DashboardComponentRenderer = ({
   }
   if (component.type === "trend") {
     const model = buildTrendModel(component, rows, fields);
+    const trendChangeSummaryItemStyle = model.change?.rate === undefined || model.change.rate === null
+      ? trendSummaryItemStyle
+      : model.change.rate >= 0 ? trendPositiveSummaryItemStyle : trendNegativeSummaryItemStyle;
     return (
       <DataSurface
         testId="trend-analysis-surface"
+        hideHeader={hideSurfaceHeaders}
+        variant={hideSurfaceHeaders ? "borderless" : "default"}
         eyebrow="趋势分析"
         title={component.title ?? "趋势分析"}
         chips={[
@@ -1647,17 +1898,17 @@ export const DashboardComponentRenderer = ({
         <div style={{ ...trendShellStyle, padding: 12 }}>
           {model.showSummary && (
             <div style={trendSummaryStyle}>
-              <div style={trendSummaryItemStyle}>
+              <div style={trendLatestSummaryItemStyle}>
                 <span style={trendSummaryLabelStyle}>最新值</span>
-                <span style={trendSummaryValueStyle}>{formatTrendNumber(model.latest?.value)}</span>
+                <span style={trendSummaryValueStyle}>{formatCurrencyMetricNumber(model.latest?.value, model.measureIsCurrency)}</span>
               </div>
-              <div style={trendSummaryItemStyle}>
+              <div style={trendChangeSummaryItemStyle}>
                 <span style={trendSummaryLabelStyle}>较上一期</span>
                 <span style={trendSummaryValueStyle}>{formatTrendRate(model.change?.rate)}</span>
               </div>
-              <div style={trendSummaryItemStyle}>
+              <div style={trendPeakSummaryItemStyle}>
                 <span style={trendSummaryLabelStyle}>峰值</span>
-                <span style={trendSummaryValueStyle}>{formatTrendNumber(model.peak?.value)}</span>
+                <span style={trendSummaryValueStyle}>{formatCurrencyMetricNumber(model.peak?.value, model.measureIsCurrency)}</span>
               </div>
             </div>
           )}
@@ -1673,26 +1924,44 @@ export const DashboardComponentRenderer = ({
     const activeMeasureKey = model.measures.some((measure) => measure.key === activeMetricTrendMeasure)
       ? activeMetricTrendMeasure!
       : model.measures[0]?.key;
+    const activeMeasure = model.measures.find((measure) => measure.key === activeMeasureKey) ?? model.measures[0];
     return (
-      <DataSurface testId="metric-trend-surface">
+      <DataSurface testId="metric-trend-surface" variant="flat">
         <div style={metricTrendShellStyle}>
-          <div style={metricTrendCardsStyle}>
-            {model.measures.map((measure) => (
-              <button
-                key={measure.key}
-                type="button"
-                aria-label={`关注指标 ${measure.label}`}
-                aria-pressed={measure.key === activeMeasureKey}
-                style={measure.key === activeMeasureKey ? metricTrendPrimaryCardStyle : metricTrendCardStyle}
-                onClick={() => setActiveMetricTrendMeasure(measure.key)}
-              >
-                <span style={metricTrendLabelStyle}>{measure.label}</span>
-                <strong style={metricTrendValueStyle}>{formatTrendNumber(measure.latest?.value)}</strong>
-              </button>
-            ))}
+          <div style={metricTrendHeaderStyle}>
+            {model.showSummary && activeMeasure && (
+              <div style={metricTrendSummaryStyle}>
+                <span style={metricTrendEyebrowStyle}>汇总值 · {activeMeasure.label}</span>
+                <strong style={metricTrendValueStyle}>{formatCurrencyMetricNumber(activeMeasure.total, activeMeasure.isCurrency)}</strong>
+              </div>
+            )}
+            <div aria-label="指标切换" style={metricTrendTabsStyle}>
+              {model.measures.map((measure) => {
+                const isActive = measure.key === activeMeasureKey;
+                return (
+                  <button
+                    key={measure.key}
+                    type="button"
+                    aria-label={`关注指标 ${measure.label}`}
+                    aria-pressed={isActive}
+                    style={isActive ? metricTrendActiveTabStyle : metricTrendTabStyle}
+                    title={`查看${measure.label}趋势`}
+                    onMouseDown={(event) => event.stopPropagation()}
+                    onPointerDown={(event) => event.stopPropagation()}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setActiveMetricTrendMeasure(measure.key);
+                    }}
+                  >
+                    <span>{measure.label}</span>
+                    <span style={metricTrendTabValueStyle}>{formatCurrencyMetricNumber(measure.total, measure.isCurrency)}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div style={metricTrendChartStyle}>
-            <EChart option={buildMetricTrendOption(component, model, activeMeasureKey)} ariaLabel={`${component.title ?? "指标趋势"}趋势图表`} />
+            <EChart key={activeMeasureKey ?? "empty"} option={buildMetricTrendOption(component, model, activeMeasureKey)} ariaLabel={`${component.title ?? "指标趋势"}趋势图表`} />
           </div>
         </div>
       </DataSurface>
@@ -1703,6 +1972,7 @@ export const DashboardComponentRenderer = ({
     return (
       <DataSurface
         testId="metric-breakdown-surface"
+        hideHeader={hideSurfaceHeaders}
         title={`${model.measureLabel} · 按${model.dimensionLabel}拆解`}
         variant="flat"
       >
@@ -1710,7 +1980,7 @@ export const DashboardComponentRenderer = ({
           <div style={metricBreakdownSummaryStyle}>
             <div style={{ minWidth: 0 }}>
               <span style={metricBreakdownSummaryLabelStyle}>{model.measureLabel}合计</span>
-              <strong aria-label={`${model.measureLabel}合计`} style={metricBreakdownSummaryValueStyle}>{formatMetricNumber(model.total, model.decimals)}</strong>
+              <strong aria-label={`${model.measureLabel}合计`} style={metricBreakdownSummaryValueStyle}>{formatCurrencyNumber(model.total, model.decimals, model.measureIsCurrency)}</strong>
             </div>
             <span style={metricBreakdownSummaryMetaStyle}>{model.items.length} 个{model.dimensionLabel}</span>
           </div>
@@ -1730,7 +2000,7 @@ export const DashboardComponentRenderer = ({
                   <span style={{ ...metricBreakdownBarStyle, width: `${Math.min(100, item.barRatio * 100)}%` }} />
                 </div>
                 <span style={metricBreakdownValueStyle}>
-                  <span style={metricBreakdownValueNumberStyle}>{formatMetricNumber(item.value, model.decimals)}</span>
+                  <span style={metricBreakdownValueNumberStyle}>{formatCurrencyNumber(item.value, model.decimals, model.measureIsCurrency)}</span>
                   {item.share !== null && <span style={metricBreakdownShareStyle}>{(item.share * 100).toFixed(1)}%</span>}
                 </span>
               </div>
@@ -1825,22 +2095,22 @@ export const DashboardComponentRenderer = ({
       </div>
     );
   }
-  if (component.type === "pie" || component.type === "rose") {
-    return <EChart option={buildPieOption(component, rows, fields)} ariaLabel={`${component.title ?? (component.type === "rose" ? "玫瑰图" : "饼图")}图表`} />;
+  if (component.type === "pie" || component.type === "donut" || component.type === "rose") {
+    const fallbackTitle = component.type === "rose" ? "玫瑰图" : component.type === "donut" ? "环形图" : "饼图";
+    return <EChart option={buildPieOption(component, rows, fields)} ariaLabel={`${component.title ?? fallbackTitle}图表`} />;
   }
   if (component.type === "ringBar") {
-    return <EChart option={buildRingBarOption(component, rows, fields)} ariaLabel={`${component.title ?? "环形柱图"}图表`} />;
+    return <EChart option={buildRingBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "环形柱图"}图表`} />;
   }
   if (component.type === "ranking") {
     const model = buildRankingModel(component, rows, fields);
-    const gridTemplateColumns = `28px minmax(70px, 0.85fr) minmax(136px, 2.1fr) repeat(${Math.max(1, model.measures.length)}, minmax(72px, 0.7fr))`;
+    const gridTemplateColumns = `28px minmax(144px, 1fr) repeat(${Math.max(1, model.measures.length)}, minmax(72px, 0.7fr))`;
     return (
       <section aria-label={`${component.title ?? "排行榜"}图表`} data-testid="ranking-surface" style={rankingShellStyle}>
         <div aria-hidden="true" style={{ ...rankingHeaderStyle, gridTemplateColumns }}>
-          <span>排序</span>
-          <span>{model.dimensionLabel}</span>
           <span />
-          {model.measures.map((measure) => <span key={measure.key} style={{ textAlign: "right" }}>{measure.label}</span>)}
+          <span />
+          {model.measures.map((measure) => <span key={measure.key} style={rankingMeasureHeaderStyle} title={measure.label}>{measure.label}</span>)}
         </div>
         {model.items.map((item, index) => {
           const rank = index + 1;
@@ -1850,13 +2120,15 @@ export const DashboardComponentRenderer = ({
               {medalColor === undefined
                 ? <span style={rankingOrdinalStyle}>{rank}</span>
                 : <span aria-label={`第${rank}名`} style={{ ...rankingBadgeStyle, background: medalColor }}>{rank}</span>}
-              <span style={rankingLabelStyle} title={item.label}>{item.label}</span>
-              <span aria-label={`${item.label}排名进度`} style={rankingTrackStyle}>
-                <span style={{ ...rankingBarStyle, width: `${item.primaryRatio * 100}%` }} />
+              <span style={rankingProgressGroupStyle}>
+                <span style={rankingLabelStyle}>{item.label}</span>
+                <span aria-label={`${item.label}排名进度`} style={rankingTrackStyle}>
+                  <span style={{ ...rankingBarStyle, width: `${item.primaryRatio * 100}%` }} />
+                </span>
               </span>
               {model.measures.map((measure) => {
                 const value = item.values.find((entry) => entry.key === measure.key)?.value ?? 0;
-                return <span key={measure.key} style={rankingValueStyle}>{formatCompactMetricNumber(value)}</span>;
+                return <span key={measure.key} style={rankingValueStyle}>{formatCurrencyMetricNumber(value, isCurrencyMetric(measure.key, fields))}</span>;
               })}
             </div>
           );
@@ -1867,20 +2139,21 @@ export const DashboardComponentRenderer = ({
   if (component.type === "flipNumber" || isLegacyFlipNumberKpi(component)) {
     const model = buildFlipNumberModel(component, rows, fields);
     const decimals = numberProp(component, "decimals", 0);
-    const prefix = stringProp(component, "prefix", "");
-    const suffix = stringProp(component, "suffix", "");
+    const configuredPrefix = stringProp(component, "prefix", "");
+    const configuredSuffix = stringProp(component, "suffix", "");
     return (
       <section data-testid="flip-number-surface" style={flipNumberShellStyle}>
         <div style={flipNumberGridStyle}>
-          {model.items.map((item) => (
-            <div key={item.key} style={flipNumberCardStyle}>
+          {model.items.map((item) => {
+            const affixes = currencyAffixes(configuredPrefix, configuredSuffix, item.isCurrency);
+            return <div key={item.key} style={flipNumberCardStyle}>
               <span style={flipNumberTitleStyle}>{item.label}</span>
               <RollingMetricValue
                 ariaLabel={`${item.label}翻牌器数值`}
-                value={formatFlipNumber(item.value, decimals, prefix, suffix)}
+                value={formatFlipNumber(item.value, decimals, affixes.prefix, affixes.suffix)}
               />
-            </div>
-          ))}
+            </div>;
+          })}
         </div>
       </section>
     );
@@ -1909,9 +2182,36 @@ export const DashboardComponentRenderer = ({
                 </div>
                 {showValue && (
                   <span style={progressBarValueStyle}>
-                    实际 {formatCompactMetricNumber(item.value)} | 目标 {formatCompactMetricNumber(item.target)}
+                    实际 {formatCurrencyMetricNumber(item.value, item.isCurrency)} | 目标 {formatCurrencyMetricNumber(item.target, item.targetIsCurrency)}
                   </span>
                 )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
+  if (component.type === "targetProgress") {
+    const model = buildTargetProgressModel(component, rows, fields);
+    const decimals = Math.max(0, Math.min(4, Math.trunc(numberProp(component, "decimals", 0))));
+    const color = stringProp(component, "color", "#f57c00");
+    const suffix = stringProp(component, "suffix", "");
+    const showValue = component.props.showValue !== false;
+    return (
+      <section aria-label={`${component.title ?? "目标完成率"}图表`} data-testid="target-progress-surface" style={targetProgressShellStyle}>
+        <div style={targetProgressListStyle}>
+          {model.items.map((item) => {
+            const progress = item.progress === null ? null : item.progress * 100;
+            const progressWidth = progress === null ? 0 : Math.max(0, Math.min(100, progress));
+            return (
+              <div key={item.key} style={targetProgressRowStyle}>
+                <span style={targetProgressLabelStyle}>{item.label}</span>
+                <span aria-label={`${item.label}完成率进度`} style={targetProgressTrackStyle}>
+                  <span style={{ ...targetProgressBarStyle, background: color, width: `${progressWidth}%` }} />
+                </span>
+                {showValue && <span style={targetProgressValueStyle}>{formatCurrencyMetricNumber(item.value, model.measureIsCurrency)} / {formatCurrencyMetricNumber(item.target, model.targetIsCurrency)}{suffix}</span>}
+                <strong style={targetProgressPercentStyle}>{progress === null ? "—" : `${progress.toFixed(decimals)}%`}</strong>
               </div>
             );
           })}
@@ -1960,26 +2260,23 @@ export const DashboardComponentRenderer = ({
       return (
         <DataSurface
           testId="kpi-board-surface"
-          eyebrow="指标看板"
-          title={component.title ?? "指标看板"}
-          chips={[
-            <SurfaceChip key="dimension">{board.dimensionLabel}</SurfaceChip>,
-            <SurfaceChip key="measure" tone="teal">{board.measureLabel}</SurfaceChip>,
-          ]}
+          hideHeader
+          variant="borderless"
         >
           <div style={kpiBoardGridStyle}>
             {board.groups.map((group) => (
               <section aria-label={`${group.label}指标`} key={group.label} style={kpiBoardCardStyle}>
                 <div style={kpiBoardPeriodStyle}>{group.label}</div>
                 <div style={kpiBoardMetricNameStyle}>{board.measureLabel}</div>
-                <div style={kpiBoardValueStyle}>
-                  {stringProp(component, "prefix", "")}{formatKpiBoardNumber(group.value)}{stringProp(component, "suffix", "")}
-                </div>
+                <div style={kpiBoardValueStyle}>{(() => {
+                  const affixes = currencyAffixes(stringProp(component, "prefix", ""), stringProp(component, "suffix", ""), isCurrencyMetric(board.measureKey, fields));
+                  return <>{affixes.prefix}{formatKpiBoardNumber(group.value)}{affixes.suffix}</>;
+                })()}</div>
                 <div style={kpiBoardRowsStyle}>
                   {group.metrics.map((metric) => (
                     <div key={metric.key} style={kpiBoardRowStyle}>
                       <span style={kpiBoardRowLabelStyle}>{metric.label}</span>
-                      <span style={kpiBoardRowValueStyle}>{formatKpiBoardNumber(metric.value)}</span>
+                      <span style={kpiBoardRowValueStyle}>{formatCurrencyMetricNumber(metric.value, metric.isCurrency)}</span>
                     </div>
                   ))}
                 </div>
@@ -1990,6 +2287,12 @@ export const DashboardComponentRenderer = ({
       );
     }
     const model = buildKpiModel(component, rows);
+    const measureKey = bindingFieldKeys(component, "measure")[0] ?? "";
+    const affixes = currencyAffixes(
+      stringProp(component, "prefix", ""),
+      stringProp(component, "suffix", ""),
+      isCurrencyMetric(measureKey, fields),
+    );
     const decimals = numberProp(component, "decimals", 0);
     const formatted = model.value === null ? "—" : model.value.toFixed(decimals);
     const progressWidth = model.target?.progress === null || model.target?.progress === undefined
@@ -2001,7 +2304,7 @@ export const DashboardComponentRenderer = ({
     return (
       <div style={kpiShellStyle}>
         <div aria-label={`${component.title ?? "指标"}指标值`} style={kpiValueStyle}>
-          {stringProp(component, "prefix", "")}{formatted}{stringProp(component, "suffix", "")}
+          {affixes.prefix}{formatted}{affixes.suffix}
         </div>
         {(model.comparison !== null || model.target !== null) && (
           <div style={kpiMetaStackStyle}>
@@ -2034,10 +2337,7 @@ export const DashboardComponentRenderer = ({
     return (
       <DataSurface
         testId="detail-table-surface"
-        chips={[
-          <SurfaceChip key="rows" tone="teal">{compactCount(model.rows.length, "行")}</SurfaceChip>,
-          <SurfaceChip key="columns">{compactCount(model.columns.length, "列")}</SurfaceChip>,
-        ]}
+        variant="borderless"
         footer={(
           <>
             <TableStatus>
@@ -2074,8 +2374,14 @@ export const DashboardComponentRenderer = ({
           <table aria-label={`${component.title ?? "明细表"}数据表`} style={dataTableStyle}>
             <thead><tr>{model.columns.map((column) => <th key={column.key} style={tableHeaderCellStyle}>{column.label}</th>)}</tr></thead>
             <tbody>{pagedRows.map((row, index) => (
-              <tr key={index} style={{ background: index % 2 === 1 ? "#fbfdff" : "#ffffff" }}>
-                {model.columns.map((column) => <td key={column.key} style={tableCellStyle}>{String(row[column.key] ?? "—")}</td>)}
+              <tr key={index} style={{ background: "#ffffff" }}>
+                {model.columns.map((column) => {
+                  const value = row[column.key];
+                  const display = typeof value === "number" && isCurrencyMetric(column.key, fields)
+                    ? formatCrosstabMetric(value, true)
+                    : String(value ?? "—");
+                  return <td key={column.key} style={tableCellStyle}>{display}</td>;
+                })}
               </tr>
             ))}</tbody>
           </table>
@@ -2088,6 +2394,8 @@ export const DashboardComponentRenderer = ({
     return (
       <DataSurface
         testId="crosstab-surface"
+        variant="borderless"
+        hideHeader={hideSurfaceHeaders}
         eyebrow="二维交叉表"
         title={component.title ?? "交叉表"}
         chips={[
@@ -2119,18 +2427,18 @@ export const DashboardComponentRenderer = ({
                 <tr key={row.label}>
                   <th scope="row" style={tableRowHeaderCellStyle}>{row.label}</th>
                   {row.values.map((value, index) => (
-                    <td key={model.columns[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabNumber(value)}</td>
+                    <td key={model.columns[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabMetric(value, model.measureIsCurrency)}</td>
                   ))}
-                  {model.showTotals && <td style={tableTotalCellStyle}>{formatCrosstabNumber(row.total)}</td>}
+                  {model.showTotals && <td style={tableTotalCellStyle}>{formatCrosstabMetric(row.total, model.measureIsCurrency)}</td>}
                 </tr>
               ))}
               {model.showTotals && (
                 <tr>
                   <th scope="row" style={tableTotalHeaderCellStyle}>合计</th>
                   {model.columnTotals.map((value, index) => (
-                    <td key={model.columns[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabNumber(value)}</td>
+                    <td key={model.columns[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabMetric(value, model.measureIsCurrency)}</td>
                   ))}
-                  <td style={tableTotalCellStyle}>{formatCrosstabNumber(model.grandTotal)}</td>
+                  <td style={tableTotalCellStyle}>{formatCrosstabMetric(model.grandTotal, model.measureIsCurrency)}</td>
                 </tr>
               )}
             </tbody>
@@ -2144,11 +2452,13 @@ export const DashboardComponentRenderer = ({
     return (
       <DataSurface
         testId="heatmap-surface"
+        variant="borderless"
+        hideHeader={hideSurfaceHeaders}
         eyebrow="热力图"
         title={component.title ?? "热力图"}
         chips={[
           <SurfaceChip key="measure" tone="teal">{model.measureLabel}</SurfaceChip>,
-          <SurfaceChip key="range">{formatCrosstabNumber(model.minValue)} - {formatCrosstabNumber(model.maxValue)}</SurfaceChip>,
+          <SurfaceChip key="range">{formatCrosstabMetric(model.minValue, model.measureIsCurrency)} - {formatCrosstabMetric(model.maxValue, model.measureIsCurrency)}</SurfaceChip>,
         ]}
         footer={(
           <>
@@ -2185,14 +2495,14 @@ export const DashboardComponentRenderer = ({
                   {row.cells.map((cell) => (
                     <td
                       key={cell.columnKey}
-                      aria-label={`${row.label} ${cell.columnLabel} ${model.measureLabel} ${formatCrosstabNumber(cell.value)}`}
+                      aria-label={`${row.label} ${cell.columnLabel} ${model.measureLabel} ${formatCrosstabMetric(cell.value, model.measureIsCurrency)}`}
                       style={{
                         ...heatmapCellBaseStyle,
                         background: heatmapCellFill(cell.intensity),
                         color: cell.intensity > 0.7 ? "#fff" : "#0f172a",
                       }}
                     >
-                      {model.showValues ? formatCrosstabNumber(cell.value) : ""}
+                      {model.showValues ? formatCrosstabMetric(cell.value, model.measureIsCurrency) : ""}
                     </td>
                   ))}
                 </tr>
@@ -2208,6 +2518,8 @@ export const DashboardComponentRenderer = ({
     return (
       <DataSurface
         testId="multidimensional-surface"
+        variant="borderless"
+        hideHeader={hideSurfaceHeaders}
         eyebrow="多维分析"
         title={component.title ?? "多维分析"}
         chips={[
@@ -2249,7 +2561,7 @@ export const DashboardComponentRenderer = ({
                     <td key={model.dimensions[index]?.key ?? index} style={tableCellStyle}>{value}</td>
                   ))}
                   {row.values.map((value, index) => (
-                    <td key={model.measures[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabNumber(value)}</td>
+                    <td key={model.measures[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false)}</td>
                   ))}
                 </tr>
               ))}
@@ -2260,7 +2572,7 @@ export const DashboardComponentRenderer = ({
                     <td key={dimension.key} style={tableTotalHeaderCellStyle}>—</td>
                   ))}
                   {model.totals.map((value, index) => (
-                    <td key={model.measures[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabNumber(value)}</td>
+                    <td key={model.measures[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false)}</td>
                   ))}
                 </tr>
               )}

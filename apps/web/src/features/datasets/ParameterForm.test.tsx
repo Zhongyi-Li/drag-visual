@@ -79,7 +79,7 @@ describe("ParameterForm", () => {
     render(<ParameterForm parameters={parameters} onSubmit={vi.fn()} />);
     expect(screen.getByRole("textbox", { name: "区域" })).toBeInTheDocument();
     expect(screen.getByRole("spinbutton", { name: "年份" })).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "开始日期" })).toBeInTheDocument();
+    expect(screen.getByLabelText("开始日期")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "启用" })).toBeInTheDocument();
   });
 });

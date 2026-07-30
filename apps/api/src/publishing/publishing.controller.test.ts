@@ -1,8 +1,11 @@
 import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
+import { type ExecutionContext } from "@nestjs/common";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { AuthService } from "../auth/auth.service.js";
+import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import { safeJsonFastifyOptions } from "../fastify-options.js";
 import { InMemoryPublishingRepository, PUBLISHING_REPOSITORY } from "./publishing.repository.js";
 import { PublishingController } from "./publishing.controller.js";
@@ -22,6 +25,13 @@ const dashboard = (overrides: Partial<Dashboard> = {}): Dashboard => DashboardSc
 });
 
 const missingId = "c91a0d8e-1fc0-4f38-8c72-8b43c251f0f1";
+const testSessionGuard = {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<{ authUser?: { id: string; username: string; displayName: null; avatarUrl: null } }>();
+    request.authUser = { id: "test-user", username: "test", displayName: null, avatarUrl: null };
+    return true;
+  },
+};
 
 describe("PublishingController", () => {
   let app: NestFastifyApplication | undefined;
@@ -37,6 +47,8 @@ describe("PublishingController", () => {
       providers: [
         PublishingService,
         { provide: PUBLISHING_REPOSITORY, useValue: repository },
+        { provide: SessionAuthGuard, useValue: testSessionGuard },
+        { provide: AuthService, useValue: { authenticate: async () => ({ id: "test-user", username: "test", displayName: null, avatarUrl: null }) } },
       ],
     }).compile();
     app = module.createNestApplication<NestFastifyApplication>(new FastifyAdapter(safeJsonFastifyOptions));
@@ -65,6 +77,20 @@ describe("PublishingController", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ name: "发布快照" });
+  });
+
+  it("takes a published dashboard page offline while preserving its draft", async () => {
+    const repository = new InMemoryPublishingRepository();
+    repository.seed({ id: dashboard().id, draftSchema: dashboard(), publishedSchema: dashboard() });
+    await bootstrap(repository);
+
+    const unpublish = await app!.inject({ method: "DELETE", url: `/dashboards/${dashboard().id}/publish` });
+    const published = await app!.inject({ method: "GET", url: `/published-dashboards/${dashboard().id}` });
+
+    expect(unpublish.statusCode).toBe(200);
+    expect(unpublish.json()).toEqual({ unpublished: true });
+    expect(published.statusCode).toBe(404);
+    await expect(repository.getDraft(dashboard().id)).resolves.toEqual(dashboard());
   });
 
   it("maps missing and unpublished dashboards to stable not-found errors", async () => {

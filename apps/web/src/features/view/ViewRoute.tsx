@@ -33,11 +33,10 @@ export const Component = () => {
   }
 
   return (
-    <>
-      <Button href="/" aria-label="返回看板首页" icon={<ArrowLeftOutlined />} style={{ position: "fixed", zIndex: 10, top: 16, left: 16 }}>
-        返回看板首页
-      </Button>
-      <DashboardViewer dashboard={query.data} />
-    </>
+    <DashboardViewer
+      dashboard={query.data}
+      headerDensity="compact"
+      showRevision={false}
+    />
   );
 };

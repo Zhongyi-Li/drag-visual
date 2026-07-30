@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createApiClient } from "../../api/client.js";
 import { datasetFixtures, datasetSummaryFixtures, salesQueryResultFixture } from "../../mocks/fixtures.js";
 import { server } from "../../mocks/server.js";
-import { getDataset, listDatasets, queryDataset } from "./datasetApi.js";
+import { getDataset, listDatasets, queryDataset, queryDatasetRequest } from "./datasetApi.js";
 
 const client = createApiClient("http://localhost");
 
@@ -26,6 +26,24 @@ describe("datasetApi", () => {
 
     await expect(queryDataset("sales", { year: 2026, fromDate: "2026-01-01" }, client)).resolves.toEqual(salesQueryResultFixture);
     expect(body).toEqual({ parameters: { year: 2026, fromDate: "2026-01-01" } });
+  });
+
+  it("submits optional grouped aggregation in the same query envelope", async () => {
+    let body: unknown;
+    server.use(http.post("http://localhost/datasets/sales/query", async ({ request }) => {
+      body = await request.json();
+      return HttpResponse.json(salesQueryResultFixture);
+    }));
+
+    await queryDatasetRequest("sales", {
+      parameters: { year: 2026, fromDate: "2026-01-01" },
+      aggregation: { groupBy: ["month"], measures: [{ fieldKey: "revenue", aggregation: "sum" }] },
+    }, client);
+
+    expect(body).toEqual({
+      parameters: { year: 2026, fromDate: "2026-01-01" },
+      aggregation: { groupBy: ["month"], measures: [{ fieldKey: "revenue", aggregation: "sum" }] },
+    });
   });
 
   it("rejects invalid gateway payloads", async () => {

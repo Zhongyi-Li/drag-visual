@@ -13,7 +13,7 @@ export const treemapDefinition: ComponentDefinition = Object.freeze({
   createDefaults: () => ({ color: "#4b7cf5", showLegend: false }),
   dataSlots: Object.freeze([
     Object.freeze({ key: "dimension", title: "维度", acceptedTypes: Object.freeze(["string", "date"] as const), required: true, multiple: false }),
-    Object.freeze({ key: "measure", title: "指标", acceptedTypes: Object.freeze(["number"] as const), required: true, multiple: true }),
+    Object.freeze({ key: "measure", title: "指标/列", acceptedTypes: Object.freeze(["number"] as const), required: true, multiple: true }),
   ]),
   propsSchema: PiePropsSchema,
   validateBinding: (binding: DataBinding | undefined) => {

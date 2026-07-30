@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 import { AppProviders } from "../../app/AppProviders.js";
 import { appRoutes } from "../../app/router.js";
 import { server } from "../../mocks/server.js";
+import { saveAuthSession } from "../auth/authSession.js";
 
 const id = "123e4567-e89b-42d3-a456-426614174000";
 const dashboard = {
@@ -21,6 +22,7 @@ const dashboard = {
 };
 
 const renderHome = () => {
+  saveAuthSession({ user: { id: "test-user", username: "hello_user", displayName: null, avatarUrl: null } });
   window.localStorage.setItem("zhbi.auth.session", JSON.stringify({
     accessToken: "test-token",
     user: { id: "test-user", username: "hello_user" },
@@ -96,5 +98,62 @@ describe("DashboardHome", () => {
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(attempts).toBe(1);
+  });
+
+  it("opens the editor when a dashboard card is clicked", async () => {
+    server.use(http.get("http://localhost/dashboards", () => HttpResponse.json([dashboard])));
+    const router = renderHome();
+
+    await userEvent.click(await screen.findByRole("listitem", { name: "打开并编辑 未命名看板" }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/editor/${id}`));
+  });
+
+  it("uses the corresponding dashboard preview as the card thumbnail", async () => {
+    server.use(http.get("http://localhost/dashboards", () => HttpResponse.json([dashboard])));
+    renderHome();
+
+    const thumbnail = await screen.findByTitle("未命名看板 看板缩略图");
+    expect(thumbnail).toHaveAttribute("src", `/preview/${id}?embed=1`);
+  });
+
+  it("does not show a separate edit button on the card", async () => {
+    server.use(http.get("http://localhost/dashboards", () => HttpResponse.json([dashboard])));
+    renderHome();
+
+    await screen.findByRole("listitem", { name: "打开并编辑 未命名看板" });
+    expect(screen.queryByRole("button", { name: "编辑 未命名看板" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "未命名看板 的更多操作" })).toBeInTheDocument();
+  });
+
+  it("shows published status and lets the owner take the public page offline", async () => {
+    let published = true;
+    server.use(
+      http.get("http://localhost/dashboards", () => HttpResponse.json([{
+        ...dashboard,
+        publishedAt: published ? "2026-07-03T08:30:00.000Z" : null,
+      }])),
+      http.delete(`http://localhost/dashboards/${id}/publish`, () => {
+        published = false;
+        return HttpResponse.json({ unpublished: true });
+      }),
+    );
+    renderHome();
+
+    expect(await screen.findByText("已发布")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "未命名看板 的更多操作" }));
+    await userEvent.click(await screen.findByText("下线发布页"));
+
+    expect(await screen.findByText("草稿")).toBeInTheDocument();
+  });
+
+  it("presents the BI dashboard empty state and keeps creation in the toolbar", async () => {
+    server.use(http.get("http://localhost/dashboards", () => HttpResponse.json([])));
+    renderHome();
+
+    expect(await screen.findByText("您还没有BI数据看板")).toBeInTheDocument();
+    expect(screen.getByText("创建您的第一个数据看板，开始组织你的业务数据。")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "新建BI看板。" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "新建看板" })).toBeInTheDocument();
   });
 });

@@ -12,32 +12,26 @@ import {
   DATASET_REPOSITORY,
   type DatasetRepository,
 } from "./dataset.repository.js";
+import {
+  DatasetInvalidResponseError,
+  DatasetNotFoundError,
+  DatasetQueryInvalidError,
+} from "./dataset.errors.js";
+import {
+  RETAIL_ORDER_DATASET_ID,
+  validateRetailOrderResultLimit,
+} from "./retail-order-dataset.repository.js";
 
-export class DatasetNotFoundError extends Error {
-  constructor(id: string) {
-    super(`Dataset not found: ${id}`);
-    this.name = "DatasetNotFoundError";
-  }
-}
-
-export class DatasetQueryInvalidError extends Error {
-  constructor() {
-    super("Dataset query is invalid");
-    this.name = "DatasetQueryInvalidError";
-  }
-}
-
-export class DatasetInvalidResponseError extends Error {
-  constructor() {
-    super("Dataset response is invalid");
-    this.name = "DatasetInvalidResponseError";
-  }
-}
+export {
+  DatasetInvalidResponseError,
+  DatasetNotFoundError,
+  DatasetQueryInvalidError,
+} from "./dataset.errors.js";
 
 const DATASET_BODY_LIMIT = 5 * 1024 * 1024;
 
 const calendarDate = (value: string): boolean => {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const match = /^(\d{4})-(\d{2})-(\d{2})(?:[ T].*)?$/.exec(value);
   if (!match) return false;
   const year = Number(match[1]);
   const month = Number(match[2]);
@@ -78,6 +72,10 @@ export class DatasetService {
   async query(id: string, request: DatasetQueryRequest) {
     const dataset = await this.getSchema(id);
     this.validateParameters(dataset.parameters, request.parameters);
+    this.validateAggregation(dataset.fields, request.aggregation);
+    if (id === RETAIL_ORDER_DATASET_ID && !validateRetailOrderResultLimit(request.parameters)) {
+      throw new DatasetQueryInvalidError();
+    }
     const result = await this.repository.query(id, request);
     if (!result) throw new DatasetNotFoundError(id);
     return this.validateResult(result);
@@ -107,6 +105,20 @@ export class DatasetService {
       ) {
         throw new DatasetQueryInvalidError();
       }
+    }
+  }
+
+  private validateAggregation(
+    fields: readonly DatasetField[],
+    aggregation: DatasetQueryRequest["aggregation"],
+  ): void {
+    if (aggregation === undefined) return;
+    const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+    for (const fieldKey of aggregation.groupBy) {
+      if (!fieldsByKey.has(fieldKey)) throw new DatasetQueryInvalidError();
+    }
+    for (const measure of aggregation.measures) {
+      if (fieldsByKey.get(measure.fieldKey)?.type !== "number") throw new DatasetQueryInvalidError();
     }
   }
 

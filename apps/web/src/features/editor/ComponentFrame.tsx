@@ -1,14 +1,22 @@
 import { MoreOutlined } from "@ant-design/icons";
-import { DashboardComponentRenderer } from "@drag-visual/chart-renderer";
-import type { ComponentInstance, DatasetQueryRequest } from "@drag-visual/contracts";
+import { DashboardComponentRenderer, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
+import type { ComponentInstance, DatasetQueryRequest, DatasetQueryResult } from "@drag-visual/contracts";
+import { applyTransforms } from "@drag-visual/data-engine";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Drawer, Empty, Dropdown, Spin, type MenuProps } from "antd";
+import { Alert, Button, Drawer, Empty, Dropdown, Space, Spin, Typography, type MenuProps } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { DataPreview } from "../datasets/DataPreview.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
-import { queryDataset } from "../datasets/datasetApi.js";
+import {
+  RuntimeDatasetRequestBar,
+  buildRuntimeParameters,
+  runtimeParameters,
+  type RuntimeParameterValues,
+} from "../datasets/RuntimeDatasetRequestBar.js";
+import { buildDatasetAggregation } from "../datasets/datasetAggregation.js";
+import { getDataset, queryDatasetRequest } from "../datasets/datasetApi.js";
 import { findAvailableLayout } from "./canvasLayout.js";
 import type { EditorStore } from "./store/editorStore.js";
 
@@ -28,12 +36,16 @@ interface ComponentFrameProps {
 // Keep the acknowledgement visible long enough to register, even when the
 // chart itself can remount faster than a network request.
 const REFRESH_INDICATOR_DURATION = 650;
+const DEFAULT_CHART_RESULT_LIMIT = 1_000;
 
-export const ComponentFrame = ({ component, store, createComponentId, isInteracting }: ComponentFrameProps) => {
+export const ComponentFrame = ({ component: suppliedComponent, store, createComponentId, isInteracting }: ComponentFrameProps) => {
   const localDatasets = useLocalDatasets();
   const [dataPreviewOpen, setDataPreviewOpen] = useState(false);
   const [renderVersion, setRenderVersion] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [runtimeDraftParameters, setRuntimeDraftParameters] = useState<RuntimeParameterValues>({});
+  const [appliedRuntimeParameters, setAppliedRuntimeParameters] = useState<RuntimeParameterValues>({});
+  const [runtimeDataResult, setRuntimeDataResult] = useState<DatasetQueryResult | undefined>();
   const [selectedSunburstMeasure, setSelectedSunburstMeasure] = useState<string | null>(null);
   const [selectedTreemapMeasure, setSelectedTreemapMeasure] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -41,28 +53,96 @@ export const ComponentFrame = ({ component, store, createComponentId, isInteract
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleInput = useRef<HTMLInputElement | null>(null);
   const titleEditSettled = useRef(false);
+  // Grid layout libraries may preserve child elements while their dashboard
+  // data changes. Subscribe here as well so an inspector “更新” is always
+  // observed by the query key of the matching chart.
+  const component = useStore(store, (state) =>
+    state.history.present.components.find((candidate) => candidate.id === suppliedComponent.id) ?? suppliedComponent,
+  );
   const selected = useStore(store, (state) => state.selectedComponentId === component.id);
   const title = component.title ?? component.type;
   const datasetId = typeof component.binding === "object" && component.binding !== null && "datasetId" in component.binding
     ? String(component.binding.datasetId)
     : undefined;
-  const localDataset = datasetId ? localDatasets.getDataset(datasetId) : undefined;
-  const localResult = datasetId ? localDatasets.queryDataset(datasetId) : undefined;
+  const isUploadedDataset = datasetId !== undefined && localDatasets.isUploadedDataset(datasetId);
+  const cachedDataset = datasetId ? localDatasets.getDataset(datasetId) : undefined;
+  const cachedResult = datasetId ? localDatasets.queryDataset(datasetId) : undefined;
+  const localDataset = isUploadedDataset ? cachedDataset : undefined;
+  const localResult = isUploadedDataset ? cachedResult : undefined;
+  // InterfaceDatasetBootstrap keeps an initial remote snapshot in memory for
+  // fast first paint. It is not an uploaded file and must never suppress a
+  // later explicit query from the inspector.
+  const runtimeSnapshot = isUploadedDataset ? undefined : cachedResult;
   const savedDataset = useStore(store, (state) => datasetId === undefined
     ? undefined
     : state.history.present.datasets.find((dataset) => dataset.datasetId === datasetId));
-  // Dashboard schema preserves parameters as readonly JSON; the API request body
-  // is the same validated value, expressed with the mutable request contract.
-  const queryParameters = savedDataset?.parameters as DatasetQueryRequest["parameters"] | undefined;
-  const remoteQuery = useQuery({
-    queryKey: ["editor-component-data", component.id, datasetId, queryParameters],
-    queryFn: () => queryDataset(datasetId!, queryParameters!),
-    enabled: datasetId !== undefined && savedDataset !== undefined && localDataset === undefined,
+  const remoteSchema = useQuery({
+    queryKey: ["dataset-schema", datasetId],
+    queryFn: () => getDataset(datasetId!),
+    enabled: datasetId !== undefined && localDataset === undefined,
   });
-  const dataResult = localResult ?? remoteQuery.data;
+  const hasDatasetSchema = localDataset !== undefined || cachedDataset !== undefined || remoteSchema.data !== undefined;
+  const datasetParameters = localDataset?.parameters ?? cachedDataset?.parameters ?? remoteSchema.data?.parameters ?? [];
+  const runtimeParameterDefinitions = runtimeParameters(datasetParameters);
+  const isBootstrappedInterface = runtimeParameterDefinitions.length > 0;
+  const runtimeParameterKeys = new Set(runtimeParameterDefinitions.map((parameter) => parameter.key));
+  // Runtime parameters are deliberately left out of the dashboard snapshot.
+  // They remain controllable by a chart after the dashboard is published.
+  const savedParameters = savedDataset?.parameters as DatasetQueryRequest["parameters"] | undefined;
+  const configuredParameters = Object.fromEntries(Object.entries(savedParameters ?? {}).filter(([key]) => !runtimeParameterKeys.has(key) && key !== "limit"));
+  const runtimeQueryParameters = buildRuntimeParameters(runtimeParameterDefinitions, appliedRuntimeParameters);
+  const supportsResultLimit = datasetParameters.some((parameter) => parameter.key === "limit" && parameter.type === "number");
+  // `resultLimit` is the inspector draft. It becomes `appliedResultLimit`
+  // only when the author clicks 更新, avoiding an API request for each edit.
+  const appliedResultLimit = typeof component.props.appliedResultLimit === "number" && Number.isInteger(component.props.appliedResultLimit)
+    ? component.props.appliedResultLimit
+    : DEFAULT_CHART_RESULT_LIMIT;
+  const queryParameters = {
+    ...configuredParameters,
+    ...runtimeQueryParameters,
+    ...(supportsResultLimit ? { limit: appliedResultLimit } : {}),
+  } as DatasetQueryRequest["parameters"];
+  const chartComponent = component as ComponentInstance;
+  const aggregation = buildDatasetAggregation(chartComponent);
+  const [initialAggregationEnabled] = useState(() => buildDatasetAggregation(component as ComponentInstance) !== undefined);
+  const hasAppliedRuntimeParameters = Object.keys(appliedRuntimeParameters).length > 0;
+  const dataRefreshVersion = typeof component.props.dataRefreshVersion === "number" && Number.isSafeInteger(component.props.dataRefreshVersion)
+    ? component.props.dataRefreshVersion
+    : 0;
+  const remoteQuery = useQuery({
+    // Data bindings are edited freely in the inspector. The explicit “更新”
+    // action increments dataRefreshVersion, so changing an aggregation does
+    // not issue a database query until the author is ready.
+    queryKey: ["dataset-query", component.id, datasetId, queryParameters, dataRefreshVersion],
+    queryFn: () => queryDatasetRequest(datasetId!, {
+      parameters: queryParameters!,
+      ...(aggregation === undefined ? {} : { aggregation }),
+    }),
+    // Interface data is fetched once by InterfaceDatasetBootstrap when the
+    // editor opens. Individual charts wait for that shared snapshot instead
+    // of sending one identical request per component.
+    // Wait for schema discovery so interface requests include their runtime
+    // parameters instead of emitting an early `{ parameters: {} }` request.
+    enabled: datasetId !== undefined && localDataset === undefined && hasDatasetSchema && (
+      !isBootstrappedInterface || initialAggregationEnabled || dataRefreshVersion > 0 || hasAppliedRuntimeParameters
+    ),
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+  });
+  // Interface data is materialized once when the editor opens. A component
+  // only keeps a private override after its own runtime pagination changes.
+  const dataResult = runtimeDataResult ?? localResult ?? remoteQuery.data ?? runtimeSnapshot;
   const fields = localDataset?.fields ?? dataResult?.columns;
   const rows = dataResult?.rows ?? [];
-  const chartComponent = component as ComponentInstance;
+  const rowsAreAggregated = aggregation !== undefined && remoteQuery.data === dataResult;
+  const bindingForRender = chartComponent.type === "ranking" && chartComponent.binding !== undefined
+    ? { datasetId: chartComponent.binding.datasetId, slots: chartComponent.binding.slots }
+    : chartComponent.binding;
+  const transformedRows = applyTransforms(rows, bindingForRender, fields ?? []);
+  const isLoadingRemoteData = remoteQuery.isLoading && dataResult === undefined;
+  const remoteDataError = remoteQuery.isError
+    ? remoteQuery.error instanceof Error ? remoteQuery.error.message : "查询图表数据失败"
+    : undefined;
   const isSunburst = chartComponent.type === "sunburst" || (chartComponent.type === "pie" && (chartComponent.title ?? "").includes("旭日"));
   const isTreemap = chartComponent.type === "treemap" || (chartComponent.type === "pie" && (chartComponent.title ?? "").includes("矩形"));
   const measureBinding = chartComponent.binding?.slots.measure;
@@ -76,7 +156,16 @@ export const ComponentFrame = ({ component, store, createComponentId, isInteract
     ? selectedTreemapMeasure!
     : treemapMeasures[0];
   const fieldLabels = new Map((fields ?? []).map((field) => [field.key, field.label]));
-  const canRefreshRemoteData = datasetId !== undefined && savedDataset !== undefined && localDataset === undefined;
+  const dataTransformDescription = chartComponent.type === "ranking" ? "" : [
+    chartComponent.binding?.sort === undefined
+      ? undefined
+      : `${fieldLabels.get(chartComponent.binding.sort.fieldKey) ?? chartComponent.binding.sort.fieldKey}${chartComponent.binding.sort.direction === "asc" ? "升序" : "降序"}`,
+    chartComponent.binding?.limit === undefined ? undefined : `Top ${chartComponent.binding.limit}`,
+  ].filter((item): item is string => item !== undefined).join(" · ");
+  const componentDataResult = dataResult === undefined
+    ? undefined
+    : { ...dataResult, rows: transformedRows, total: transformedRows.length };
+  const canRefreshRemoteData = datasetId !== undefined && localDataset === undefined;
   const select = () => store.getState().select(component.id);
   const stopControlEvent = (event: { stopPropagation: () => void }) => event.stopPropagation();
   const beginTitleEdit = (event: { stopPropagation: () => void }) => {
@@ -133,12 +222,23 @@ export const ComponentFrame = ({ component, store, createComponentId, isInteract
     setIsRefreshing(false);
     refreshTimer.current = null;
   };
+  const requestRuntimeData = () => {
+    const nextParameters = buildRuntimeParameters(runtimeParameterDefinitions, runtimeDraftParameters);
+    if (JSON.stringify(nextParameters) === JSON.stringify(runtimeQueryParameters)) {
+      void remoteQuery.refetch();
+      return;
+    }
+    // The useQuery key owns the request. Updating its parameters is enough to
+    // fetch once; calling the API here as well would duplicate every click.
+    setRuntimeDataResult(undefined);
+    setAppliedRuntimeParameters(nextParameters);
+  };
   const menuItems: MenuProps["items"] = [
     { key: "duplicate", label: "复制" },
     { key: "delete", label: "删除", danger: true },
     { type: "divider" },
     { key: "refresh", label: isRefreshing ? "正在刷新" : "刷新", disabled: isRefreshing },
-    { key: "view-data", label: "查看数据", disabled: true },
+    { key: "view-data", label: "查看数据" },
   ];
   const onMenuClick: MenuProps["onClick"] = ({ key, domEvent }) => {
     stopControlEvent(domEvent);
@@ -214,16 +314,39 @@ export const ComponentFrame = ({ component, store, createComponentId, isInteract
         </div>
       </header>
       <div className="component-frame__renderer" data-testid="component-renderer" data-interacting={String(isInteracting)}>
-        <DashboardComponentRenderer
-          key={renderVersion}
-          component={chartComponent}
-          fields={fields}
-          rows={rows}
-          activeSunburstMeasure={isSunburst ? activeSunburstMeasure : undefined}
-          onSunburstMeasureChange={isSunburst ? setSelectedSunburstMeasure : undefined}
-          activeTreemapMeasure={isTreemap ? activeTreemapMeasure : undefined}
-          onTreemapMeasureChange={isTreemap ? setSelectedTreemapMeasure : undefined}
+        <RuntimeDatasetRequestBar
+          parameters={runtimeParameterDefinitions}
+          values={runtimeDraftParameters}
+          onChange={(key, value) => setRuntimeDraftParameters((current) => ({ ...current, [key]: value }))}
+          onRequest={requestRuntimeData}
+            loading={remoteQuery.isFetching}
         />
+        <div className="component-frame__chart-content">
+          {remoteDataError !== undefined ? (
+            <Alert type="error" showIcon title="加载图表数据失败" description={remoteDataError} />
+          ) : (
+            <ResponsiveChartContainer>
+              <DashboardComponentRenderer
+                key={renderVersion}
+                component={chartComponent}
+                fields={fields}
+                rows={transformedRows}
+                rowsAreAggregated={rowsAreAggregated}
+                hideSurfaceHeaders
+                activeSunburstMeasure={isSunburst ? activeSunburstMeasure : undefined}
+                onSunburstMeasureChange={isSunburst ? setSelectedSunburstMeasure : undefined}
+                activeTreemapMeasure={isTreemap ? activeTreemapMeasure : undefined}
+                onTreemapMeasureChange={isTreemap ? setSelectedTreemapMeasure : undefined}
+              />
+            </ResponsiveChartContainer>
+          )}
+        </div>
+        {isLoadingRemoteData && (
+          <div className="component-frame__refresh-mask" role="status" aria-live="polite">
+            <Spin size="small" />
+            <span>正在加载图表数据</span>
+          </div>
+        )}
         {isRefreshing && (
           <div className="component-frame__refresh-mask" role="status" aria-live="polite">
             <Spin size="small" />
@@ -232,7 +355,12 @@ export const ComponentFrame = ({ component, store, createComponentId, isInteract
         )}
       </div>
       <Drawer title={`${title}的数据`} placement="right" size="large" open={dataPreviewOpen} onClose={() => setDataPreviewOpen(false)}>
-        {dataResult === undefined ? <Empty description="暂无可查看的数据" /> : <DataPreview result={dataResult} />}
+        {componentDataResult === undefined ? <Empty description="暂无可查看的数据" /> : (
+          <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+            {dataTransformDescription && <Typography.Text type="secondary">已应用组件配置：{dataTransformDescription}</Typography.Text>}
+            <DataPreview result={componentDataResult} />
+          </Space>
+        )}
       </Drawer>
     </section>
   );

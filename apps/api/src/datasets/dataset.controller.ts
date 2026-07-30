@@ -13,17 +13,20 @@ import {
   Logger,
   Param,
   Post,
+  UseGuards,
   UseFilters,
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 
+import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import {
   DatasetInvalidResponseError,
   DatasetNotFoundError,
   DatasetQueryInvalidError,
   DatasetService,
 } from "./dataset.service.js";
+import { DatasetTimeoutError, DatasetUpstreamError } from "./dataset.errors.js";
 
 const API_ERRORS = {
   notFound: { code: "DATASET_NOT_FOUND", message: "Dataset was not found" },
@@ -35,6 +38,8 @@ const API_ERRORS = {
     code: "DATASET_INVALID_RESPONSE",
     message: "Dataset response is invalid",
   },
+  upstream: { code: "DATASET_UPSTREAM_ERROR", message: "Dataset upstream request failed" },
+  timeout: { code: "DATASET_TIMEOUT", message: "Dataset request timed out" },
   internal: { code: "INTERNAL_ERROR", message: "Internal server error" },
 } as const;
 
@@ -67,6 +72,12 @@ const httpError = (error: unknown): never => {
   if (error instanceof DatasetInvalidResponseError) {
     throw apiException(HttpStatus.BAD_GATEWAY, API_ERRORS.invalidResponse);
   }
+  if (error instanceof DatasetUpstreamError) {
+    throw apiException(HttpStatus.BAD_GATEWAY, API_ERRORS.upstream);
+  }
+  if (error instanceof DatasetTimeoutError) {
+    throw apiException(HttpStatus.GATEWAY_TIMEOUT, API_ERRORS.timeout);
+  }
   throw error;
 };
 
@@ -77,7 +88,7 @@ export class DatasetExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const reply = http.getResponse<FastifyReply>();
-    if (exception instanceof DatasetHttpException) {
+    if (exception instanceof DatasetHttpException || (exception instanceof HttpException && exception.getStatus() === HttpStatus.UNAUTHORIZED)) {
       const response = exception.getResponse();
       if (
         typeof response === "object" &&
@@ -95,6 +106,7 @@ export class DatasetExceptionFilter implements ExceptionFilter {
       method: request.method,
       route: request.url.split("?", 1)[0],
       errorType: exception instanceof Error ? exception.name : "Unknown",
+      errorMessage: exception instanceof Error ? exception.message : String(exception),
     });
     reply.status(HttpStatus.INTERNAL_SERVER_ERROR).send(API_ERRORS.internal);
   }
@@ -102,6 +114,7 @@ export class DatasetExceptionFilter implements ExceptionFilter {
 
 @Controller("datasets")
 @UseFilters(DatasetExceptionFilter)
+@UseGuards(SessionAuthGuard)
 export class DatasetController {
   constructor(@Inject(DatasetService) private readonly datasets: DatasetService) {}
 

@@ -1,5 +1,5 @@
 import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
-import { HttpException, Logger } from "@nestjs/common";
+import { HttpException, Logger, type ExecutionContext } from "@nestjs/common";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
 import { Test } from "@nestjs/testing";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -14,6 +14,8 @@ import {
   InMemoryDashboardRepository,
 } from "./dashboard.repository.js";
 import { DashboardService } from "./dashboard.service.js";
+import { SessionAuthGuard } from "../auth/session-auth.guard.js";
+import { AuthService } from "../auth/auth.service.js";
 
 const existingDashboard = (overrides: Partial<Dashboard> = {}): Dashboard => ({
   schemaVersion: 1,
@@ -33,6 +35,13 @@ const existingDashboard = (overrides: Partial<Dashboard> = {}): Dashboard => ({
 
 const missingDashboardId = "c91a0d8e-1fc0-4f38-8c72-8b43c251f0f1";
 const differentDashboardId = "daef93a7-426e-4690-aefd-a9470fe8597f";
+const testSessionGuard = {
+  canActivate(context: ExecutionContext): boolean {
+    const request = context.switchToHttp().getRequest<{ authUser?: { id: string; username: string; displayName: null; avatarUrl: null } }>();
+    request.authUser = { id: "test-user", username: "test", displayName: null, avatarUrl: null };
+    return true;
+  },
+};
 
 describe("DashboardController", () => {
   let app: NestFastifyApplication | undefined;
@@ -51,6 +60,8 @@ describe("DashboardController", () => {
       providers: [
         DashboardService,
         { provide: DASHBOARD_REPOSITORY, useValue: repository },
+        { provide: SessionAuthGuard, useValue: testSessionGuard },
+        { provide: AuthService, useValue: { authenticate: async () => ({ id: "test-user", username: "test", displayName: null, avatarUrl: null }) } },
       ],
     }).compile();
     app = module.createNestApplication<NestFastifyApplication>(
@@ -195,6 +206,37 @@ describe("DashboardController", () => {
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({ name: "新名称", revision: 2 });
+  });
+
+  it("renames a dashboard through the dedicated optimistic endpoint", async () => {
+    const repository = new InMemoryDashboardRepository();
+    await repository.create(existingDashboard());
+    await bootstrap(repository);
+
+    const response = await app!.inject({
+      method: "PATCH",
+      url: `/dashboards/${existingDashboard().id}/name`,
+      payload: { name: "  经营总览  ", revision: 1 },
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({ name: "经营总览", revision: 2 });
+    await expect(repository.find(existingDashboard().id)).resolves.toMatchObject({ name: "经营总览", revision: 2 });
+  });
+
+  it("rejects a blank dashboard name without changing the dashboard", async () => {
+    const repository = new InMemoryDashboardRepository();
+    await repository.create(existingDashboard());
+    await bootstrap(repository);
+
+    const response = await app!.inject({
+      method: "PATCH",
+      url: `/dashboards/${existingDashboard().id}/name`,
+      payload: { name: "   ", revision: 1 },
+    });
+
+    expect(response.statusCode).toBe(400);
+    await expect(repository.find(existingDashboard().id)).resolves.toEqual(existingDashboard());
   });
 
   it("rejects a malformed dashboard route UUID before mismatch or repository work", async () => {

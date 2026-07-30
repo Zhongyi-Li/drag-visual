@@ -79,6 +79,14 @@ const expectCode = (operation: () => unknown, code: string) => {
 };
 
 describe("applyCommand", () => {
+  it("updates the dashboard name without changing other dashboard data", () => {
+    const initial = populatedDashboard();
+    const next = applyCommand(initial, { type: "dashboard.name.update", nextName: "经营总览" });
+
+    expect(next).toEqual({ ...initial, name: "经营总览" });
+    expect(initial.name).toBe("Sales overview");
+  });
+
   it("adds a complete component and matching layout atomically", () => {
     const initial = emptyDashboard();
     const next = applyCommand(initial, {

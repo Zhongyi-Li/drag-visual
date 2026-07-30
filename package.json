@@ -16,6 +16,7 @@
     "prisma:migrate": "pnpm --filter @drag-visual/api exec prisma migrate dev --config ../../prisma.config.ts",
     "prisma:migrate:deploy": "pnpm --filter @drag-visual/api exec prisma migrate deploy --config ../../prisma.config.ts",
     "prisma:validate": "pnpm --filter @drag-visual/api exec prisma validate --config ../../prisma.config.ts",
+    "data:assign-legacy-owner": "node apps/api/scripts/assign-legacy-owner.mjs",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "pretest": "pnpm --filter @drag-visual/contracts build && pnpm --filter @drag-visual/data-engine build && pnpm --filter @drag-visual/editor-core build && pnpm --filter @drag-visual/component-registry build && pnpm --filter @drag-visual/api prisma:generate",

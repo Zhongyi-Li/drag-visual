@@ -48,6 +48,19 @@ export const saveDashboard = async (
   return migrateDashboard(response);
 };
 
+export const renameDashboard = async (
+  id: string,
+  name: string,
+  revision: number,
+  client: ApiClient = apiClient,
+): Promise<Dashboard> => {
+  const response = await client.request(`dashboards/${encodeURIComponent(id)}/name`, {
+    method: "PATCH",
+    body: JSON.stringify({ name, revision }),
+  });
+  return migrateDashboard(response);
+};
+
 export const publishDashboard = async (
   id: string,
   client: ApiClient = apiClient,
@@ -56,6 +69,15 @@ export const publishDashboard = async (
     method: "POST",
   });
   return migrateDashboard(response);
+};
+
+export const unpublishDashboard = async (
+  id: string,
+  client: ApiClient = apiClient,
+): Promise<void> => {
+  await client.request(`dashboards/${encodeURIComponent(id)}/publish`, {
+    method: "DELETE",
+  });
 };
 
 export const getPublishedDashboard = async (

@@ -93,6 +93,13 @@ const dataComponents = [
     binding: { datasetId: "sales", slots: { dimension: { fieldKey: "channel" }, measure: { fieldKey: "revenue" } } },
   },
   {
+    id: "donut-1",
+    type: "donut",
+    title: "商品构成",
+    props: { color: "#1677ff", showLegend: true },
+    binding: { datasetId: "sales", slots: { dimension: { fieldKey: "channel" }, measure: { fieldKey: "revenue" } } },
+  },
+  {
     id: "ring-1",
     type: "ringBar",
     title: "区域达成",
@@ -289,18 +296,17 @@ it("renders a ring bar and a ranked table with top-three star badges", () => {
   const fields: readonly DatasetField[] = [
     { key: "region", label: "区域", type: "string", nullable: false },
     { key: "revenue", label: "销售额", type: "number", nullable: false },
-    { key: "revenueTarget", label: "销售目标", type: "number", nullable: false },
   ];
   const rows = [
-    { region: "华东", revenue: 82, revenueTarget: 100 },
-    { region: "华北", revenue: 72, revenueTarget: 90 },
-    { region: "华南", revenue: 64, revenueTarget: 80 },
-    { region: "华中", revenue: 53, revenueTarget: 70 },
+    { region: "华东", revenue: 82 },
+    { region: "华北", revenue: 72 },
+    { region: "华南", revenue: 64 },
+    { region: "华中", revenue: 53 },
   ];
   render(<>
     <DashboardComponentRenderer component={{
-      id: "ring-1", type: "ringBar", title: "区域达成", props: { decimals: 1, showValue: true },
-      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "region" }, measure: { fieldKey: "revenue" }, target: { fieldKey: "revenueTarget" } } },
+      id: "ring-1", type: "ringBar", title: "区域销售", props: { aggregation: "sum", color: "#1677ff", showLegend: true },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "region" }, measure: { fieldKey: "revenue" } } },
     }} fields={fields} rows={rows} />
     <DashboardComponentRenderer component={{
       id: "ranking-1", type: "ranking", title: "区域销售排行榜", props: { color: "#1677ff", maxItems: 10, showValue: true },
@@ -308,12 +314,60 @@ it("renders a ring bar and a ranked table with top-three star badges", () => {
     }} fields={fields} rows={rows} />
   </>);
 
-  expect(screen.getByRole("img", { name: "区域达成图表" })).toBeTruthy();
+  expect(screen.getByRole("img", { name: "区域销售图表" })).toBeTruthy();
   expect(screen.getByTestId("ranking-surface")).toBeTruthy();
   expect(screen.getByLabelText("第1名").textContent).toBe("1");
   expect(screen.getByLabelText("第2名").textContent).toBe("2");
   expect(screen.getByLabelText("第3名").textContent).toBe("3");
   expect(screen.getByText("华中")).toBeTruthy();
+  expect(screen.queryByText("排序")).toBeNull();
+  expect(screen.queryByText("区域")).toBeNull();
+});
+
+it("places long ranking dimension labels above their progress bars", () => {
+  const longLabel = "小米电视 A32 电视智能高清全面屏超长商品名称";
+  render(<DashboardComponentRenderer component={{
+    id: "ranking-long-label", type: "ranking", title: "商品供货价排行榜", props: { color: "#1677ff", maxItems: 10, showValue: true },
+    binding: { datasetId: "products", slots: { dimension: { fieldKey: "product" }, measure: { fieldKey: "supplyPrice" } } },
+  }} fields={[
+    { key: "product", label: "商品", type: "string", nullable: false },
+    { key: "supplyPrice", label: "供货价", type: "number", nullable: false },
+  ]} rows={[
+    { product: longLabel, supplyPrice: 82 },
+    { product: "短名称商品", supplyPrice: 72 },
+  ]} />);
+
+  const label = screen.getByText(longLabel);
+  const progress = screen.getByLabelText(`${longLabel}排名进度`);
+  const measureHeader = screen.getByText("供货价");
+  expect(label.style.whiteSpace).not.toBe("nowrap");
+  expect(label.parentElement?.contains(progress)).toBe(true);
+  expect(measureHeader.parentElement?.children).toHaveLength(3);
+  expect(measureHeader.style.textAlign).toBe("right");
+  expect(measureHeader.style.whiteSpace).toBe("nowrap");
+});
+
+it("uses a direct weighted result for ranking without adding a result column", () => {
+  const fields: readonly DatasetField[] = [
+    { key: "region", label: "区域", type: "string", nullable: false },
+    { key: "revenue", label: "销售额", type: "number", nullable: false },
+    { key: "profit", label: "毛利额", type: "number", nullable: false },
+  ];
+  render(<DashboardComponentRenderer component={{
+    id: "ranking-weighted", type: "ranking", title: "综合排行榜",
+    props: {
+      aggregation: "sum", color: "#1677ff", maxItems: 10,
+      metricWeights: { revenue: 30, profit: 70 }, rankingMode: "weighted", showValue: true,
+    },
+    binding: { datasetId: "sales", slots: { dimension: { fieldKey: "region" }, measure: [{ fieldKey: "revenue" }, { fieldKey: "profit" }] } },
+  }} fields={fields} rows={[
+    { region: "华东", revenue: 1000, profit: 100 },
+    { region: "华北", revenue: 800, profit: 300 },
+    { region: "华南", revenue: 500, profit: 400 },
+  ]} />);
+
+  expect(screen.getByTestId("ranking-surface").textContent).not.toContain("加权结果");
+  expect(screen.getByLabelText("第1名").parentElement?.textContent).toContain("华北");
 });
 
 it("renders a liquid chart from actual and target values", () => {
@@ -351,9 +405,31 @@ it("renders a ranked metric breakdown from a dimension and metric", () => {
   ]} />);
 
   expect(screen.getByTestId("metric-breakdown-surface")).toBeTruthy();
-  expect(screen.getByLabelText("销售额合计").textContent).toBe("1,000.0");
+  expect(screen.getByLabelText("销售额合计").textContent).toBe("1,000.0 ¥");
   expect(screen.getByText("企业版")).toBeTruthy();
   expect(screen.getByLabelText("企业版贡献条")).toBeTruthy();
+});
+
+it("renders target completion rows separately from multi-metric progress bars", () => {
+  render(<DashboardComponentRenderer component={{
+    id: "target-progress-1", type: "targetProgress", title: "日销售目标完成率", props: { aggregation: "sum", color: "#f57c00", decimals: 0, showValue: true, suffix: "件" },
+    binding: { datasetId: "sales", slots: { dimension: { fieldKey: "product" }, measure: { fieldKey: "completed" }, target: { fieldKey: "target" } } },
+  }} fields={[
+    { key: "product", label: "商品", type: "string", nullable: false },
+    { key: "completed", label: "完成", type: "number", nullable: false },
+    { key: "target", label: "目标", type: "number", nullable: false },
+  ]} rows={[
+    { product: "小米加湿器 2", completed: 1, target: 50 },
+    { product: "小米电视 A32", completed: 8, target: 150 },
+  ]} />);
+
+  expect(screen.getByTestId("target-progress-surface")).toBeTruthy();
+  expect(screen.getByLabelText("小米加湿器 2完成率进度")).toBeTruthy();
+  expect(screen.getByText("1 / 50件")).toBeTruthy();
+  const list = screen.getByTestId("target-progress-surface").firstElementChild as HTMLElement;
+  expect(list.style.flex).toBe("1 1 auto");
+  expect(list.style.justifyContent).toBe("space-between");
+  expect(screen.getByText("2%")).toBeTruthy();
 });
 
 it("renders one gauge for each value of its grouping dimension", () => {
@@ -429,7 +505,7 @@ it("renders an aggregated KPI value", () => {
     binding: { datasetId: "sales", slots: { measure: { fieldKey: "revenue" } } },
   };
   render(<DashboardComponentRenderer component={component} rows={[{ revenue: 10 }, { revenue: 20 }]} />);
-  expect(screen.getByLabelText("总收入指标值").textContent).toContain("¥30");
+  expect(screen.getByLabelText("总收入指标值").textContent).toContain("30 ¥");
 });
 
 it("renders KPI target progress and comparison change when optional slots are bound", () => {
@@ -450,7 +526,7 @@ it("renders KPI target progress and comparison change when optional slots are bo
 
   render(<DashboardComponentRenderer component={component} rows={[{ revenue: 120, revenueTarget: 200, priorRevenue: 100 }]} />);
 
-  expect(screen.getByLabelText("总收入指标值").textContent).toContain("¥120");
+  expect(screen.getByLabelText("总收入指标值").textContent).toContain("120 ¥");
   expect(screen.getByText("较对比 +20.0%")).toBeTruthy();
   expect(screen.getByText("目标达成 60.0%")).toBeTruthy();
 });
@@ -539,8 +615,9 @@ it("renders progress bar rows for multiple selected metrics", () => {
   expect(screen.getByText("orders")).toBeTruthy();
   expect(screen.getByText("activeUsers")).toBeTruthy();
   expect(screen.getAllByText("100.0%")).toHaveLength(3);
-  expect(screen.getByText("实际 1228万 | 目标 1228万")).toBeTruthy();
+  expect(screen.getByText("实际 1228万 ¥ | 目标 1228万")).toBeTruthy();
   expect(screen.getByText("实际 41.16万 | 目标 41.16万")).toBeTruthy();
+  expect(screen.getByLabelText("revenue进度条").querySelector("span")?.getAttribute("style")).toContain("display: block");
   expect(screen.getByLabelText("revenue进度条").querySelector("span")?.getAttribute("style")).toContain("width: 100%");
 });
 
@@ -603,9 +680,9 @@ it("renders a grouped KPI board when a dimension and secondary measures are boun
 
   expect(screen.getByTestId("kpi-board-surface")).toBeTruthy();
   expect(screen.getByText("2026-01")).toBeTruthy();
-  expect(screen.getByText("15.0万")).toBeTruthy();
+  expect(screen.getByText("15.0万 ¥")).toBeTruthy();
   expect(screen.getAllByText("revenueTarget")).toHaveLength(2);
-  expect(screen.getAllByText("18.0万")).toHaveLength(2);
+  expect(screen.getAllByText("18万 ¥")).toHaveLength(2);
   expect(screen.getAllByText("orders")).toHaveLength(2);
   expect(screen.getByText("1,500")).toBeTruthy();
 });
@@ -657,7 +734,7 @@ it("renders table headers from dataset field labels and paginates rows", () => {
   expect(screen.getByText("510G")).toBeTruthy();
 });
 
-it("renders detail tables inside a polished data surface with row and column context", () => {
+it("renders detail tables without row and column chips in the header", () => {
   const component: ComponentInstance = {
     id: "table-1",
     type: "table",
@@ -676,11 +753,19 @@ it("renders detail tables inside a polished data surface with row and column con
 
   render(<DashboardComponentRenderer component={component} fields={fields} rows={[{ field3: "1050G", field2: "PUBG G币", month: "2026-04" }]} />);
 
-  expect(screen.getByTestId("detail-table-surface")).toBeTruthy();
+  const surface = screen.getByTestId("detail-table-surface");
+  expect(surface).toBeTruthy();
+  expect(surface.style.borderStyle).toBe("none");
+  expect(surface.querySelector("header")).toBeNull();
   expect(screen.queryByText("明细表")).toBeNull();
   expect(screen.queryByText("订单明细表")).toBeNull();
   expect(screen.getAllByText("1 行").length).toBeGreaterThan(0);
   expect(screen.getAllByText("3 列").length).toBeGreaterThan(0);
+  const tableScroller = screen.getByRole("table").parentElement as HTMLElement;
+  expect(tableScroller.style.margin).toBe("0px 14px");
+  expect(tableScroller.style.flex).toBe("1 1 auto");
+  expect(tableScroller.style.minHeight).toBe("0px");
+  expect(tableScroller.style.overflow).toBe("auto");
 });
 
 it("renders a two-dimensional crosstab matrix with totals", () => {
@@ -723,10 +808,10 @@ it("renders a two-dimensional crosstab matrix with totals", () => {
   expect(screen.getByRole("columnheader", { name: "电脑" })).toBeTruthy();
   expect(screen.getByRole("columnheader", { name: "合计" })).toBeTruthy();
   expect(screen.getByRole("rowheader", { name: "华东" })).toBeTruthy();
-  expect(screen.getByText("1,000")).toBeTruthy();
-  expect(screen.getByText("2,300")).toBeTruthy();
+  expect(screen.getByText("1,000 ¥")).toBeTruthy();
+  expect(screen.getByText("2,300 ¥")).toBeTruthy();
   expect(screen.getByRole("rowheader", { name: "合计" })).toBeTruthy();
-  expect(screen.getByText("5,300")).toBeTruthy();
+  expect(screen.getByText("5,300 ¥")).toBeTruthy();
 });
 
 it("renders crosstabs with modern matrix chrome and binding context", () => {
@@ -753,6 +838,7 @@ it("renders crosstabs with modern matrix chrome and binding context", () => {
   render(<DashboardComponentRenderer component={component} fields={fields} rows={[{ region: "华东", category: "手机", revenue: 1000 }]} />);
 
   expect(screen.getByTestId("crosstab-surface")).toBeTruthy();
+  expect(screen.getByTestId("crosstab-surface").style.borderStyle).toBe("none");
   expect(screen.getByText("二维交叉表")).toBeTruthy();
   expect(screen.getByText("行：地区")).toBeTruthy();
   expect(screen.getByText("列：品类")).toBeTruthy();
@@ -830,6 +916,7 @@ it("renders heatmaps with a color legend and metric context", () => {
   ]} />);
 
   expect(screen.getByTestId("heatmap-surface")).toBeTruthy();
+  expect(screen.getByTestId("heatmap-surface").style.borderStyle).toBe("none");
   expect(screen.getByLabelText("热力值图例")).toBeTruthy();
   expect(screen.getByText("低")).toBeTruthy();
   expect(screen.getByText("高")).toBeTruthy();
@@ -954,11 +1041,13 @@ it("renders trend analysis summaries alongside the trend chart", () => {
 
   expect(screen.getByRole("img", { name: "销售趋势分析趋势图表" })).toBeTruthy();
   expect(screen.getByText("最新值")).toBeTruthy();
-  expect(screen.getByText("120")).toBeTruthy();
+  expect(screen.getByText("120 ¥")).toBeTruthy();
   expect(screen.getByText("较上一期")).toBeTruthy();
   expect(screen.getByText("-20.0%")).toBeTruthy();
   expect(screen.getByText("峰值")).toBeTruthy();
-  expect(screen.getByText("150")).toBeTruthy();
+  expect(screen.getByText("150 ¥")).toBeTruthy();
+  expect((screen.getByText("最新值").parentElement as HTMLElement).style.boxShadow).toContain("#1677ff");
+  expect((screen.getByText("较上一期").parentElement as HTMLElement).style.boxShadow).toContain("#e05252");
 });
 
 it("renders trend analysis as a modern analytics card with period and metric context", () => {
@@ -991,6 +1080,34 @@ it("renders trend analysis as a modern analytics card with period and metric con
   expect(screen.getByText("2 个周期")).toBeTruthy();
 });
 
+it("removes trend surface chrome when the editor provides the component title", () => {
+  const component = {
+    id: "trend-1",
+    type: "trend",
+    title: "销售趋势分析",
+    props: { aggregation: "sum", showSummary: true, timeGranularity: "month" },
+    binding: {
+      datasetId: "sales",
+      slots: {
+        timeDimension: { fieldKey: "businessDate" },
+        measure: { fieldKey: "revenue" },
+      },
+    },
+  } as ComponentInstance;
+
+  render(<DashboardComponentRenderer component={component} hideSurfaceHeaders fields={[
+    { key: "businessDate", label: "业务日期", type: "date", nullable: false },
+    { key: "revenue", label: "销售额", type: "number", nullable: false },
+  ]} rows={[
+    { businessDate: "2026-01-01", revenue: 80 },
+    { businessDate: "2026-02-01", revenue: 120 },
+  ]} />);
+
+  const surface = screen.getByTestId("trend-analysis-surface");
+  expect(surface.style.borderStyle).toBe("none");
+  expect(surface.querySelector("header")).toBeNull();
+});
+
 it("renders metric trend as a multi-metric trend panel", () => {
   const component = {
     id: "metric-trend-1",
@@ -1017,21 +1134,26 @@ it("renders metric trend as a multi-metric trend panel", () => {
   ]} />);
 
   expect(screen.getByTestId("metric-trend-surface")).toBeTruthy();
+  expect(screen.getByTestId("metric-trend-surface").style.borderStyle).toBe("none");
   expect(screen.getByText("收入")).toBeTruthy();
   expect(screen.getByText("订单数")).toBeTruthy();
   expect(screen.getByRole("button", { name: "关注指标 收入" }).getAttribute("aria-pressed")).toBe("true");
   expect(screen.getByRole("button", { name: "关注指标 订单数" }).getAttribute("aria-pressed")).toBe("false");
-  expect(screen.getByRole("button", { name: "关注指标 收入" }).style.border).toBe("0px");
-  expect(screen.getByRole("button", { name: "关注指标 订单数" }).style.border).toBe("0px");
-  expect(screen.getByRole("button", { name: "关注指标 收入" }).style.textAlign).toBe("center");
-  expect(screen.getByText("120")).toBeTruthy();
-  expect(screen.getByText("12")).toBeTruthy();
-  expect(screen.queryByText("+20.0%")).toBeNull();
+  expect(screen.getByRole("button", { name: "关注指标 收入" }).style.borderBottomWidth).toBe("2px");
+  expect(screen.getByRole("button", { name: "关注指标 收入" }).style.borderBottomColor).toBe("rgb(22, 119, 255)");
+  expect(screen.getByRole("button", { name: "关注指标 订单数" }).style.borderBottomColor).toBe("transparent");
+  expect(screen.getByRole("button", { name: "关注指标 收入" }).style.textAlign).toBe("left");
+  expect(screen.getByRole("img", { name: "指标趋势趋势图表" }).parentElement?.style.borderTop).toBe("");
+  expect(screen.getByText("汇总值 · 收入")).toBeTruthy();
+  expect(screen.queryByText(/较上一期|暂无上一期对比/)).toBeNull();
+  expect(screen.getAllByText("220 ¥")).toHaveLength(2);
+  expect(screen.getByText("22")).toBeTruthy();
 
   fireEvent.click(screen.getByRole("button", { name: "关注指标 订单数" }));
 
   expect(screen.getByRole("button", { name: "关注指标 收入" }).getAttribute("aria-pressed")).toBe("false");
   expect(screen.getByRole("button", { name: "关注指标 订单数" }).getAttribute("aria-pressed")).toBe("true");
+  expect(screen.getByText("汇总值 · 订单数")).toBeTruthy();
   expect(screen.getByRole("img", { name: "指标趋势趋势图表" })).toBeTruthy();
 });
 
@@ -1079,8 +1201,8 @@ it("renders a multidimensional analysis table with selected dimensions and measu
   expect(screen.getByRole("rowheader", { name: "合计" })).toBeTruthy();
   expect(screen.getByText("2026-01")).toBeTruthy();
   expect(screen.getByText("2026-02")).toBeTruthy();
-  expect(screen.getByText("1,500")).toBeTruthy();
-  expect(screen.getByText("2,700")).toBeTruthy();
+  expect(screen.getByText("1,500 ¥")).toBeTruthy();
+  expect(screen.getByText("2,700 ¥")).toBeTruthy();
   expect(screen.getByText("10")).toBeTruthy();
 });
 
@@ -1112,9 +1234,44 @@ it("renders multidimensional analysis with grouped dimension and measure context
   ]} />);
 
   expect(screen.getByTestId("multidimensional-surface")).toBeTruthy();
+  expect(screen.getByTestId("multidimensional-surface").style.borderStyle).toBe("none");
   expect(screen.getByText("多维分析")).toBeTruthy();
   expect(screen.getByText("3 个维度")).toBeTruthy();
   expect(screen.getByText("2 个指标")).toBeTruthy();
+  expect(screen.getByText("维度")).toBeTruthy();
+  expect(screen.getByText("度量")).toBeTruthy();
+});
+
+it("hides renderer-owned multidimensional headers inside an editor frame", () => {
+  const component = {
+    id: "multi-1",
+    type: "multidimensional",
+    title: "客户多维分析",
+    props: { aggregation: "sum", showTotals: true, timeGranularity: "month" },
+    binding: {
+      datasetId: "sales",
+      slots: {
+        dateDimension: { fieldKey: "businessDate" },
+        dimensions: [{ fieldKey: "region" }, { fieldKey: "category" }],
+        measures: [{ fieldKey: "revenue" }, { fieldKey: "orders" }],
+      },
+    },
+  } as ComponentInstance;
+
+  render(<DashboardComponentRenderer component={component} hideSurfaceHeaders fields={[
+    { key: "businessDate", label: "业务日期", type: "date", nullable: false },
+    { key: "region", label: "地区", type: "string", nullable: false },
+    { key: "category", label: "品类", type: "string", nullable: false },
+    { key: "revenue", label: "销售额", type: "number", nullable: false },
+    { key: "orders", label: "订单数", type: "number", nullable: false },
+  ]} rows={[
+    { businessDate: "2026-01-01", region: "华东", category: "手机", revenue: 1000, orders: 5 },
+  ]} />);
+
+  expect(screen.getByTestId("multidimensional-surface")).toBeTruthy();
+  expect(screen.queryByText("客户多维分析")).toBeNull();
+  expect(screen.queryByText("多维分析")).toBeNull();
+  expect(screen.queryByText("3 个维度")).toBeNull();
   expect(screen.getByText("维度")).toBeTruthy();
   expect(screen.getByText("度量")).toBeTruthy();
 });

@@ -84,6 +84,19 @@ describe("DashboardService", () => {
     await expect(new DashboardService(repository).list()).resolves.toEqual([newer, older]);
   });
 
+  it("isolates dashboards by owner", async () => {
+    const repository = new InMemoryDashboardRepository();
+    const mine = dashboard({ id: "d68e4bfd-c28d-431d-980c-2211f6b668a7" });
+    const someoneElses = dashboard({ id: "d9d2f595-64cc-49aa-bb11-b688361f8777" });
+    await repository.create(mine, "user-a");
+    await repository.create(someoneElses, "user-b");
+    const service = new DashboardService(repository);
+
+    await expect(service.list("user-a")).resolves.toEqual([mine]);
+    await expect(service.get(someoneElses.id, "user-a")).rejects.toBeInstanceOf(DashboardNotFoundError);
+    await expect(service.delete(someoneElses.id, "user-a")).rejects.toBeInstanceOf(DashboardNotFoundError);
+  });
+
   it("throws DashboardNotFoundError for a missing dashboard", async () => {
     const service = new DashboardService(new InMemoryDashboardRepository());
 
@@ -119,6 +132,17 @@ describe("DashboardService", () => {
       Date.parse(dashboard().updatedAt),
     );
     await expect(repository.find(saved.id)).resolves.toEqual(saved);
+  });
+
+  it("renames the current revision without replacing dashboard content", async () => {
+    const repository = new InMemoryDashboardRepository();
+    const source = dashboard({ components: [{ id: "chart-1", type: "bar", props: {} }], layout: [{ i: "chart-1", x: 0, y: 0, w: 4, h: 3 }] });
+    await repository.create(source);
+    const service = new DashboardService(repository);
+
+    const renamed = await service.rename(source.id, "经营总览", source.revision);
+
+    expect(renamed).toMatchObject({ name: "经营总览", revision: 2, components: source.components, layout: source.layout });
   });
 
   it("rejects a stale revision without overwriting the stored dashboard", async () => {

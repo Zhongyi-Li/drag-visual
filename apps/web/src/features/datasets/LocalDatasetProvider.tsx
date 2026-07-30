@@ -17,10 +17,14 @@ type FieldUpdate = Partial<Pick<DatasetField, "label" | "type">>;
 interface LocalDatasetContextValue {
   readonly summaries: readonly DatasetSummaryValue[];
   readonly addDataset: (dataset: ImportedDataset) => void;
+  /** Interface snapshots are session-only; unlike uploaded files they are not persisted. */
+  readonly upsertRuntimeDataset: (dataset: ImportedDataset) => void;
   readonly renameDataset: (datasetId: string, name: string) => void;
   readonly deleteDataset: (datasetId: string) => void;
   readonly replaceDataset: (datasetId: string, dataset: ImportedDataset) => void;
   readonly updateField: (datasetId: string, fieldKey: string, update: FieldUpdate) => void;
+  /** True only for a user-uploaded file persisted in browser storage. */
+  readonly isUploadedDataset: (datasetId: string) => boolean;
   readonly getDataset: (datasetId: string) => DatasetValue | undefined;
   readonly queryDataset: (datasetId: string) => DatasetQueryResultValue | undefined;
 }
@@ -124,19 +128,31 @@ const updateDatasetField = (
 
 export const LocalDatasetProvider = ({ children }: LocalDatasetProviderProps) => {
   const [datasets, setDatasets] = useState<ReadonlyMap<string, LocalDatasetRecord>>(loadStoredDatasets);
+  const [runtimeDatasets, setRuntimeDatasets] = useState<ReadonlyMap<string, LocalDatasetRecord>>(new Map());
 
   useEffect(() => {
     persistDatasets(datasets);
   }, [datasets]);
 
   const value = useMemo<LocalDatasetContextValue>(() => ({
-    summaries: Array.from(datasets.values()).map(({ schema }) => ({
+    summaries: Array.from(new Map([
+      ...runtimeDatasets,
+      ...datasets,
+    ]).values()).map(({ schema }) => ({
       id: schema.id,
       name: schema.name,
       schemaVersion: schema.schemaVersion,
     })),
     addDataset: (dataset) => {
       setDatasets((current) => {
+        const next = new Map(current);
+        const normalized = normalizeDataset(dataset);
+        next.set(normalized.schema.id, normalized);
+        return next;
+      });
+    },
+    upsertRuntimeDataset: (dataset) => {
+      setRuntimeDatasets((current) => {
         const next = new Map(current);
         const normalized = normalizeDataset(dataset);
         next.set(normalized.schema.id, normalized);
@@ -191,9 +207,10 @@ export const LocalDatasetProvider = ({ children }: LocalDatasetProviderProps) =>
         return next;
       });
     },
-    getDataset: (datasetId) => datasets.get(datasetId)?.schema,
-    queryDataset: (datasetId) => datasets.get(datasetId)?.result,
-  }), [datasets]);
+    isUploadedDataset: (datasetId) => datasets.has(datasetId),
+    getDataset: (datasetId) => datasets.get(datasetId)?.schema ?? runtimeDatasets.get(datasetId)?.schema,
+    queryDataset: (datasetId) => datasets.get(datasetId)?.result ?? runtimeDatasets.get(datasetId)?.result,
+  }), [datasets, runtimeDatasets]);
 
   return (
     <LocalDatasetContext.Provider value={value}>

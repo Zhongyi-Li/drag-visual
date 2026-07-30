@@ -112,6 +112,31 @@ describe("DatasetService", () => {
     );
   });
 
+  it("accepts numeric aggregations and rejects unknown or non-numeric fields", async () => {
+    const service = new DatasetService(new FakeDatasetRepository());
+    await expect(service.query("sales", {
+      ...validRequest(),
+      aggregation: {
+        groupBy: ["month"],
+        measures: [{ fieldKey: "revenue", aggregation: "sum" }],
+      },
+    })).resolves.toEqual(salesResult);
+    await expect(service.query("sales", {
+      ...validRequest(),
+      aggregation: {
+        groupBy: ["missing"],
+        measures: [{ fieldKey: "revenue", aggregation: "sum" }],
+      },
+    })).rejects.toBeInstanceOf(DatasetQueryInvalidError);
+    await expect(service.query("sales", {
+      ...validRequest(),
+      aggregation: {
+        groupBy: ["month"],
+        measures: [{ fieldKey: "month", aggregation: "count" }],
+      },
+    })).rejects.toBeInstanceOf(DatasetQueryInvalidError);
+  });
+
   it.each([
     ["missing required", { parameters: { year: 2026 } }],
     ["unknown parameter", { parameters: { year: 2026, fromDate: "2026-01-01", bad: true } }],

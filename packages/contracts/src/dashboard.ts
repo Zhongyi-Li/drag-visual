@@ -20,6 +20,7 @@ export const ComponentType = z.enum([
   "stackedArea",
   "percentArea",
   "pie",
+  "donut",
   "rose",
   "sunburst",
   "radar",
@@ -29,6 +30,7 @@ export const ComponentType = z.enum([
   "metricBreakdown",
   "flipNumber",
   "progressBar",
+  "targetProgress",
   "gauge",
   "liquid",
   "table",
@@ -47,8 +49,15 @@ export const GridItem = z.object({
 
 export type GridItem = z.infer<typeof GridItem>;
 
+export const MetricAggregation = z.enum(["sum", "avg", "count", "max", "min"]);
+
+export type MetricAggregation = z.infer<typeof MetricAggregation>;
+
 export const FieldBinding = z.object({
   fieldKey: nonEmptyString,
+  // Aggregation is intentionally kept on the individual metric binding. A component can
+  // therefore combine, for example, sales by sum and order count by count.
+  aggregation: MetricAggregation.optional(),
 }).strict();
 
 export type FieldBinding = z.infer<typeof FieldBinding>;
@@ -100,6 +109,8 @@ export const DashboardSchema = z
     ).max(20),
     revision: z.number().int().positive(),
     updatedAt: z.iso.datetime(),
+    /** Publication metadata is managed by the server and used by the workspace list. */
+    publishedAt: z.iso.datetime().nullable().optional(),
   })
   .strict()
   .superRefine((dashboard, context) => {

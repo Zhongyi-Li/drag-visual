@@ -1,6 +1,7 @@
 import { areaDefinition } from "./definitions/area.js";
 import { barDefinition } from "./definitions/bar.js";
 import { crosstabDefinition } from "./definitions/crosstab.js";
+import { donutDefinition } from "./definitions/donut.js";
 import { flipNumberDefinition } from "./definitions/flipNumber.js";
 import { gaugeDefinition } from "./definitions/gauge.js";
 import { heatmapDefinition } from "./definitions/heatmap.js";
@@ -13,6 +14,7 @@ import { multidimensionalDefinition } from "./definitions/multidimensional.js";
 import { pieDefinition } from "./definitions/pie.js";
 import { roseDefinition } from "./definitions/rose.js";
 import { progressBarDefinition } from "./definitions/progressBar.js";
+import { targetProgressDefinition } from "./definitions/targetProgress.js";
 import { rankingDefinition } from "./definitions/ranking.js";
 import { radarDefinition } from "./definitions/radar.js";
 import { ringBarDefinition } from "./definitions/ringBar.js";
@@ -30,6 +32,7 @@ import { ComponentRegistry } from "./registry.js";
 export { barDefinition } from "./definitions/bar.js";
 export { areaDefinition } from "./definitions/area.js";
 export { crosstabDefinition } from "./definitions/crosstab.js";
+export { donutDefinition } from "./definitions/donut.js";
 export { flipNumberDefinition } from "./definitions/flipNumber.js";
 export { gaugeDefinition } from "./definitions/gauge.js";
 export { heatmapDefinition } from "./definitions/heatmap.js";
@@ -42,6 +45,7 @@ export { multidimensionalDefinition } from "./definitions/multidimensional.js";
 export { pieDefinition } from "./definitions/pie.js";
 export { roseDefinition } from "./definitions/rose.js";
 export { progressBarDefinition } from "./definitions/progressBar.js";
+export { targetProgressDefinition } from "./definitions/targetProgress.js";
 export { rankingDefinition } from "./definitions/ranking.js";
 export { radarDefinition } from "./definitions/radar.js";
 export { ringBarDefinition } from "./definitions/ringBar.js";
@@ -83,6 +87,7 @@ export const createDefaultRegistry = (): ComponentRegistry =>
     .register(ringBarDefinition)
     .register(rankingDefinition)
     .register(pieDefinition)
+    .register(donutDefinition)
     .register(roseDefinition)
     .register(sunburstDefinition)
     .register(radarDefinition)
@@ -92,6 +97,7 @@ export const createDefaultRegistry = (): ComponentRegistry =>
     .register(metricBreakdownDefinition)
     .register(flipNumberDefinition)
     .register(progressBarDefinition)
+    .register(targetProgressDefinition)
     .register(gaugeDefinition)
     .register(liquidDefinition)
     .register(tableDefinition)

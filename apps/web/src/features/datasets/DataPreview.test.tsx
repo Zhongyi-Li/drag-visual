@@ -31,4 +31,15 @@ describe("DataPreview", () => {
       rows: [{ name: null, amount: 1 }],
     })).toEqual(['Row 1 column "name" is null but the column is not nullable']);
   });
+
+  it("keeps wide headers on one line and makes the preview horizontally scrollable", () => {
+    render(<DataPreview result={{
+      ...result,
+      columns: [{ key: "longField", label: "销售关联的成本价格", type: "number", nullable: false }],
+      rows: [{ longField: 168.09 }],
+    }} />);
+
+    expect(screen.getByRole("columnheader", { name: "销售关联的成本价格" })).toHaveStyle({ whiteSpace: "nowrap" });
+    expect(screen.getByTestId("data-preview-table").querySelector(".ant-table-content")).toHaveStyle({ overflowX: "auto" });
+  });
 });

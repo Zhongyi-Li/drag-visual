@@ -62,49 +62,80 @@ export const dashboardToPrismaJson = (
   dashboard: Dashboard,
 ): Prisma.InputJsonObject => objectToInputJson(dashboard, new WeakSet());
 
+const withPublicationStatus = (draft: unknown, publishedAt: Date | null): Dashboard =>
+  DashboardSchema.parse({
+    ...migrateDashboard(draft),
+    publishedAt: publishedAt?.toISOString() ?? null,
+  });
+
 @Injectable()
 export class PrismaDashboardRepository implements DashboardRepository {
   constructor(@Inject(PrismaService) private readonly prisma: PrismaService) {}
 
-  async create(dashboard: Dashboard): Promise<Dashboard> {
+  async create(dashboard: Dashboard, ownerId?: string): Promise<Dashboard> {
     const record = await this.prisma.dashboardRecord.create({
       data: {
         id: dashboard.id,
         name: dashboard.name,
         revision: dashboard.revision,
         draftSchema: dashboardToPrismaJson(dashboard),
+        ...(ownerId ? { ownerId } : {}),
       },
     });
-    return migrateDashboard(record.draftSchema);
+    return withPublicationStatus(record.draftSchema, record.publishedAt);
   }
 
-  async list(): Promise<Dashboard[]> {
+  async list(ownerId?: string): Promise<Dashboard[]> {
     const records = await this.prisma.dashboardRecord.findMany({
+      ...(ownerId ? { where: { ownerId } } : {}),
       orderBy: { updatedAt: "desc" },
     });
-    return records.map((record) => migrateDashboard(record.draftSchema));
+    return records.map((record) => withPublicationStatus(record.draftSchema, record.publishedAt));
   }
 
-  async find(id: string): Promise<Dashboard | null> {
-    const record = await this.prisma.dashboardRecord.findUnique({
-      where: { id },
-    });
-    return record ? migrateDashboard(record.draftSchema) : null;
+  async find(id: string, ownerId?: string): Promise<Dashboard | null> {
+    const record = ownerId
+      ? await this.prisma.dashboardRecord.findFirst({ where: { id, ownerId } })
+      : await this.prisma.dashboardRecord.findUnique({ where: { id } });
+    return record ? withPublicationStatus(record.draftSchema, record.publishedAt) : null;
   }
 
-  async delete(id: string): Promise<boolean> {
-    const result = await this.prisma.dashboardRecord.deleteMany({ where: { id } });
+  async delete(id: string, ownerId?: string): Promise<boolean> {
+    const result = await this.prisma.dashboardRecord.deleteMany({ where: { id, ...(ownerId ? { ownerId } : {}) } });
     return result.count === 1;
   }
 
-  async updateIfRevision(dashboard: Dashboard): Promise<Dashboard | null> {
+  async updateIfRevision(dashboard: Dashboard, ownerId?: string): Promise<Dashboard | null> {
     const next = DashboardSchema.parse({
       ...dashboard,
       revision: dashboard.revision + 1,
       updatedAt: new Date().toISOString(),
     });
     const result = await this.prisma.dashboardRecord.updateMany({
-      where: { id: dashboard.id, revision: dashboard.revision },
+      where: { id: dashboard.id, revision: dashboard.revision, ...(ownerId ? { ownerId } : {}) },
+      data: {
+        name: next.name,
+        revision: next.revision,
+        draftSchema: dashboardToPrismaJson(next),
+      },
+    });
+    return result.count === 1 ? next : null;
+  }
+
+  async renameIfRevision(id: string, name: string, revision: number, ownerId?: string): Promise<Dashboard | null> {
+    const current = ownerId
+      ? await this.prisma.dashboardRecord.findFirst({ where: { id, ownerId } })
+      : await this.prisma.dashboardRecord.findUnique({ where: { id } });
+    if (!current || current.revision !== revision) return null;
+    const draft = migrateDashboard(current.draftSchema);
+    const next = DashboardSchema.parse({
+      ...draft,
+      name,
+      revision: revision + 1,
+      updatedAt: new Date().toISOString(),
+    });
+    const result = await this.prisma.dashboardRecord.updateMany({
+      where: { id, revision, ...(ownerId ? { ownerId } : {}) },
       data: {
         name: next.name,
         revision: next.revision,

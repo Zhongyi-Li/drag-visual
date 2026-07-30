@@ -2,6 +2,7 @@ import type { DatasetQueryResult } from "@drag-visual/contracts";
 import { Alert, Space, Table, Typography, type TableColumnsType } from "antd";
 
 const PREVIEW_LIMIT = 100;
+const previewColumnWidth = (label: string): number => Math.max(128, Math.min(260, label.length * 16 + 48));
 
 export const validatePreviewRows = (result: DatasetQueryResult): string[] => {
   const messages: string[] = [];
@@ -29,6 +30,9 @@ export const DataPreview = ({ result }: DataPreviewProps) => {
     key: column.key,
     dataIndex: column.key,
     title: column.label,
+    width: previewColumnWidth(column.label),
+    onHeaderCell: () => ({ style: { whiteSpace: "nowrap" } }),
+    onCell: () => ({ style: { whiteSpace: "nowrap" } }),
     render: (value: unknown) => value === null ? "—" : String(value),
   }));
   const rows = result.rows.slice(0, PREVIEW_LIMIT);
@@ -42,11 +46,15 @@ export const DataPreview = ({ result }: DataPreviewProps) => {
         </Typography.Text>
       )}
       <Table
+        data-testid="data-preview-table"
+        className="data-preview-table"
         columns={columns}
         dataSource={rows}
         pagination={false}
         rowKey={(row) => rowKeys.get(row) ?? "unknown"}
         size="small"
+        tableLayout="auto"
+        scroll={{ x: "max-content" }}
       />
     </Space>
   );

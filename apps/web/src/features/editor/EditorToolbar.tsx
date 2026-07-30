@@ -3,12 +3,14 @@ import {
   BarChartOutlined,
   CloudUploadOutlined,
   CloudOutlined,
+  EditOutlined,
   EyeOutlined,
   RedoOutlined,
   SaveOutlined,
   UndoOutlined,
 } from "@ant-design/icons";
-import { Button, Space, Tooltip } from "antd";
+import { Button, Input, Space, Tooltip, type InputRef } from "antd";
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
@@ -20,14 +22,45 @@ interface EditorToolbarProps {
   onPreview?: (() => void) | undefined;
   onPublish?: (() => void) | undefined;
   onAddChart: () => void;
+  onRename: (name: string) => void;
 }
 
-export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart }: EditorToolbarProps) => {
+export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart, onRename }: EditorToolbarProps) => {
   const dashboard = useStore(store, editorSelectors.dashboard);
   const dirty = useStore(store, (state) => state.dirty);
   const saveStatus = useStore(store, (state) => state.saveStatus);
   const canUndo = useStore(store, editorSelectors.canUndo);
   const canRedo = useStore(store, editorSelectors.canRedo);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(dashboard.name);
+  const nameInput = useRef<InputRef>(null);
+  const nameCommitInProgress = useRef(false);
+
+  useEffect(() => {
+    if (!editingName) setNameDraft(dashboard.name);
+  }, [dashboard.name, editingName]);
+
+  useEffect(() => {
+    if (editingName) nameInput.current?.focus();
+  }, [editingName]);
+
+  const beginRename = () => {
+    nameCommitInProgress.current = false;
+    setEditingName(true);
+  };
+  const cancelRename = () => {
+    nameCommitInProgress.current = false;
+    setNameDraft(dashboard.name);
+    setEditingName(false);
+  };
+  const commitRename = () => {
+    if (nameCommitInProgress.current) return;
+    const nextName = nameDraft.trim();
+    if (!nextName || nextName === dashboard.name) return cancelRename();
+    nameCommitInProgress.current = true;
+    onRename(nextName);
+    setEditingName(false);
+  };
 
   return (
     <header className="editor-header">
@@ -38,7 +71,30 @@ export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart 
           </Tooltip>
           <span className="editor-product-mark" aria-hidden="true"><BarChartOutlined /></span>
           <div className="editor-title-block">
-            <strong>{dashboard.name}</strong>
+            <div className="editor-title-block__name-row">
+              {editingName ? (
+                <Input
+                  ref={nameInput}
+                  size="small"
+                  maxLength={100}
+                  value={nameDraft}
+                  aria-label="编辑看板名称"
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  onBlur={commitRename}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") commitRename();
+                    if (event.key === "Escape") cancelRename();
+                  }}
+                />
+              ) : (
+                <>
+                  <strong>{dashboard.name}</strong>
+                  <Tooltip title="修改看板名称">
+                    <Button type="text" size="small" icon={<EditOutlined />} aria-label="修改看板名称" onClick={beginRename} />
+                  </Tooltip>
+                </>
+              )}
+            </div>
             <span role="status" aria-label="保存状态" aria-live="polite">
               <CloudOutlined /> {saveStatus === "saving" ? "正在保存" : saveStatus === "error" ? "保存失败" : dirty ? "有未保存更改" : "已保存"}
             </span>

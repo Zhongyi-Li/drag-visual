@@ -95,10 +95,16 @@ const getDraft = (id: string): unknown | undefined => {
 
 const listDrafts = (): Dashboard[] => {
   syncDraftsFromStorage();
+  syncPublishedFromStorage();
   return [...drafts.values()]
     .flatMap((draft) => {
       const parsed = DashboardSchema.safeParse(draft);
-      return parsed.success ? [parsed.data] : [];
+      if (!parsed.success) return [];
+      const publishedSnapshot = published.get(parsed.data.id);
+      return [{
+        ...parsed.data,
+        publishedAt: publishedSnapshot?.updatedAt ?? null,
+      }];
     })
     .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt))
     .map(clone);
@@ -311,6 +317,16 @@ export const handlers: RequestHandler[] = [
     const snapshot = clone(parsed.data);
     setPublished(id, snapshot);
     return HttpResponse.json(clone(snapshot));
+  }),
+
+  http.delete("*/dashboards/:dashboardId/publish", ({ params }) => {
+    const id = dashboardId(params);
+    if (!validUuid(id)) return apiError(400, "DASHBOARD_SCHEMA_INVALID");
+    if (getDraft(id) === undefined) return apiError(404, "DASHBOARD_NOT_FOUND");
+    syncPublishedFromStorage();
+    published.delete(id);
+    writeStorageMap(PUBLISHED_STORAGE_KEY, published);
+    return HttpResponse.json({ unpublished: true });
   }),
 
   http.get("*/published-dashboards/:dashboardId", ({ params }) => {

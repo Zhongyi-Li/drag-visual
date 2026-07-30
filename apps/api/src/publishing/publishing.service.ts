@@ -34,13 +34,13 @@ export class PublishingService {
     private readonly repository: PublishingRepository,
   ) {}
 
-  async publish(id: string): Promise<Dashboard> {
+  async publish(id: string, ownerId?: string): Promise<Dashboard> {
     try {
       const published = await this.repository.publishDraft(id, (draft) => {
         const parsed = DashboardSchema.safeParse(draft);
         if (!parsed.success) throw new InvalidDraftSchemaError(id);
         return structuredClone(parsed.data);
-      });
+      }, ownerId);
       if (published === null) throw new DashboardNotFoundForPublishingError(id);
       return published;
     } catch (error: unknown) {
@@ -55,5 +55,11 @@ export class PublishingService {
     const snapshot = await this.repository.getPublished(id);
     if (snapshot === null) throw new PublishedDashboardNotFoundError(id);
     return migrateDashboard(snapshot);
+  }
+
+  async unpublish(id: string, ownerId?: string): Promise<void> {
+    if (!await this.repository.unpublish(id, ownerId)) {
+      throw new DashboardNotFoundForPublishingError(id);
+    }
   }
 }

@@ -4,6 +4,7 @@ import { cleanup } from "@testing-library/react";
 
 import { resetMockStore } from "../mocks/handlers.js";
 import { server } from "../mocks/server.js";
+import { clearAuthSession } from "../features/auth/authSession.js";
 
 class ResizeObserverStub implements ResizeObserver {
   observe(): void {}
@@ -35,6 +36,7 @@ beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
   cleanup();
   if (typeof window !== "undefined") window.localStorage.clear();
+  clearAuthSession();
   server.resetHandlers();
   resetMockStore();
 });

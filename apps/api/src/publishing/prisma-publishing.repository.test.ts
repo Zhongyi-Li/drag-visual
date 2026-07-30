@@ -1,6 +1,7 @@
 import type { Dashboard } from "@drag-visual/contracts";
 import { describe, expect, it, vi } from "vitest";
 
+import { Prisma } from "../generated/prisma/client.js";
 import { PrismaPublishingRepository } from "./prisma-publishing.repository.js";
 
 const dashboard = (overrides: Partial<Dashboard> = {}): Dashboard => ({
@@ -23,6 +24,7 @@ const createRepository = () => {
   };
   const dashboardRecord = {
     findUnique: vi.fn(),
+    updateMany: vi.fn(),
   };
   const prisma = {
     dashboardRecord,
@@ -70,7 +72,7 @@ describe("PrismaPublishingRepository", () => {
     });
     expect(transactionRecord.update).toHaveBeenCalledWith({
       where: { id: dashboard().id },
-      data: { publishedSchema: dashboard({ name: "待发布" }) },
+      data: { publishedSchema: dashboard({ name: "待发布" }), publishedAt: expect.any(Date) },
     });
   });
 
@@ -87,7 +89,7 @@ describe("PrismaPublishingRepository", () => {
     });
     expect(transactionRecord.update).toHaveBeenCalledWith({
       where: { id: dashboard().id },
-      data: { publishedSchema: dashboard({ name: "事务内草稿" }) },
+      data: { publishedSchema: dashboard({ name: "事务内草稿" }), publishedAt: expect.any(Date) },
     });
   });
 
@@ -105,5 +107,16 @@ describe("PrismaPublishingRepository", () => {
 
     await expect(repository.replacePublished(dashboard().id, dashboard())).rejects.toThrow("DASHBOARD_NOT_FOUND");
     expect(transactionRecord.update).not.toHaveBeenCalled();
+  });
+
+  it("clears a published snapshot and timestamp when a page is taken offline", async () => {
+    const { repository, dashboardRecord } = createRepository();
+    dashboardRecord.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(repository.unpublish(dashboard().id)).resolves.toBe(true);
+    expect(dashboardRecord.updateMany).toHaveBeenCalledWith({
+      where: { id: dashboard().id },
+      data: { publishedSchema: Prisma.DbNull, publishedAt: null },
+    });
   });
 });

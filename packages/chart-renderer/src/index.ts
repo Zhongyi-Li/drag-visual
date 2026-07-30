@@ -1,5 +1,6 @@
 export { DashboardComponentRenderer } from "./DashboardComponentRenderer.js";
 export { EChart } from "./EChart.js";
+export { ResponsiveChartContainer } from "./ResponsiveChartContainer.js";
 export {
   buildBarOption,
   buildFlipNumberModel,
@@ -20,5 +21,6 @@ export {
   buildRankingOption,
   buildRingBarOption,
   buildProgressBarModel,
+  buildTargetProgressModel,
   buildTableModel,
 } from "./options.js";

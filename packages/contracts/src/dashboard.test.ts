@@ -60,6 +60,22 @@ describe("DashboardSchema", () => {
     expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
   });
 
+  it("accepts donut charts as first-class dashboard components", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "donut-1", x: 0, y: 0, w: 7, h: 5 }],
+      components: [{
+        id: "donut-1",
+        type: "donut",
+        title: "商品构成",
+        props: { color: "#1677ff", showLegend: true },
+      }],
+    };
+
+    expect(ComponentType.parse("donut")).toBe("donut");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
   it("accepts radar and treemap charts as first-class dashboard components", () => {
     const dashboard = {
       ...validDashboard(),
@@ -108,7 +124,7 @@ describe("DashboardSchema", () => {
     expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
   });
 
-  it("accepts flip number, progress bar, gauge, liquid, and metric breakdown components as first-class dashboard components", () => {
+  it("accepts flip number, progress, target progress, gauge, liquid, and metric breakdown components as first-class dashboard components", () => {
     const dashboard = {
       ...validDashboard(),
       components: [
@@ -123,6 +139,12 @@ describe("DashboardSchema", () => {
           type: "progressBar",
           title: "进度条",
           props: { aggregation: "sum", decimals: 1, showValue: true },
+        },
+        {
+          id: "target-progress-1",
+          type: "targetProgress",
+          title: "目标完成率",
+          props: { aggregation: "sum", color: "#f57c00", decimals: 0, showValue: true, suffix: "" },
         },
         {
           id: "gauge-1",
@@ -146,6 +168,7 @@ describe("DashboardSchema", () => {
       layout: [
         { i: "flip-1", x: 0, y: 0, w: 3, h: 3 },
         { i: "progress-1", x: 3, y: 0, w: 4, h: 2 },
+        { i: "target-progress-1", x: 0, y: 2, w: 9, h: 5 },
         { i: "gauge-1", x: 7, y: 0, w: 4, h: 4 },
         { i: "liquid-1", x: 0, y: 4, w: 4, h: 4 },
         { i: "breakdown-1", x: 4, y: 4, w: 6, h: 4 },
@@ -154,6 +177,7 @@ describe("DashboardSchema", () => {
 
     expect(ComponentType.parse("flipNumber")).toBe("flipNumber");
     expect(ComponentType.parse("progressBar")).toBe("progressBar");
+    expect(ComponentType.parse("targetProgress")).toBe("targetProgress");
     expect(ComponentType.parse("gauge")).toBe("gauge");
     expect(ComponentType.parse("liquid")).toBe("liquid");
     expect(ComponentType.parse("metricBreakdown")).toBe("metricBreakdown");

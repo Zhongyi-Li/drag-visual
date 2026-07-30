@@ -5,6 +5,22 @@ import { expect, it, vi } from "vitest";
 
 import { ComponentErrorBoundary } from "./ComponentErrorBoundary.js";
 
+it("keeps successful preview content constrained to its flex card area", () => {
+  render(
+    <ComponentErrorBoundary componentId="table" componentType="table" title="明细表" mode="preview">
+      <div>可滚动的表格内容</div>
+    </ComponentErrorBoundary>,
+  );
+
+  expect(screen.getByText("可滚动的表格内容").parentElement).toHaveStyle({
+    display: "flex",
+    flex: "1 1 auto",
+    flexDirection: "column",
+    minHeight: "0",
+    overflow: "hidden",
+  });
+});
+
 it("isolates one failed component", () => {
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   const Broken = () => {

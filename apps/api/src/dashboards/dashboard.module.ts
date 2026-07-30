@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 
+import { AuthModule } from "../auth/auth.module.js";
 import { PrismaService } from "../prisma/prisma.service.js";
 import { DashboardController } from "./dashboard.controller.js";
 import { DASHBOARD_REPOSITORY } from "./dashboard.repository.js";
@@ -7,6 +8,7 @@ import { DashboardService } from "./dashboard.service.js";
 import { PrismaDashboardRepository } from "./prisma-dashboard.repository.js";
 
 @Module({
+  imports: [AuthModule],
   controllers: [DashboardController],
   providers: [
     PrismaService,
