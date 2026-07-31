@@ -8,6 +8,10 @@ Drag Visual is a dashboard MVP with a React editor/viewer, shared TypeScript con
 - pnpm 10.28.0.
 - Chromium installed through Playwright for browser tests.
 
+## Windows 内网部署
+
+Windows + IIS + Node.js + PostgreSQL 的部署、更新和排障说明见 [docs/windows-intranet-deployment.md](docs/windows-intranet-deployment.md)。
+
 ## Mock Development
 
 Run the web app against MSW mock APIs:

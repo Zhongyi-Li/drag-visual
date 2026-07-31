@@ -8,6 +8,8 @@ import {
 } from "@drag-visual/contracts";
 import { http, HttpResponse, type RequestHandler } from "msw";
 
+import { createBrowserUuid } from "../app/browserUuid.js";
+
 import {
   datasetFixtures,
   datasetSummaryFixtures,
@@ -235,7 +237,7 @@ export const handlers: RequestHandler[] = [
       const nameValue = (body as { name?: unknown }).name;
       if (nameValue !== undefined && nameValue !== null && typeof nameValue !== "string") throw new Error("schema");
       if (typeof nameValue === "string" && nameValue.length > 100) throw new Error("schema");
-      const id = crypto.randomUUID();
+      const id = createBrowserUuid();
       const dashboard = DashboardSchema.parse({
         schemaVersion: 1,
         id,

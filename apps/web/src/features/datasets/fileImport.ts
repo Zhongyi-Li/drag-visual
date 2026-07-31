@@ -6,6 +6,8 @@ import {
   type DatasetQueryResult as DatasetQueryResultValue,
 } from "@drag-visual/contracts";
 
+import { createBrowserUuid } from "../../app/browserUuid.js";
+
 export interface ImportedDataset {
   readonly schema: DatasetValue;
   readonly result: DatasetQueryResultValue;
@@ -161,7 +163,7 @@ const rowsToDataset = (fileName: string, parsedRows: string[][]): ImportedDatase
     fields.map((field, index) => [field.key, coerceValue(row[index] ?? "", field.type)]),
   ));
   const schema = Dataset.parse({
-    id: `local-${crypto.randomUUID()}`,
+    id: `local-${createBrowserUuid()}`,
     name: datasetName(fileName),
     fields,
     parameters: [],

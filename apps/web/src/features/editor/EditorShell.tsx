@@ -25,6 +25,7 @@ import "./editor.css";
 import { PALETTE_DROP_ID, resolvePaletteDrop } from "./paletteDrag.js";
 import type { EditorStore } from "./store/editorStore.js";
 import { useEditorShortcuts } from "./useEditorShortcuts.js";
+import { createBrowserUuid } from "../../app/browserUuid.js";
 
 interface EditorShellProps {
   store: EditorStore;
@@ -42,7 +43,7 @@ const paletteCollisionDetection: CollisionDetection = (args) =>
 
 export const EditorShell = ({
   store,
-  createComponentId = () => crypto.randomUUID(),
+  createComponentId = createBrowserUuid,
   onSave,
   onPreview,
   onPublish,
