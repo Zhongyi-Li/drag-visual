@@ -105,9 +105,22 @@ export const DatasetAggregationRequest = z.object({
 
 export type DatasetAggregationRequest = z.infer<typeof DatasetAggregationRequest>;
 
+export const DateRangeFilter = z
+  .object({
+    kind: z.literal("dateRange"),
+    fieldKey: nonEmptyString,
+    start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    timezone: z.literal("Asia/Shanghai"),
+  })
+  .strict();
+
+export type DateRangeFilter = z.infer<typeof DateRangeFilter>;
+
 export const DatasetQueryRequest = z
   .object({
     parameters: safeJsonRecord,
+    filters: z.array(DateRangeFilter).max(1).optional(),
     aggregation: DatasetAggregationRequest.optional(),
   })
   .strict();

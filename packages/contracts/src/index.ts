@@ -8,6 +8,7 @@ export {
   DatasetField,
   DatasetQueryRequest,
   DatasetQueryResult,
+  DateRangeFilter,
   DatasetSummary,
   ErrorCode,
   ErrorResponse,

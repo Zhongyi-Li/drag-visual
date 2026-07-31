@@ -62,6 +62,29 @@ export const FieldBinding = z.object({
 
 export type FieldBinding = z.infer<typeof FieldBinding>;
 
+export const DateFilterPreset = z.enum([
+  "all",
+  "today",
+  "yesterday",
+  "last7Days",
+  "last30Days",
+  "thisMonth",
+  "lastMonth",
+]);
+
+export type DateFilterPreset = z.infer<typeof DateFilterPreset>;
+
+export const DateFilterControl = z
+  .object({
+    fieldKey: nonEmptyString,
+    defaultPreset: DateFilterPreset,
+    allowCustom: z.boolean(),
+    timezone: z.literal("Asia/Shanghai"),
+  })
+  .strict();
+
+export type DateFilterControl = z.infer<typeof DateFilterControl>;
+
 export const DataBinding = z.object({
   datasetId: nonEmptyString,
   slots: safeRecord(z.union([FieldBinding, z.array(FieldBinding)])),
@@ -69,10 +92,12 @@ export const DataBinding = z.object({
     .object({
       fieldKey: nonEmptyString,
       direction: z.enum(["asc", "desc"]),
-    })
-    .strict()
-    .optional(),
+  })
+  .strict()
+  .optional(),
   limit: z.number().int().positive().max(10_000).optional(),
+  /** A chart-scoped runtime control. Its selected value is never persisted in the dashboard. */
+  dateFilter: DateFilterControl.optional(),
 }).strict();
 
 export type DataBinding = z.infer<typeof DataBinding>;

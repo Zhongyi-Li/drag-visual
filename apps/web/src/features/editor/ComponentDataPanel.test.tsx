@@ -74,6 +74,38 @@ describe("ComponentDataPanel", () => {
     }));
   });
 
+  it("clicks a date field to replace the active chart's date-filter field", async () => {
+    const dateFilterFields = [
+      { key: "orderTime", label: "订单时间", type: "date", nullable: true },
+      { key: "paymentTime", label: "支付时间", type: "date", nullable: true },
+      { key: "orderAmount", label: "订单金额", type: "number", nullable: true },
+    ] as const;
+    server.use(
+      http.get("http://localhost/datasets", () => HttpResponse.json([{ id: "sales", name: "销售数据", schemaVersion: "v1" }])),
+      http.get("http://localhost/datasets/sales/schema", () => HttpResponse.json({ id: "sales", name: "销售数据", fields: dateFilterFields, parameters: [], schemaVersion: "v1" })),
+    );
+    const filterDashboard = DashboardSchema.parse({
+      ...dashboard,
+      components: [{
+        ...dashboard.components[0]!,
+        binding: {
+          ...dashboard.components[0]!.binding!,
+          dateFilter: { fieldKey: "orderTime", defaultPreset: "all", allowCustom: true, timezone: "Asia/Shanghai" },
+        },
+      }],
+    });
+    const store = createEditorStore(filterDashboard);
+    store.getState().select("trend-1");
+
+    render(<AppProviders><ComponentDataPanel store={store} registry={createDefaultRegistry()} /></AppProviders>);
+
+    const paymentField = await screen.findByRole("button", { name: "支付时间" });
+    expect(screen.getByText("点击设为筛选字段")).toBeInTheDocument();
+    fireEvent.click(paymentField);
+
+    await waitFor(() => expect(store.getState().history.present.components[0]!.binding?.dateFilter?.fieldKey).toBe("paymentTime"));
+  });
+
   it("adds a second ring-bar metric to tooltip measures instead of replacing its main metric", async () => {
     const ringFields = [
       { key: "productName", label: "商品名称", type: "string", nullable: true },

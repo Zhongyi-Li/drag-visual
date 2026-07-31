@@ -87,6 +87,19 @@ describe("Dataset contracts", () => {
     }).success).toBe(false);
   });
 
+  it("parses one chart-scoped date range filter and rejects malformed ranges", () => {
+    expect(DatasetQueryRequest.parse({
+      parameters: {},
+      filters: [{ kind: "dateRange", fieldKey: "createdAt", start: "2026-07-01", end: "2026-07-31", timezone: "Asia/Shanghai" }],
+    }).filters).toEqual([
+      { kind: "dateRange", fieldKey: "createdAt", start: "2026-07-01", end: "2026-07-31", timezone: "Asia/Shanghai" },
+    ]);
+    expect(DatasetQueryRequest.safeParse({
+      parameters: {},
+      filters: [{ kind: "dateRange", fieldKey: "createdAt", start: "2026-7-1", end: "2026-07-31", timezone: "Asia/Shanghai" }],
+    }).success).toBe(false);
+  });
+
   it.each([
     ["dataset", Dataset, { ...validDataset(), extra: true }],
     [

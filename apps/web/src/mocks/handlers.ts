@@ -186,7 +186,23 @@ const validQueryParameters = (dataset: Dataset, value: unknown): boolean => {
   return dataset.parameters.every(
     (parameter) => !parameter.required ||
       (Object.hasOwn(parsed.data.parameters, parameter.key) && parsed.data.parameters[parameter.key] !== null),
-  );
+  ) && (parsed.data.filters ?? []).every((filter) => {
+    const field = dataset.fields.find((candidate) => candidate.key === filter.fieldKey);
+    return field?.type === "date" && calendarDate(filter.start) && calendarDate(filter.end) && filter.start <= filter.end;
+  });
+};
+
+const applyDateFilters = (
+  rows: readonly Record<string, unknown>[],
+  filters: DatasetQueryRequest["filters"],
+): Record<string, unknown>[] => {
+  const filter = filters?.[0];
+  if (filter === undefined) return rows.map((row) => ({ ...row }));
+  return rows.filter((row) => {
+    const value = row[filter.fieldKey];
+    const day = typeof value === "string" ? value.slice(0, 10) : "";
+    return calendarDate(day) && day >= filter.start && day <= filter.end;
+  }).map((row) => ({ ...row }));
 };
 
 const validDatasetResult = (value: unknown): value is DatasetQueryResult => {
@@ -374,8 +390,10 @@ export const handlers: RequestHandler[] = [
     if (scenario === "timeout" || getMockScenario() === "dataset-timeout") {
       return apiError(504, "DATASET_TIMEOUT");
     }
+    const parsedRequest = DatasetQueryRequest.parse(body);
+    const filteredSalesRows = applyDateFilters(salesRowsFixture, parsedRequest.filters);
     let result: unknown = dataset.id === "sales"
-      ? { ...clone(salesQueryResultFixture), rows: clone(salesRowsFixture), total: salesRowsFixture.length }
+      ? { ...clone(salesQueryResultFixture), rows: filteredSalesRows, total: filteredSalesRows.length }
       : {
           columns: clone(dataset.fields),
           rows: [{ sku: "SKU-001", quantity: 42 }],

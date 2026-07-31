@@ -1,6 +1,6 @@
 import { CalendarOutlined, MenuFoldOutlined, MenuUnfoldOutlined, NumberOutlined, SearchOutlined, TagOutlined } from "@ant-design/icons";
 import type { ComponentDefinition, ComponentRegistry } from "@drag-visual/component-registry";
-import type { Dataset, DatasetField, MetricAggregation } from "@drag-visual/contracts";
+import { DataBinding, type Dataset, type DatasetField, type MetricAggregation } from "@drag-visual/contracts";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Empty, Input, Select, Spin, Tooltip, Typography } from "antd";
 import { useMemo, useState } from "react";
@@ -8,9 +8,8 @@ import { useStore } from "zustand";
 
 import { getDataset, listDatasets } from "../datasets/datasetApi.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
+import { FIELD_DRAG_TYPE } from "./fieldDrag.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
-
-export const FIELD_DRAG_TYPE = "application/x-drag-visual-field";
 
 type MutableFieldBinding = { fieldKey: string; aggregation?: MetricAggregation | undefined };
 type MutableSlots = Record<string, MutableFieldBinding | MutableFieldBinding[]>;
@@ -152,6 +151,19 @@ export const ComponentDataPanel = ({
     });
   };
 
+  const setDateFilterField = (field: DatasetField) => {
+    if (selected === null || selected.binding?.dateFilter === undefined || field.type !== "date") return;
+    store.getState().dispatch({
+      type: "component.binding.update",
+      componentId: selected.id,
+      nextBinding: DataBinding.parse({
+        ...selected.binding,
+        dateFilter: { ...selected.binding.dateFilter, fieldKey: field.key },
+      }),
+    });
+  };
+  const dateFilterEnabled = selected?.binding?.dateFilter !== undefined;
+
   const groupedFields = (["日期", "维度", "度量"] as const).map((group) => ({
     group,
     fields: fields.filter((field) => fieldGroup(field) === group),
@@ -199,14 +211,19 @@ export const ComponentDataPanel = ({
               <div className="component-data-panel__groups">
                 {groupedFields.map(({ group, fields: entries }) => (
                   <section className="component-data-group" key={group} aria-label={group}>
-                    <h3>{group}</h3>
+                    <div className="component-data-group__heading">
+                      <h3>{group}</h3>
+                      {group === "日期" && dateFilterEnabled && <span>点击设为筛选字段</span>}
+                    </div>
                     {entries.map((field) => (
                       <button
-                        className={`component-data-field component-data-field--${fieldGroup(field)}`}
+                        aria-pressed={field.type === "date" && dateFilterEnabled ? selected?.binding?.dateFilter?.fieldKey === field.key : undefined}
+                        className={`component-data-field component-data-field--${fieldGroup(field)}${field.type === "date" && dateFilterEnabled ? " component-data-field--filter-selectable" : ""}${selected?.binding?.dateFilter?.fieldKey === field.key ? " component-data-field--filter-selected" : ""}`}
                         draggable
                         key={field.key}
-                        title={`${field.label}（${field.key}）`}
+                        title={field.type === "date" && dateFilterEnabled ? `点击设为筛选字段：${field.label}` : `${field.label}（${field.key}）`}
                         type="button"
+                        onClick={() => setDateFilterField(field)}
                         onDoubleClick={() => bindField(field)}
                         onDragStart={(event) => {
                           event.dataTransfer.effectAllowed = "copy";

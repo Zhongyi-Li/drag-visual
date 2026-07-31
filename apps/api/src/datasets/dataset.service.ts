@@ -2,6 +2,7 @@ import {
   Dataset,
   DatasetQueryResult,
   DatasetSummary,
+  type DateRangeFilter,
   type DatasetField,
   type DatasetQueryRequest,
   type QueryParameter,
@@ -44,6 +45,8 @@ const calendarDate = (value: string): boolean => {
   );
 };
 
+const calendarDay = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value) && calendarDate(value);
+
 const valueMatchesType = (
   value: unknown,
   type: DatasetField["type"],
@@ -72,6 +75,7 @@ export class DatasetService {
   async query(id: string, request: DatasetQueryRequest) {
     const dataset = await this.getSchema(id);
     this.validateParameters(dataset.parameters, request.parameters);
+    this.validateFilters(dataset.fields, request.filters);
     this.validateAggregation(dataset.fields, request.aggregation);
     if (id === RETAIL_ORDER_DATASET_ID && !validateRetailOrderResultLimit(request.parameters)) {
       throw new DatasetQueryInvalidError();
@@ -119,6 +123,26 @@ export class DatasetService {
     }
     for (const measure of aggregation.measures) {
       if (fieldsByKey.get(measure.fieldKey)?.type !== "number") throw new DatasetQueryInvalidError();
+    }
+  }
+
+  private validateFilters(
+    fields: readonly DatasetField[],
+    filters: readonly DateRangeFilter[] | undefined,
+  ): void {
+    if (filters === undefined) return;
+    if (filters.length > 1) throw new DatasetQueryInvalidError();
+    const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+    for (const filter of filters) {
+      if (
+        filter.kind !== "dateRange" ||
+        fieldsByKey.get(filter.fieldKey)?.type !== "date" ||
+        !calendarDay(filter.start) ||
+        !calendarDay(filter.end) ||
+        filter.start > filter.end
+      ) {
+        throw new DatasetQueryInvalidError();
+      }
     }
   }
 

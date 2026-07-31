@@ -195,6 +195,38 @@ describe("ComponentFrame", () => {
     fetchSpy.mockRestore();
   });
 
+  it("sends the configured chart date filter without changing the dashboard configuration", async () => {
+    const requests: unknown[] = [];
+    server.use(
+      http.post("http://localhost/datasets/sales/query", async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json({
+          columns: [{ key: "month", label: "月份", type: "string", nullable: false }, { key: "revenue", label: "销售额", type: "number", nullable: false }],
+          rows: [{ month: "7月", revenue: 100 }], total: 1, sampledAt: "2026-07-31T00:00:00.000Z",
+        });
+      }),
+    );
+    const filtered = DashboardSchema.parse({
+      ...remoteDashboard,
+      components: [{
+        ...remoteDashboard.components[0]!,
+        binding: {
+          ...remoteDashboard.components[0]!.binding!,
+          dateFilter: { fieldKey: "businessDate", defaultPreset: "today", allowCustom: true, timezone: "Asia/Shanghai" },
+        },
+      }],
+    });
+    const store = createEditorStore(filtered);
+    renderFrame(<ComponentFrame component={filtered.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    expect(await screen.findByRole("combobox", { name: "业务日期日期范围" })).toBeInTheDocument();
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({
+      filters: [expect.objectContaining({ kind: "dateRange", fieldKey: "businessDate", timezone: "Asia/Shanghai" })],
+    });
+    expect(store.getState().history.present.components[0]!.binding?.dateFilter).toEqual(filtered.components[0]!.binding?.dateFilter);
+  });
+
   it("queries an edited aggregation only after the inspector applies its update", async () => {
     const requests: unknown[] = [];
     server.use(

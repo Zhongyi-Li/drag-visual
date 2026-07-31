@@ -37,6 +37,11 @@ interface RetailOrderColumn {
   readonly field: DatasetField;
 }
 
+interface SqlFilter {
+  readonly whereSql: string;
+  readonly values: readonly string[];
+}
+
 const retailOrderDataset = Dataset.parse({
   id: RETAIL_ORDER_DATASET_ID,
   name: "零售发货单（业务表）",
@@ -111,6 +116,31 @@ const aggregationResultField = (column: RetailOrderColumn, aggregation: DatasetA
   nullable: aggregation === "count" ? false : true,
 });
 
+const nextCalendarDay = (value: string): string => {
+  const [year, month, day] = value.split("-").map(Number);
+  const next = new Date(Date.UTC(year!, month! - 1, day! + 1));
+  return next.toISOString().slice(0, 10);
+};
+
+const sqlFilter = (
+  columns: readonly RetailOrderColumn[],
+  filters: DatasetQueryRequest["filters"],
+): SqlFilter => {
+  const filter = filters?.[0];
+  if (filter === undefined) return { whereSql: "", values: [] };
+  const column = columns.find((candidate) => candidate.field.key === filter.fieldKey);
+  if (column === undefined || column.field.type !== "date") throw new DatasetUpstreamError();
+  // A half-open range includes every time on the selected final day while
+  // keeping the indexed source column bare in the predicate.
+  return {
+    whereSql: ` WHERE ${quoteIdentifier(column.sourceKey)} >= ? AND ${quoteIdentifier(column.sourceKey)} < ?`,
+    values: [filter.start, nextCalendarDay(filter.end)],
+  };
+};
+
+const execute = <Value extends RowDataPacket[]>(pool: Pool, sql: string, values: readonly string[]): Promise<[Value, unknown]> =>
+  values.length === 0 ? pool.execute<Value>(sql) : pool.execute<Value>(sql, [...values]);
+
 const createPool = (): Pool => {
   const connectionUrl = process.env.RETAIL_MYSQL_URL;
   if (!connectionUrl) throw new DatasetUpstreamError();
@@ -164,17 +194,20 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
     const columns = await this.columns();
     const limit = Math.min(positiveInteger(request.parameters.limit, DEFAULT_RESULT_LIMIT), MAX_RESULT_LIMIT);
     const table = `${quoteIdentifier(RETAIL_ORDER_DATABASE)}.${quoteIdentifier(RETAIL_ORDER_TABLE)}`;
+    const filter = sqlFilter(columns, request.filters);
     if (request.aggregation !== undefined) {
-      return this.queryAggregation(columns, request.aggregation, table, limit);
+      return this.queryAggregation(columns, request.aggregation, table, limit, filter);
     }
     const selectedColumns = columns.map(({ sourceKey }) => quoteIdentifier(sourceKey)).join(", ");
 
     try {
-      const [totalRows] = await this.pool().execute<MysqlCountRow[]>(`SELECT COUNT(*) AS total FROM ${table}`);
-      const [rows] = await this.pool().execute<RowDataPacket[]>(
+      const [totalRows] = await execute<MysqlCountRow[]>(this.pool(), `SELECT COUNT(*) AS total FROM ${table}${filter.whereSql}`, filter.values);
+      const [rows] = await execute<RowDataPacket[]>(
+        this.pool(),
         // This MySQL instance rejects prepared placeholders in LIMIT. The
         // value is validated as a bounded positive integer before interpolation.
-        `SELECT ${selectedColumns} FROM ${table} ORDER BY ${quoteIdentifier("order_time")} DESC LIMIT ${limit}`,
+        `SELECT ${selectedColumns} FROM ${table}${filter.whereSql} ORDER BY ${quoteIdentifier("order_time")} DESC LIMIT ${limit}`,
+        filter.values,
       );
       const total = Number(totalRows[0]?.total ?? 0);
 
@@ -196,6 +229,7 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
     aggregation: DatasetAggregationRequest,
     table: string,
     limit: number,
+    filter: SqlFilter,
   ): Promise<DatasetQueryResultValue> {
     const columnsByKey = new Map(columns.map((column) => [column.field.key, column]));
     const groupColumns = aggregation.groupBy.map((fieldKey) => columnsByKey.get(fieldKey));
@@ -227,12 +261,14 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
     try {
       const totalSql = groupBy.length === 0
         ? "SELECT 1 AS total"
-        : `SELECT COUNT(*) AS total FROM (SELECT 1 FROM ${table}${groupBySql}) AS grouped_rows`;
-      const [totalRows] = await this.pool().execute<MysqlCountRow[]>(totalSql);
-      const [rows] = await this.pool().execute<RowDataPacket[]>(
+        : `SELECT COUNT(*) AS total FROM (SELECT 1 FROM ${table}${filter.whereSql}${groupBySql}) AS grouped_rows`;
+      const [totalRows] = await execute<MysqlCountRow[]>(this.pool(), totalSql, filter.values);
+      const [rows] = await execute<RowDataPacket[]>(
+        this.pool(),
         // GROUP BY executes before LIMIT, so the chart receives complete
         // aggregate values rather than aggregates of an arbitrary detail page.
-        `SELECT ${selectedColumns} FROM ${table}${groupBySql}${orderBySql} LIMIT ${limit}`,
+        `SELECT ${selectedColumns} FROM ${table}${filter.whereSql}${groupBySql}${orderBySql} LIMIT ${limit}`,
+        filter.values,
       );
       const total = Number(totalRows[0]?.total ?? 0);
       return DatasetQueryResult.parse({

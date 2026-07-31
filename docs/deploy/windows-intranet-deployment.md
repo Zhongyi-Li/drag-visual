@@ -1,4 +1,4 @@
-# ZHBI Windows 内网部署与更新说明
+# ZHBI Windows 内网初始部署说明
 
 本文记录当前 ZHBI 的部署方式：Windows + IIS + Node.js + PostgreSQL，不使用 Docker、不使用 HTTPS，应用以 IIS 子应用的形式部署在 `/ZHBI` 下。
 
@@ -179,113 +179,9 @@ http://<服务器内网IP>/
 
 如果刚更新前端仍显示旧页面，先用浏览器 `Ctrl + F5` 强制刷新或无痕窗口访问；必要时在 IIS 中回收 `/ZHBI` 所属应用程序池。
 
-## 5. 后续本地开发与发布更新流程
+## 5. 后续更新
 
-### 5.1 Mac 本地开发
-
-在 Mac 项目根目录进行开发、验证并提交：
-
-```bash
-pnpm install --frozen-lockfile
-pnpm typecheck
-pnpm test
-pnpm build
-
-git add <本次修改的文件>
-git commit -m "feat: 简述本次功能"
-git push
-```
-
-本地开发可使用：
-
-```bash
-pnpm --filter @drag-visual/api dev
-pnpm --dir apps/web exec vite -- --port 5173
-```
-
-不要在 Mac 本地开发配置中提交生产 `.env`、数据库密码或内网数据源密码。
-
-### 5.2 GitHub Actions 生成 Windows 制品
-
-1. 打开 GitHub 仓库的 **Actions**。
-2. 选择 **Build Windows deployment package**。
-3. 点击 **Run workflow**，选择 `main` 分支并运行。
-4. 必须等待任务绿色成功，再下载 Artifact：`zhbi-windows-x64`。
-5. 解压下载文件；若其中还有 `zhbi-windows-x64.zip`，继续解开这个内层 ZIP，得到 `apps`、`prisma`、`.env.example` 等内容。
-
-工作流会以 `/ZHBI/` 为前端基础路径构建，因此预览、发布页分享、继续编辑等链接都会落在 `/ZHBI/...` 下。
-
-### 5.3 将制品更新到 Windows
-
-更新前，先确认当前后端健康，并保留 `.env`：
-
-```powershell
-Invoke-WebRequest http://127.0.0.1:3000/health
-Copy-Item C:\zhbi\.env C:\zhbi\.env.backup -Force
-```
-
-若当前 Node 通过前台 PowerShell 运行，在该窗口按 `Ctrl + C` 停止它。替换 `apps` 和 `prisma` 时不要直接与旧文件混合，以免遗留已删除的依赖或迁移文件。先将旧目录改名留作回退，再复制新制品：
-
-| 可以覆盖 | 绝不能覆盖或删除 |
-| --- | --- |
-| `C:\zhbi\apps` | `C:\zhbi\.env` |
-| `C:\zhbi\prisma` | `.env.backup`（仅作临时备份） |
-| 根目录的 `package.json`、`pnpm-lock.yaml`、`pnpm-workspace.yaml`、`prisma.config.ts`、`.env.example` | 其他由服务器运维维护的文件 |
-
-PowerShell 示例。假设内层制品已解压到 `C:\zhbi-update`：
-
-```powershell
-$stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-Copy-Item C:\zhbi\.env C:\zhbi\.env.backup -Force
-
-Rename-Item C:\zhbi\apps "apps.before-$stamp"
-Rename-Item C:\zhbi\prisma "prisma.before-$stamp"
-
-Copy-Item C:\zhbi-update\apps C:\zhbi -Recurse -Force
-Copy-Item C:\zhbi-update\prisma C:\zhbi -Recurse -Force
-Copy-Item C:\zhbi-update\package.json,C:\zhbi-update\pnpm-lock.yaml,`
-  C:\zhbi-update\pnpm-workspace.yaml,C:\zhbi-update\prisma.config.ts,`
-  C:\zhbi-update\.env.example -Destination C:\zhbi -Force
-
-Copy-Item C:\zhbi\.env.backup C:\zhbi\.env -Force
-```
-
-然后按以下顺序完成更新：
-
-```powershell
-Set-Location C:\zhbi
-
-# 每次部署都可安全执行；有新迁移时才会实际执行 SQL。
-powershell -NoProfile -ExecutionPolicy Bypass `
-  -File .\prisma\migrate-postgresql.ps1 `
-  -PsqlPath "D:\zhbi-data-postgres\bin\psql.exe"
-
-# 启动新版后端；若使用任务计划程序/服务管理器，则改为重启对应任务或服务。
-node .\apps\api\dist\main.js
-```
-
-最后，在另一个 PowerShell 窗口验证：
-
-```powershell
-Invoke-WebRequest http://127.0.0.1:3000/health
-```
-
-并使用无痕窗口或 `Ctrl + F5` 访问：
-
-```text
-http://<服务器IP>/ZHBI/
-```
-
-确认新版稳定后，再由管理员按服务器备份策略清理 `apps.before-<时间>`、`prisma.before-<时间>` 和 `.env.backup`；更新当天不要立即删除，以便快速回退。
-
-### 5.4 哪些变更需要重启
-
-| 变更类型 | 是否执行迁移 | 是否重启 Node | 是否需要浏览器强刷 |
-| --- | --- | --- |
-| 仅前端页面、样式、路由 | 否 | 否 | 是 |
-| 后端接口、后端逻辑、`.env` | 否 | 是 | 建议 |
-| `prisma/migrations` 新迁移 | 是 | 是 | 建议 |
-| `web.config`、IIS 配置 | 否 | 否 | 是；必要时回收应用程序池 |
+本地开发、GitHub Actions 构建、Windows 前后端资源更新与数据库迁移，请见：[Windows 制品更新说明](windows-artifact-update.md)。
 
 ## 6. 常见故障检查
 

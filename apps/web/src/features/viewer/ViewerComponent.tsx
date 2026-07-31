@@ -4,10 +4,12 @@ import { applyTransforms, validateBinding } from "@drag-visual/data-engine";
 import { DashboardComponentRenderer, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Empty, Spin } from "antd";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { buildDatasetAggregation } from "../datasets/datasetAggregation.js";
 import { getDataset, queryDatasetRequest } from "../datasets/datasetApi.js";
+import { DateRangeFilterBar } from "../datasets/DateRangeFilterBar.js";
+import { defaultDateFilterSelection, filterRowsByDateRange, type RuntimeDateSelection } from "../datasets/dateFilter.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 import {
   RuntimeDatasetRequestBar,
@@ -62,6 +64,11 @@ const BoundViewerComponent = ({ component, savedDataset }: ViewerComponentProps)
   const datasetId = component.binding!.datasetId;
   const [runtimeDraftParameters, setRuntimeDraftParameters] = useState<RuntimeParameterValues>({});
   const [appliedRuntimeParameters, setAppliedRuntimeParameters] = useState<RuntimeParameterValues>({});
+  const dateFilterControl = component.binding!.dateFilter;
+  const [activeDateFilter, setActiveDateFilter] = useState<RuntimeDateSelection>(() => defaultDateFilterSelection(dateFilterControl));
+  useEffect(() => {
+    setActiveDateFilter(defaultDateFilterSelection(dateFilterControl));
+  }, [dateFilterControl?.fieldKey, dateFilterControl?.defaultPreset, dateFilterControl?.timezone]);
   const isUploadedDataset = localDatasets.isUploadedDataset(datasetId);
   const localSchema = isUploadedDataset ? localDatasets.getDataset(datasetId) : undefined;
   const localResult = isUploadedDataset ? localDatasets.queryDataset(datasetId) : undefined;
@@ -78,15 +85,19 @@ const BoundViewerComponent = ({ component, savedDataset }: ViewerComponentProps)
   const queryParameters = { ...configuredParameters, ...runtimeQueryParameters };
   const aggregation = buildDatasetAggregation(component);
   const data = useQuery({
-    queryKey: ["dataset-query", datasetId, queryParameters, aggregation],
+    queryKey: ["dataset-query", component.id, datasetId, queryParameters, activeDateFilter, aggregation],
     queryFn: () => queryDatasetRequest(datasetId, {
       parameters: queryParameters,
+      ...(activeDateFilter === undefined ? {} : { filters: [activeDateFilter] }),
       ...(aggregation === undefined ? {} : { aggregation }),
     }),
     enabled: localResult === undefined && (localSchema !== undefined || schema.data !== undefined),
   });
 
-  const resolvedResult = localResult ?? data.data;
+  const unfilteredResult = localResult ?? data.data;
+  const resolvedResult = isUploadedDataset && localResult !== undefined && activeDateFilter !== undefined
+    ? { ...localResult, rows: filterRowsByDateRange(localResult.rows, activeDateFilter), total: filterRowsByDateRange(localResult.rows, activeDateFilter).length }
+    : unfilteredResult;
   const requestRuntimeData = () => {
     const nextParameters = buildRuntimeParameters(runtimeParameterDefinitions, runtimeDraftParameters);
     if (JSON.stringify(nextParameters) === JSON.stringify(runtimeQueryParameters)) {
@@ -110,6 +121,13 @@ const BoundViewerComponent = ({ component, savedDataset }: ViewerComponentProps)
     fields: resolvedResult.columns,
   };
   return <div className="viewer-component">
+    {dateFilterControl !== undefined && <DateRangeFilterBar
+      control={dateFilterControl}
+      fieldLabel={resolvedSchema.fields.find((field) => field.key === dateFilterControl.fieldKey)?.label ?? dateFilterControl.fieldKey}
+      value={activeDateFilter}
+      onChange={setActiveDateFilter}
+      loading={data.isFetching}
+    />}
     <RuntimeDatasetRequestBar
       parameters={runtimeParameterDefinitions}
       values={runtimeDraftParameters}

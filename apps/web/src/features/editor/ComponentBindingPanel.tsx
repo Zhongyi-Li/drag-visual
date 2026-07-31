@@ -10,7 +10,7 @@ import { useStore } from "zustand";
 import { getDataset, listDatasets } from "../datasets/datasetApi.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 import { ParameterForm } from "../datasets/ParameterForm.js";
-import { FIELD_DRAG_TYPE } from "./ComponentDataPanel.js";
+import { FIELD_DRAG_TYPE } from "./fieldDrag.js";
 import type { EditorStore } from "./store/editorStore.js";
 
 interface ComponentBindingPanelProps {

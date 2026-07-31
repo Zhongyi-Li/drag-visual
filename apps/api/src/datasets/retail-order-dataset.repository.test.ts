@@ -104,6 +104,33 @@ describe("RetailOrderDatasetRepository", () => {
     });
   });
 
+  it("filters raw rows before counting or aggregating by the selected date field", async () => {
+    const execute = vi.fn()
+      .mockResolvedValueOnce([mysqlColumns, []])
+      .mockResolvedValueOnce([[{ total: 1 }], []])
+      .mockResolvedValueOnce([[] , []]);
+    const repository = new RetailOrderDatasetRepository(mysqlPool(execute));
+
+    await new DatasetService(repository).query(RETAIL_ORDER_DATASET_ID, {
+      parameters: { limit: 20 },
+      filters: [{ kind: "dateRange", fieldKey: "orderTime", start: "2026-07-01", end: "2026-07-31", timezone: "Asia/Shanghai" }],
+      aggregation: {
+        groupBy: ["billNo"],
+        measures: [{ fieldKey: "buyerActualPay", aggregation: "sum" }],
+      },
+    });
+
+    expect(execute).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("FROM `os`.`os_order_combined` WHERE `order_time` >= ? AND `order_time` < ? GROUP BY `bill_no`"),
+      ["2026-07-01", "2026-08-01"],
+    );
+    expect(execute).toHaveBeenLastCalledWith(
+      expect.stringContaining("FROM `os`.`os_order_combined` WHERE `order_time` >= ? AND `order_time` < ? GROUP BY `bill_no`"),
+      ["2026-07-01", "2026-08-01"],
+    );
+  });
+
   it("enforces a positive bounded result limit", () => {
     expect(validateRetailOrderResultLimit({})).toBe(true);
     expect(validateRetailOrderResultLimit({ limit: 5_000 })).toBe(true);

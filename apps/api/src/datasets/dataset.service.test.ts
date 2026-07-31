@@ -137,6 +137,22 @@ describe("DatasetService", () => {
     })).rejects.toBeInstanceOf(DatasetQueryInvalidError);
   });
 
+  it("accepts a date filter only for a valid date field and inclusive range", async () => {
+    const service = new DatasetService(new FakeDatasetRepository());
+    await expect(service.query("sales", {
+      ...validRequest(),
+      filters: [{ kind: "dateRange", fieldKey: "businessDate", start: "2026-01-01", end: "2026-01-31", timezone: "Asia/Shanghai" }],
+    })).resolves.toEqual(salesResult);
+    await expect(service.query("sales", {
+      ...validRequest(),
+      filters: [{ kind: "dateRange", fieldKey: "revenue", start: "2026-01-01", end: "2026-01-31", timezone: "Asia/Shanghai" }],
+    })).rejects.toBeInstanceOf(DatasetQueryInvalidError);
+    await expect(service.query("sales", {
+      ...validRequest(),
+      filters: [{ kind: "dateRange", fieldKey: "businessDate", start: "2026-02-01", end: "2026-01-31", timezone: "Asia/Shanghai" }],
+    })).rejects.toBeInstanceOf(DatasetQueryInvalidError);
+  });
+
   it.each([
     ["missing required", { parameters: { year: 2026 } }],
     ["unknown parameter", { parameters: { year: 2026, fromDate: "2026-01-01", bad: true } }],

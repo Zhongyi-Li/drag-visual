@@ -438,6 +438,15 @@ components:
       properties:
         fieldKey: { type: string, minLength: 1 }
         direction: { type: string, enum: [asc, desc] }
+    DateFilterControl:
+      type: object
+      additionalProperties: false
+      required: [fieldKey, defaultPreset, allowCustom, timezone]
+      properties:
+        fieldKey: { type: string, minLength: 1 }
+        defaultPreset: { type: string, enum: [all, today, yesterday, last7Days, last30Days, thisMonth, lastMonth] }
+        allowCustom: { type: boolean }
+        timezone: { type: string, const: Asia/Shanghai }
     DataBinding:
       type: object
       additionalProperties: false
@@ -453,6 +462,7 @@ components:
                 items: { $ref: '#/components/schemas/FieldBinding' }
         sort: { $ref: '#/components/schemas/SortBinding' }
         limit: { type: integer, minimum: 1, maximum: 10000 }
+        dateFilter: { $ref: '#/components/schemas/DateFilterControl' }
     ComponentInstance:
       type: object
       additionalProperties: false
@@ -559,7 +569,21 @@ components:
         parameters:
           type: object
           additionalProperties: { $ref: '#/components/schemas/JsonValue' }
+        filters:
+          type: array
+          maxItems: 1
+          items: { $ref: '#/components/schemas/DateRangeFilter' }
       example: *queryRequestExample
+    DateRangeFilter:
+      type: object
+      additionalProperties: false
+      required: [kind, fieldKey, start, end, timezone]
+      properties:
+        kind: { type: string, const: dateRange }
+        fieldKey: { type: string, minLength: 1 }
+        start: { type: string, pattern: '^\\d{4}-\\d{2}-\\d{2}$' }
+        end: { type: string, pattern: '^\\d{4}-\\d{2}-\\d{2}$' }
+        timezone: { type: string, const: Asia/Shanghai }
     DatasetQueryResult:
       type: object
       additionalProperties: false

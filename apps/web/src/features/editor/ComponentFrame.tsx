@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from "react";
 import { useStore } from "zustand";
 
 import { DataPreview } from "../datasets/DataPreview.js";
+import { DateRangeFilterBar } from "../datasets/DateRangeFilterBar.js";
+import { defaultDateFilterSelection, filterRowsByDateRange, type RuntimeDateSelection } from "../datasets/dateFilter.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 import {
   RuntimeDatasetRequestBar,
@@ -46,6 +48,9 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const [runtimeDraftParameters, setRuntimeDraftParameters] = useState<RuntimeParameterValues>({});
   const [appliedRuntimeParameters, setAppliedRuntimeParameters] = useState<RuntimeParameterValues>({});
   const [runtimeDataResult, setRuntimeDataResult] = useState<DatasetQueryResult | undefined>();
+  const [activeDateFilter, setActiveDateFilter] = useState<RuntimeDateSelection>(() =>
+    defaultDateFilterSelection((suppliedComponent as ComponentInstance).binding?.dateFilter),
+  );
   const [selectedSunburstMeasure, setSelectedSunburstMeasure] = useState<string | null>(null);
   const [selectedTreemapMeasure, setSelectedTreemapMeasure] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -103,6 +108,10 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     ...(supportsResultLimit ? { limit: appliedResultLimit } : {}),
   } as DatasetQueryRequest["parameters"];
   const chartComponent = component as ComponentInstance;
+  const dateFilterControl = chartComponent.binding?.dateFilter;
+  useEffect(() => {
+    setActiveDateFilter(defaultDateFilterSelection(dateFilterControl));
+  }, [dateFilterControl?.fieldKey, dateFilterControl?.defaultPreset, dateFilterControl?.timezone]);
   const aggregation = buildDatasetAggregation(chartComponent);
   const [initialAggregationEnabled] = useState(() => buildDatasetAggregation(component as ComponentInstance) !== undefined);
   const hasAppliedRuntimeParameters = Object.keys(appliedRuntimeParameters).length > 0;
@@ -113,9 +122,10 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     // Data bindings are edited freely in the inspector. The explicit “更新”
     // action increments dataRefreshVersion, so changing an aggregation does
     // not issue a database query until the author is ready.
-    queryKey: ["dataset-query", component.id, datasetId, queryParameters, dataRefreshVersion],
+    queryKey: ["dataset-query", component.id, datasetId, queryParameters, activeDateFilter, dataRefreshVersion],
     queryFn: () => queryDatasetRequest(datasetId!, {
       parameters: queryParameters!,
+      ...(activeDateFilter === undefined ? {} : { filters: [activeDateFilter] }),
       ...(aggregation === undefined ? {} : { aggregation }),
     }),
     // Interface data is fetched once by InterfaceDatasetBootstrap when the
@@ -124,14 +134,17 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     // Wait for schema discovery so interface requests include their runtime
     // parameters instead of emitting an early `{ parameters: {} }` request.
     enabled: datasetId !== undefined && localDataset === undefined && hasDatasetSchema && (
-      !isBootstrappedInterface || initialAggregationEnabled || dataRefreshVersion > 0 || hasAppliedRuntimeParameters
+      !isBootstrappedInterface || initialAggregationEnabled || dataRefreshVersion > 0 || hasAppliedRuntimeParameters || activeDateFilter !== undefined
     ),
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
   // Interface data is materialized once when the editor opens. A component
   // only keeps a private override after its own runtime pagination changes.
-  const dataResult = runtimeDataResult ?? localResult ?? remoteQuery.data ?? runtimeSnapshot;
+  const rawDataResult = runtimeDataResult ?? localResult ?? remoteQuery.data ?? runtimeSnapshot;
+  const dataResult = isUploadedDataset && localResult !== undefined && activeDateFilter !== undefined
+    ? { ...localResult, rows: filterRowsByDateRange(localResult.rows, activeDateFilter), total: filterRowsByDateRange(localResult.rows, activeDateFilter).length }
+    : rawDataResult;
   const fields = localDataset?.fields ?? dataResult?.columns;
   const rows = dataResult?.rows ?? [];
   const rowsAreAggregated = aggregation !== undefined && remoteQuery.data === dataResult;
@@ -156,6 +169,9 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     ? selectedTreemapMeasure!
     : treemapMeasures[0];
   const fieldLabels = new Map((fields ?? []).map((field) => [field.key, field.label]));
+  const dateFilterFieldLabel = (localDataset?.fields ?? cachedDataset?.fields ?? remoteSchema.data?.fields ?? []).find(
+    (field) => field.key === dateFilterControl?.fieldKey,
+  )?.label ?? dateFilterControl?.fieldKey;
   const dataTransformDescription = chartComponent.type === "ranking" ? "" : [
     chartComponent.binding?.sort === undefined
       ? undefined
@@ -314,6 +330,15 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
         </div>
       </header>
       <div className="component-frame__renderer" data-testid="component-renderer" data-interacting={String(isInteracting)}>
+        {dateFilterControl !== undefined && dateFilterFieldLabel !== undefined && (
+          <DateRangeFilterBar
+            control={dateFilterControl}
+            fieldLabel={dateFilterFieldLabel}
+            value={activeDateFilter}
+            onChange={setActiveDateFilter}
+            loading={remoteQuery.isFetching}
+          />
+        )}
         <RuntimeDatasetRequestBar
           parameters={runtimeParameterDefinitions}
           values={runtimeDraftParameters}

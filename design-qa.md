@@ -47,6 +47,45 @@ final result: passed
 
 ---
 
+## Chart-scoped date filter — visual QA
+
+**Comparison target**
+
+- Source visual truth: the supplied editor/data-panel reference and filter-form reference from this task.
+- Implementation capture: browser-rendered local editor at `http://127.0.0.1:4173/`, desktop 1280 × 720 viewport; a bound bar chart was selected, “数据交互” expanded, and the date range popover opened.
+- State: the configuration selects “业务日期”; the chart header shows the compact date control. The control was switched from “全部数据” to “近 7 天”, which exposed the per-chart reset action.
+
+**Findings**
+
+- No actionable P0/P1/P2 visual differences. The configuration remains in the existing right-side analysis panel; the runtime control occupies a compact row directly above the chart instead of competing with the title or overflow menu.
+- The source's dense enterprise rhythm is retained: 12 px control text, compact 24 px controls, existing blue active state, neutral borders, and no new visual language.
+- “近 7 天” updates only the selected chart control; it does not alter the configured default range displayed on the right.
+
+**Fidelity surfaces**
+
+- Fonts and typography: existing system font and compact control hierarchy are retained.
+- Spacing and layout rhythm: the filter bar has a 34 px reserved row and keeps the chart area flexible below it.
+- Colors and visual tokens: existing `#1677ff` interaction color, white surfaces, and neutral borders are used.
+- Image quality and asset fidelity: no image assets are used; existing iconography is unchanged.
+- Copy and content: uses the data-field label “业务日期” and explicit Chinese presets, including “全部数据”, “近 7 天”, and “自定义”.
+
+**Interaction evidence**
+
+- Browser-tested enabling the right-panel switch created the persisted date-filter configuration and immediately rendered the chart control.
+- Browser-tested opening the preset menu and selecting “近 7 天” changed the current-chart control and displayed “重置”.
+- Focused frontend and API tests verify that the runtime range is sent as `filters`, while the saved binding remains unchanged.
+
+**Implementation checklist**
+
+- [x] Configure one date field and default range per chart.
+- [x] Render quick presets and a custom range in editor, preview, and published views.
+- [x] Apply the filter before SQL aggregation and keep it out of dashboard persistence.
+- [x] Verify contracts, API behavior, frontend interaction, and OpenAPI schema.
+
+final result: passed
+
+---
+
 ## Dashboard thumbnail contrast refinement — visual QA blocked
 
 **Comparison target**
@@ -234,5 +273,96 @@ final result: blocked
 ## Preview toolbar QA completion
 
 The completed preview-toolbar review above is the latest scope in this report: its reference capture, browser-rendered implementation capture, interaction evidence, and fidelity-surface review found no actionable P0/P1/P2 issues.
+
+final result: passed
+
+---
+
+## Date-filter implementation QA conclusion
+
+The current date-filter scope was browser-tested in the editor with a selected chart, a configured “业务日期” field, the preset menu open, and the “近 7 天” runtime state active. The compact chart bar and right-panel configuration follow the supplied editor references; no actionable P0/P1/P2 visual issues remain for this scope.
+
+final result: passed
+
+---
+
+## Date-filter field selection — visual QA
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-86a8bde9-3f36-437e-a710-d6eed1e12c49.png` (521 × 319 px).
+- Implementation capture: `/private/tmp/date-filter-field-selection-implementation.png` (1280 × 720 px, CSS viewport 1280 × 720, device scale factor 1).
+- State: a selected bar chart uses the retail delivery dataset; date filtering is enabled; “支付时间” is the active filter field; the range is “全部数据”. The reference and implementation images were opened together in one comparison pass. The broader editor chrome in the implementation is intentionally excluded from fidelity judgment.
+
+**Findings**
+
+- No actionable P0/P1/P2 findings. The reference’s dropdown field selector is intentionally replaced by a compact selected-field card, as requested, so it can accept a drop while clearly showing the current field.
+
+**Fidelity surfaces**
+
+- Fonts and typography: existing 12–14 px system UI hierarchy remains consistent; helper copy is secondary and does not compete with the selected date field.
+- Spacing and layout rhythm: the field card uses the same compact panel rhythm, 4 px radius, and vertical label spacing as the adjacent range selector; its extra height is intentional to make the click-or-drop affordance legible.
+- Colors and visual tokens: selection uses the product’s #1677ff / light-blue state, while neutral borders and muted helper text match the existing panel.
+- Image quality and asset fidelity: no raster, illustration, logo, or non-standard icon assets occur in this scope; the calendar icon comes from the existing icon library.
+- Copy and content: “默认范围” is now “范围”; the instruction “从右侧点击或拖入日期字段” makes both supported selection methods explicit.
+
+**Interaction evidence**
+
+- Browser-tested: enabling the filter shows the selected-field card and marks the active date in the data panel; clicking “支付时间” immediately changes the field card and chart filter label.
+- Automated: date-field click replacement and native drag-drop handling both pass in focused tests.
+- Console check: no browser console errors.
+
+**Comparison history**
+
+- Iteration 1: compared the supplied configuration reference with the browser-rendered enabled state. The only intentional difference is the requested replacement of the dropdown with a click-or-drop field card; no corrective P0/P1/P2 visual changes were required.
+
+**Implementation checklist**
+
+- [x] Replace the field dropdown with a selected-field drop target.
+- [x] Add right-panel date-field click selection and active-field highlight.
+- [x] Retain drag payload compatibility for the new drop target.
+- [x] Rename the range label and verify interactions.
+
+final result: passed
+
+---
+
+## Date-filter layout hierarchy — visual QA
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-1bb69695-912f-4c35-a68f-d9ecea2ee4a3.png` (2100 × 722 px).
+- Before capture: `/private/tmp/date-filter-layout-before.png` (1280 × 720 px).
+- Implementation capture: `/private/tmp/date-filter-layout-optimized.png` (1280 × 720 px, CSS viewport 1280 × 720, device scale factor 1).
+- State: selected chart, enabled date filter, active “支付时间” field, and expanded “数据交互” panel. Source and implementation were opened together in the visual comparison pass; the different dashboard widths were normalized by judging the matching chart and right-panel regions rather than browser chrome.
+
+**Audit summary**
+
+1. Chart runtime filter — improved. The filter row now begins 14 px inside the chart frame instead of sharing the border’s left edge; the label, preset, custom dates, apply, and reset controls maintain one baseline.
+2. Analysis configuration — improved. The enable switch is the primary control, followed by a separated configuration group with consistent 12 px labels, 13–14 px values, 32 px selects, and a 60 px selected-field card.
+3. Field-selection feedback — healthy. The active date field remains visibly highlighted in the data panel and the selected-field card preserves its click-or-drop instruction.
+
+**Findings**
+
+- No actionable P0/P1/P2 findings after the layout pass.
+
+**Fidelity surfaces**
+
+- Fonts and typography: labels are consistently 12 px muted metadata; values and primary controls are 13–14 px with controlled weight. The enable label now establishes the strongest local hierarchy.
+- Spacing and layout rhythm: filter-bar inset, 8 px control gap, 14–16 px panel rhythm, and the separator before field configuration remove the prior crowded/empty alternation.
+- Colors and visual tokens: existing #1677ff active state, light-blue selection, neutral borders, and secondary gray text remain unchanged and coherent.
+- Image quality and asset fidelity: no image assets were changed; existing icon-library calendar and chevron icons remain sharp and aligned.
+- Copy and content: all existing labels and filter behavior are preserved; helper text remains present but is visually secondary.
+
+**Interaction evidence**
+
+- Browser-tested: the date filter remains visible above the selected chart and the expanded analysis panel retains its selected field, range selector, and custom-range switch.
+- Automated: TypeScript check and 28 focused date-filter/editor tests passed.
+- Console check: no browser console errors.
+
+**Comparison history**
+
+- Iteration 1: before capture showed a 2 px chart-filter inset and weak panel grouping.
+- Iteration 2: increased chart inset, normalized control heights, grouped the field/range controls, and adjusted text hierarchy; the optimized capture shows no remaining actionable P0/P1/P2 discrepancy.
 
 final result: passed

@@ -5,6 +5,7 @@ import { useStore } from "zustand";
 
 import { ComponentBindingPanel } from "./ComponentBindingPanel.js";
 import { ComponentDataPanel } from "./ComponentDataPanel.js";
+import { DateFilterConfigurationPanel } from "./DateFilterConfigurationPanel.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
 
 interface InspectorPanelProps {
@@ -48,7 +49,9 @@ export const InspectorPanel = ({
         {
           key: "interaction",
           label: "数据交互",
-          children: <Typography.Text type="secondary">数据交互配置功能开发中。</Typography.Text>,
+          children: selected === null
+            ? <Typography.Text type="secondary">选择图表后配置日期筛选。</Typography.Text>
+            : <DateFilterConfigurationPanel store={store} component={selected} />,
         },
         {
           key: "advanced",
