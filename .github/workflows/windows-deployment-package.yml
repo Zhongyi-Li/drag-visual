@@ -75,6 +75,7 @@ jobs:
 
           Push-Location $standaloneApiRoot
           npm install --omit=dev --ignore-scripts --no-audit --no-fund | Out-Host
+          if ($LASTEXITCODE -ne 0) { throw "Offline API dependency installation failed." }
           Pop-Location
           New-Item -ItemType Directory -Force -Path $apiRoot | Out-Null
           Copy-Item -Recurse -Force (Join-Path $standaloneApiRoot "*") $apiRoot
