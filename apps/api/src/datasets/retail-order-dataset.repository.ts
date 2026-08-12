@@ -226,11 +226,9 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
   private managedPool: Pool | undefined;
   private columnsPromise: Promise<readonly RetailOrderColumn[]> | undefined;
   private datasetNamePromise: Promise<string> | undefined;
+  protected readonly config: MysqlTableDatasetConfig = RETAIL_ORDER_DATASET;
 
-  constructor(
-    @Optional() private readonly suppliedPool?: Pool,
-    private readonly config: MysqlTableDatasetConfig = RETAIL_ORDER_DATASET,
-  ) {}
+  constructor(@Optional() private readonly suppliedPool?: Pool) {}
 
   async list(): Promise<readonly DatasetSummary[]> {
     const { id, name, schemaVersion } = mysqlTableDataset(this.config, await this.datasetName());
@@ -433,7 +431,5 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
 
 @Injectable()
 export class StorageTurnoverDatasetRepository extends RetailOrderDatasetRepository {
-  constructor(@Optional() suppliedPool?: Pool) {
-    super(suppliedPool, STORAGE_TURNOVER_DATASET);
-  }
+  protected override readonly config: MysqlTableDatasetConfig = STORAGE_TURNOVER_DATASET;
 }

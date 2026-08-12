@@ -3,6 +3,10 @@ import { Test } from "@nestjs/testing";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { AppModule } from "./app.module.js";
+import {
+  RetailOrderDatasetRepository,
+  StorageTurnoverDatasetRepository,
+} from "./datasets/retail-order-dataset.repository.js";
 import { DatasetService } from "./datasets/dataset.service.js";
 
 describe("HealthController", () => {
@@ -28,14 +32,18 @@ describe("HealthController", () => {
     expect(response.json()).toEqual({ status: "ok" });
   });
 
-  it("resolves all dataset repositories from the application module", async () => {
+  it("initializes every dataset provider in the complete application module", async () => {
     const module = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     const datasets = module.get(DatasetService);
+    const retailOrders = module.get(RetailOrderDatasetRepository);
+    const storageTurnover = module.get(StorageTurnoverDatasetRepository);
 
     expect(datasets).toBeInstanceOf(DatasetService);
+    expect(retailOrders).toBeInstanceOf(RetailOrderDatasetRepository);
+    expect(storageTurnover).toBeInstanceOf(StorageTurnoverDatasetRepository);
 
     await module.close();
   });
