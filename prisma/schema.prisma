@@ -37,6 +37,25 @@ model UserRecord {
   sessions     SessionRecord[]
   preference   UserPreference?
   dashboards   DashboardRecord[] @relation("DashboardOwner")
+  uploadedDatasets UploadedDatasetRecord[]
+}
+
+model UploadedDatasetRecord {
+  id            String   @id @default(cuid())
+  ownerId       String
+  name          String
+  originalName  String
+  contentType   String
+  sizeBytes     Int
+  fileContent   Bytes
+  schema        Json
+  queryResult   Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner         UserRecord @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, updatedAt])
 }
 
 model SessionRecord {

@@ -104,6 +104,21 @@ describe("applyCommand", () => {
     expect(initial.layout).toEqual([]);
   });
 
+  it("adds a component while updating existing layout items atomically", () => {
+    const initial = populatedDashboard();
+    const next = applyCommand(initial, {
+      type: "component.add",
+      component: component("header-1", { headline: "经营数据看板" }),
+      layout: { i: "header-1", x: 0, y: 0, w: 12, h: 3 },
+      layoutUpdates: [{ i: "chart-1", x: 0, y: 3, w: 4, h: 3 }],
+    });
+
+    expect(next.layout).toEqual([
+      { i: "chart-1", x: 0, y: 3, w: 4, h: 3 },
+      { i: "header-1", x: 0, y: 0, w: 12, h: 3 },
+    ]);
+  });
+
   it("rejects an add whose component and layout IDs differ", () => {
     expectCode(
       () =>
@@ -280,6 +295,32 @@ describe("applyCommand", () => {
     expect(next.components[0]!.props).toEqual(initial.components[0]!.props);
     expect(next.components[0]!.binding).toEqual(initial.components[0]!.binding);
     expect(initial.components[0]!.title).toBe("Revenue");
+  });
+
+  it("updates a component subtitle without changing its props or binding", () => {
+    const initial = populatedDashboard();
+    const next = applyCommand(initial, {
+      type: "component.subtitle.update",
+      componentId: "chart-1",
+      nextSubtitle: "仅统计已完成订单",
+    });
+
+    expect(next.components[0]).toMatchObject({ id: "chart-1", subtitle: "仅统计已完成订单" });
+    expect(next.components[0]!.props).toEqual(initial.components[0]!.props);
+    expect(next.components[0]!.binding).toEqual(initial.components[0]!.binding);
+  });
+
+  it("updates presentation-only display annotations without changing chart data", () => {
+    const initial = populatedDashboard();
+    const next = applyCommand(initial, {
+      type: "component.display-annotations.update",
+      componentId: "chart-1",
+      nextDisplayAnnotations: { annotations: [], unitText: "金额 / 数量" },
+    });
+
+    expect(next.components[0]!.displayAnnotations).toEqual({ annotations: [], unitText: "金额 / 数量" });
+    expect(next.components[0]!.props).toEqual(initial.components[0]!.props);
+    expect(next.components[0]!.binding).toEqual(initial.components[0]!.binding);
   });
 
   it("replaces, clones, and clears bindings", () => {

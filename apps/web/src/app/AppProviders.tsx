@@ -1,5 +1,7 @@
 import { ConfigProvider } from "antd";
 import zhCN from "antd/locale/zh_CN.js";
+import dayjs from "dayjs";
+import "dayjs/locale/zh-cn.js";
 import {
   QueryClient,
   QueryClientProvider,
@@ -8,6 +10,8 @@ import { type ReactNode, useState } from "react";
 
 import { ApiError } from "../api/ApiError.js";
 import { LocalDatasetProvider } from "../features/datasets/LocalDatasetProvider.js";
+
+dayjs.locale("zh-cn");
 
 export const shouldRetryRequest = (failureCount: number, error: Error): boolean => {
   if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false;

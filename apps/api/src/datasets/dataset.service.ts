@@ -1,8 +1,9 @@
 import {
   Dataset,
+  DatasetFieldOptions,
   DatasetQueryResult,
   DatasetSummary,
-  type DateRangeFilter,
+  type DatasetFilter,
   type DatasetField,
   type DatasetQueryRequest,
   type QueryParameter,
@@ -20,7 +21,9 @@ import {
 } from "./dataset.errors.js";
 import {
   RETAIL_ORDER_DATASET_ID,
+  STORAGE_TURNOVER_DATASET_ID,
   validateRetailOrderResultLimit,
+  validateStorageTurnoverResultLimit,
 } from "./retail-order-dataset.repository.js";
 
 export {
@@ -62,27 +65,45 @@ export class DatasetService {
     private readonly repository: DatasetRepository,
   ) {}
 
-  async list() {
-    return DatasetSummary.array().parse(await this.repository.list());
+  async list(ownerId?: string) {
+    return DatasetSummary.array().parse(await this.repository.list(ownerId));
   }
 
-  async getSchema(id: string) {
-    const dataset = await this.repository.getSchema(id);
+  async getSchema(id: string, ownerId?: string) {
+    const dataset = await this.repository.getSchema(id, ownerId);
     if (!dataset) throw new DatasetNotFoundError(id);
     return Dataset.parse(dataset);
   }
 
-  async query(id: string, request: DatasetQueryRequest) {
-    const dataset = await this.getSchema(id);
+  async query(id: string, request: DatasetQueryRequest, ownerId?: string) {
+    const dataset = await this.getSchema(id, ownerId);
     this.validateParameters(dataset.parameters, request.parameters);
-    this.validateFilters(dataset.fields, request.filters);
+    const filters = this.combinedFilters(request);
+    this.validateFilters(dataset.fields, filters);
     this.validateAggregation(dataset.fields, request.aggregation);
-    if (id === RETAIL_ORDER_DATASET_ID && !validateRetailOrderResultLimit(request.parameters)) {
+    if ((id === RETAIL_ORDER_DATASET_ID && !validateRetailOrderResultLimit(request.parameters))
+      || (id === STORAGE_TURNOVER_DATASET_ID && !validateStorageTurnoverResultLimit(request.parameters))) {
       throw new DatasetQueryInvalidError();
     }
-    const result = await this.repository.query(id, request);
+    const { globalFilters: _globalFilters, componentFilters: _componentFilters, ...repositoryRequest } = request;
+    const result = await this.repository.query(id, { ...repositoryRequest, ...(filters === undefined ? {} : { filters }) }, ownerId);
     if (!result) throw new DatasetNotFoundError(id);
     return this.validateResult(result);
+  }
+
+  private combinedFilters(request: DatasetQueryRequest): DatasetFilter[] | undefined {
+    if (request.filters !== undefined) return [...request.filters];
+    const filters = [...(request.globalFilters ?? []), ...(request.componentFilters ?? [])];
+    return filters.length === 0 ? undefined : filters;
+  }
+
+  async getFieldOptions(id: string, fieldKey: string, search: string | undefined, limit: number, ownerId?: string) {
+    const dataset = await this.getSchema(id, ownerId);
+    const field = dataset.fields.find((candidate) => candidate.key === fieldKey);
+    if (field === undefined || field.type === "number" || field.type === "date") throw new DatasetQueryInvalidError();
+    const result = await this.repository.getFieldOptions?.(id, fieldKey, search, limit, ownerId);
+    if (!result) throw new DatasetNotFoundError(id);
+    return DatasetFieldOptions.parse(result);
   }
 
   private validateParameters(
@@ -128,21 +149,17 @@ export class DatasetService {
 
   private validateFilters(
     fields: readonly DatasetField[],
-    filters: readonly DateRangeFilter[] | undefined,
+    filters: readonly DatasetFilter[] | undefined,
   ): void {
     if (filters === undefined) return;
-    if (filters.length > 1) throw new DatasetQueryInvalidError();
     const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
     for (const filter of filters) {
-      if (
-        filter.kind !== "dateRange" ||
-        fieldsByKey.get(filter.fieldKey)?.type !== "date" ||
-        !calendarDay(filter.start) ||
-        !calendarDay(filter.end) ||
-        filter.start > filter.end
-      ) {
-        throw new DatasetQueryInvalidError();
-      }
+      const field = fieldsByKey.get(filter.fieldKey);
+      if (filter.kind === "dateRange" && field?.type === "date" && calendarDay(filter.start) && calendarDay(filter.end) && filter.start <= filter.end) continue;
+      if (filter.kind === "fieldValue" && (field?.type === "string" || field?.type === "boolean")) continue;
+      if (filter.kind === "fieldText" && field?.type === "string") continue;
+      if (filter.kind === "numberComparison" && field?.type === "number") continue;
+      throw new DatasetQueryInvalidError();
     }
   }
 

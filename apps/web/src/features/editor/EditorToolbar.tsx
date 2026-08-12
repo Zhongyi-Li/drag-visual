@@ -3,6 +3,7 @@ import {
   BarChartOutlined,
   CloudUploadOutlined,
   CloudOutlined,
+  CompressOutlined,
   EditOutlined,
   EyeOutlined,
   RedoOutlined,
@@ -22,16 +23,18 @@ interface EditorToolbarProps {
   onSave?: (() => void) | undefined;
   onPreview?: (() => void) | undefined;
   onPublish?: (() => void) | undefined;
+  onAutoArrange: () => void;
   onAddChart: () => void;
   onRename: (name: string) => void;
 }
 
-export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart, onRename }: EditorToolbarProps) => {
+export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAutoArrange, onAddChart, onRename }: EditorToolbarProps) => {
   const dashboard = useStore(store, editorSelectors.dashboard);
   const dirty = useStore(store, (state) => state.dirty);
   const saveStatus = useStore(store, (state) => state.saveStatus);
   const canUndo = useStore(store, editorSelectors.canUndo);
   const canRedo = useStore(store, editorSelectors.canRedo);
+  const hasTopLevelComponents = dashboard.layout.some((item) => item.parentId === undefined);
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(dashboard.name);
   const nameInput = useRef<InputRef>(null);
@@ -124,6 +127,9 @@ export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAddChart,
       <nav className="editor-header__tools" aria-label="编辑工具">
         <Button type="text" icon={<BarChartOutlined />} aria-label="添加图表" onClick={onAddChart}>添加图表</Button>
         <FileDatasetImporter />
+        <Tooltip title={hasTopLevelComponents ? "按当前阅读顺序紧凑整理顶层组件，不改变尺寸" : "添加组件后即可整理"}>
+          <span><Button type="text" icon={<CompressOutlined />} aria-label="一件整理" disabled={!hasTopLevelComponents} onClick={onAutoArrange}>一件整理</Button></span>
+        </Tooltip>
         <Tooltip title="添加查询控件即将开放">
           <span><Button type="text" disabled aria-label="添加查询控件（即将开放）">添加查询控件</Button></span>
         </Tooltip>

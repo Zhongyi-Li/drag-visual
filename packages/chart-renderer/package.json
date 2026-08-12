@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "@drag-visual/contracts": "workspace:*",
+    "antd": "^6.5.0",
+    "dayjs": "^1.11.21",
     "echarts": "^6.0.0",
     "react": "^19.2.7"
   },

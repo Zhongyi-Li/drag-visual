@@ -36,6 +36,61 @@ it("renders component titles without editor controls", () => {
   expect(screen.queryByRole("button", { name: /复制/ })).not.toBeInTheDocument();
 });
 
+it("does not render legacy chart subtitles", () => {
+  render(<DashboardViewer dashboard={dashboard({
+    components: [{ id: "bar-1", type: "bar", title: "月收入", subtitle: "统计口径：已支付订单", props: { color: "#1677ff", showLegend: true } }],
+  })} />);
+
+  expect(screen.queryByText("统计口径：已支付订单")).not.toBeInTheDocument();
+  const card = screen.getByText("月收入").closest(".ant-card");
+  expect(card?.querySelector(".ant-card-head")).toHaveStyle({ minHeight: "44px", padding: "0px 24px" });
+});
+
+it("renders a left-top auxiliary explanation directly below the chart title", () => {
+  render(<DashboardViewer dashboard={dashboard({
+    components: [{
+      id: "bar-1", type: "bar", title: "月收入", props: { color: "#1677ff", showLegend: true },
+      displayAnnotations: { annotations: [{ position: "topLeft", text: "统计口径：已支付订单" }], unitText: "" },
+    }],
+  })} />);
+
+  const hint = screen.getByText("统计口径：已支付订单");
+  const card = hint.closest(".ant-card");
+  expect(card?.querySelector(".ant-card-head")).toHaveStyle({ minHeight: "60px", padding: "8px 24px" });
+});
+
+it("removes the card title bar and reduces top padding when a chart title is cleared", () => {
+  render(<DashboardViewer dashboard={dashboard({
+    components: [{ id: "bar-1", type: "bar", title: "", props: { color: "#1677ff", showLegend: true } }],
+  })} />);
+
+  const card = screen.getByLabelText("只读看板画布").querySelector(".ant-card");
+  expect(card?.querySelector(".ant-card-head")).not.toBeInTheDocument();
+  expect(card?.querySelector(".ant-card-body")).toHaveStyle({ padding: "12px 24px 16px" });
+});
+
+it("lets the dashboard header control its own card padding", () => {
+  render(<DashboardViewer dashboard={dashboard({
+    layout: [{ i: "dashboard-header", x: 0, y: 0, w: 12, h: 4 }],
+    components: [{
+      id: "dashboard-header",
+      type: "dashboardHeader",
+      title: "",
+      props: {
+        headline: "经营数据看板",
+        globalFilters: [
+          { id: "store", fieldKey: "storeName", label: "店铺名称", controlType: "select", targets: [] },
+          { id: "order", fieldKey: "orderNo", label: "单据编号", controlType: "input", targets: [] },
+        ],
+      },
+    }],
+  })} mode="preview" />);
+
+  const header = screen.getByLabelText("看板信息栏与全局筛选");
+  expect(header.closest(".ant-card")?.querySelector(".ant-card-body")).toHaveStyle({ padding: "0px" });
+  expect(screen.getByRole("button", { name: "应用筛选" })).toBeInTheDocument();
+});
+
 it("keeps route navigation in the header flow above the dashboard title", () => {
   render(
     <DashboardViewer
@@ -53,6 +108,60 @@ it("uses a compact header density when a preview needs more space for its canvas
 
   expect(screen.getByRole("main")).toHaveStyle({ padding: "16px 24px 24px" });
   expect(screen.getByRole("heading", { name: "经营看板", level: 3 })).toBeInTheDocument();
+});
+
+it("renders every configured analysis-group query control, including empty values", () => {
+  const orders = Dataset.parse({
+    id: "orders",
+    name: "订单",
+    schemaVersion: "orders-v1",
+    fields: [
+      { key: "orderNo", label: "订单编号", type: "string", nullable: false },
+      { key: "currency", label: "货币标识", type: "string", nullable: false },
+    ],
+    parameters: [],
+  });
+  const grouped = dashboard({
+    layout: [
+      { i: "group-1", x: 0, y: 0, w: 12, h: 8 },
+      { i: "table-1", parentId: "group-1", x: 0, y: 0, w: 12, h: 6 },
+    ],
+    components: [
+      {
+        id: "group-1",
+        type: "analysisGroup",
+        title: "订单分析",
+        props: {
+          description: "",
+          columns: 12,
+          gap: 12,
+          showSurface: true,
+          queryFilters: [
+            { kind: "fieldText", fieldKey: "orderNo", value: "" },
+            { kind: "fieldText", fieldKey: "currency", value: "" },
+          ],
+        },
+      },
+      {
+        id: "table-1",
+        parentId: "group-1",
+        type: "table",
+        title: "订单明细",
+        props: { pageSize: 20, striped: false },
+        binding: { datasetId: "orders", slots: { columns: [{ fieldKey: "orderNo" }, { fieldKey: "currency" }] } },
+      },
+    ],
+    datasets: [{ datasetId: "orders", schemaVersion: "orders-v1", parameters: {} }],
+  });
+
+  render(<AppProviders><DashboardViewer dashboard={grouped} currentDatasets={new Map([[orders.id, orders]])} /></AppProviders>);
+
+  expect(screen.getByLabelText("复合分析查询条件")).toBeInTheDocument();
+  expect(screen.getByText("订单明细")).toBeInTheDocument();
+  expect(screen.getByText("订单编号")).toBeInTheDocument();
+  expect(screen.getByText("货币标识")).toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "复合分析查询值1" })).toHaveValue("");
+  expect(screen.getByRole("textbox", { name: "复合分析查询值2" })).toHaveValue("");
 });
 
 it("removes component card borders in preview mode", () => {

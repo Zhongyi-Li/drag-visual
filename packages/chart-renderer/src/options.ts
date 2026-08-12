@@ -34,7 +34,15 @@ export const isCurrencyMetric = (fieldKey: string, fields: readonly DatasetField
     .test(`${fieldKey} ${field?.label ?? ""}`);
 };
 
-const withCurrencyUnit = (value: string, isCurrency: boolean): string => isCurrency ? `${value} ¥` : value;
+/** Quantity fields retain their business unit across chart axes, tooltips, and cards. */
+export const isQuantityMetric = (fieldKey: string, fields: readonly DatasetField[] = []): boolean => {
+  const field = fields.find((candidate) => candidate.key === fieldKey);
+  return /(qty|quantity)/i.test(`${fieldKey} ${field?.label ?? ""}`);
+};
+
+const withMetricUnit = (value: string, isCurrency: boolean, isQuantity = false): string => isCurrency
+  ? `${value} ¥`
+  : isQuantity ? `${value} 件` : value;
 
 const metricAggregationFor = (
   component: ComponentInstance,
@@ -123,6 +131,8 @@ const lineDimensionLabel = (value: unknown, field: DatasetField | undefined): st
 const compactCategoryLabel = (value: string, maximumLength: number): string =>
   value.length > maximumLength ? `${value.slice(0, Math.max(1, maximumLength - 1))}…` : value;
 
+const hasLongCategoryLabels = (labels: readonly string[]): boolean => labels.some((label) => label.length > 10);
+
 const aggregateBarRows = (
   rows: readonly Row[],
   dimension: string,
@@ -164,17 +174,46 @@ const lineYAxisScale = (rows: readonly Row[], measures: readonly string[], stack
   return { min: 0, max: Math.ceil(maximum / interval) * interval, interval };
 };
 
-const formatMetricValue = (value: number, isCurrency = false): string => withCurrencyUnit(
-  new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value),
+/** Keeps a comparison line legible without truncating the column chart baseline. */
+const smartLineYAxisScale = (rows: readonly Row[], measure: string) => {
+  const values = rows.map((row) => numericValue(row, measure)).filter((value) => value !== 0);
+  if (values.length === 0) return lineYAxisScale(rows, [measure]);
+  const minimum = Math.min(...values);
+  const maximum = Math.max(...values);
+  const span = maximum - minimum;
+  const padding = span === 0 ? Math.max(Math.abs(maximum) * 0.12, 1) : span * 0.15;
+  const lower = minimum >= 0 ? Math.max(0, minimum - padding) : minimum - padding;
+  const upper = maximum + padding;
+  const rawInterval = (upper - lower) / 3;
+  const magnitude = 10 ** Math.floor(Math.log10(rawInterval));
+  const normalized = rawInterval / magnitude;
+  const multiplier = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+  const interval = multiplier * magnitude;
+  return {
+    min: Math.floor(lower / interval) * interval,
+    max: Math.ceil(upper / interval) * interval,
+    interval,
+  };
+};
+
+const formatMetricValue = (value: number, isCurrency = false, isQuantity = false): string => withMetricUnit(
+  // Monetary values deliberately use 万 above one thousand. This keeps
+  // axes, labels and tooltips on the same business-friendly scale, including
+  // amounts such as 1,250 → 0.13万 rather than mixing in a "k" suffix.
+  isCurrency && Math.abs(value) > 1_000
+    ? `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2, useGrouping: false }).format(value / 10_000)}万`
+    : new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value),
   isCurrency,
+  isQuantity,
 );
 
-const compactAxisValue = (value: number, isCurrency = false): string => {
+const compactAxisValue = (value: number, isCurrency = false, isQuantity = false): string => {
+  if (isCurrency) return formatMetricValue(value, true);
   const absolute = Math.abs(value);
-  if (absolute >= 100_000_000) return withCurrencyUnit(`${(value / 100_000_000).toFixed(1).replace(/\.0$/, "")}亿`, isCurrency);
-  if (absolute >= 10_000) return withCurrencyUnit(`${(value / 10_000).toFixed(1).replace(/\.0$/, "")}万`, isCurrency);
-  if (absolute >= 1_000) return withCurrencyUnit(`${(value / 1_000).toFixed(1).replace(/\.0$/, "")}k`, isCurrency);
-  return formatMetricValue(value, isCurrency);
+  if (absolute >= 100_000_000) return withMetricUnit(`${(value / 100_000_000).toFixed(1).replace(/\.0$/, "")}亿`, isCurrency, isQuantity);
+  if (absolute >= 10_000) return withMetricUnit(`${(value / 10_000).toFixed(1).replace(/\.0$/, "")}万`, isCurrency, isQuantity);
+  if (absolute >= 1_000) return withMetricUnit(`${(value / 1_000).toFixed(1).replace(/\.0$/, "")}k`, isCurrency, isQuantity);
+  return formatMetricValue(value, isCurrency, isQuantity);
 };
 
 const hasWidelyDifferentBarScales = (rows: readonly Row[], measures: readonly string[]): boolean => {
@@ -185,24 +224,72 @@ const hasWidelyDifferentBarScales = (rows: readonly Row[], measures: readonly st
   return Math.max(...maxima) / Math.min(...maxima) >= 50;
 };
 
+const barGridInsets = (containerHeight: number | undefined, showLegend: boolean, angledCategoryLabels: boolean) => {
+  const regular = {
+    top: showLegend ? 44 : 18,
+    bottom: angledCategoryLabels ? 60 : 40,
+  };
+  // The viewer can reserve part of a short card for a runtime date filter.
+  // Fixed 44px/68px insets then leave almost no plot area, even though the
+  // card itself still has visible blank space below the chart.
+  if (containerHeight === undefined || containerHeight >= 240) return regular;
+  return {
+    top: showLegend ? 34 : 16,
+    bottom: angledCategoryLabels ? 54 : 32,
+  };
+};
+
+const responsiveBarMaximumWidth = (categoryCount: number, measureCount: number, stacked: boolean): number => {
+  if (categoryCount > 4) return 40;
+  // With one or two categories, ECharts allocates a very wide category band.
+  // The old universal 40px cap makes grouped and stacked columns appear as
+  // thin strokes in a full-width preview card.
+  const barsPerCategory = stacked ? 1 : Math.max(1, measureCount);
+  const targetGroupWidth = categoryCount <= 2 ? 216 : 160;
+  return Math.max(40, Math.min(112, Math.round(targetGroupWidth / barsPerCategory)));
+};
+
 const percentTooltipFormatter = (
   params: { readonly dataIndex?: number; readonly marker?: string; readonly seriesId?: string; readonly seriesName?: string; readonly value?: unknown },
   rows: readonly Row[],
+  currencyMeasures: ReadonlySet<string> = new Set(),
+  quantityMeasures: ReadonlySet<string> = new Set(),
 ): string => {
   const value = typeof params.value === "number" ? params.value : Number(params.value);
   const displayValue = Number.isFinite(value) ? value.toFixed(2) : "0.00";
   const row = rows[params.dataIndex ?? -1];
   const rawValue = row === undefined || params.seriesId === undefined ? 0 : numericValue(row, params.seriesId);
-  return `${params.marker ?? ""}${params.seriesName ?? "指标"}<br/>${formatMetricValue(rawValue)}（${displayValue}%）`;
+  return `${params.marker ?? ""}${params.seriesName ?? "指标"}<br/>${formatMetricValue(rawValue, params.seriesId !== undefined && currencyMeasures.has(params.seriesId), params.seriesId !== undefined && quantityMeasures.has(params.seriesId))}（${displayValue}%）`;
+};
+
+type MetricTooltipParams = {
+  readonly axisValueLabel?: string;
+  readonly marker?: string;
+  readonly name?: string;
+  readonly seriesName?: string;
+  readonly value?: unknown;
 };
 
 const metricTooltipFormatter = (
-  params: { readonly marker?: string; readonly seriesName?: string; readonly value?: unknown },
+  params: MetricTooltipParams | readonly MetricTooltipParams[],
   currencySeriesNames: ReadonlySet<string> = new Set(),
+  quantitySeriesNames: ReadonlySet<string> = new Set(),
 ): string => {
-  const value = typeof params.value === "number" ? params.value : Number(params.value);
-  const seriesName = params.seriesName ?? "指标";
-  return `${params.marker ?? ""}${seriesName}<br/>${formatMetricValue(Number.isFinite(value) ? value : 0, currencySeriesNames.has(seriesName))}`;
+  if (!Array.isArray(params)) {
+    const singleParams = params as MetricTooltipParams;
+    const value = typeof singleParams.value === "number" ? singleParams.value : Number(singleParams.value);
+    const seriesName = singleParams.seriesName ?? "指标";
+    return `${singleParams.marker ?? ""}${seriesName}<br/>${formatMetricValue(Number.isFinite(value) ? value : 0, currencySeriesNames.has(seriesName), quantitySeriesNames.has(seriesName))}`;
+  }
+
+  const axisLabel = params.find((param) => param.axisValueLabel || param.name)?.axisValueLabel
+    ?? params.find((param) => param.name)?.name;
+  const valueRows = params.map((param) => {
+    const value = typeof param.value === "number" ? param.value : Number(param.value);
+    const seriesName = param.seriesName ?? "指标";
+    return `${param.marker ?? ""}${seriesName}：${formatMetricValue(Number.isFinite(value) ? value : 0, currencySeriesNames.has(seriesName), quantitySeriesNames.has(seriesName))}`;
+  });
+  return [axisLabel, ...valueRows].filter((value): value is string => Boolean(value)).join("<br/>");
 };
 
 const isoWeek = (date: Date): { year: number; week: number } => {
@@ -216,6 +303,22 @@ const isoWeek = (date: Date): { year: number; week: number } => {
   };
 };
 
+const isoWeekStart = (date: Date): Date => {
+  const start = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = start.getUTCDay() || 7;
+  start.setUTCDate(start.getUTCDate() - day + 1);
+  return start;
+};
+
+const weekPeriodLabel = (date: Date): string => {
+  const { year, week } = isoWeek(date);
+  const start = isoWeekStart(date);
+  const end = new Date(start);
+  end.setUTCDate(end.getUTCDate() + 6);
+  const formatMonthDay = (value: Date): string => `${pad2(value.getUTCMonth() + 1)}/${pad2(value.getUTCDate())}`;
+  return `${year}-第${week}周(${formatMonthDay(start)}~${formatMonthDay(end)})`;
+};
+
 const periodLabel = (value: unknown, granularity: TimeGranularity): string => {
   const date = dateFromValue(value);
   if (date === null) return labelFor(value);
@@ -224,10 +327,7 @@ const periodLabel = (value: unknown, granularity: TimeGranularity): string => {
   if (granularity === "year") return String(year);
   if (granularity === "quarter") return `${year}-Q${Math.floor((month - 1) / 3) + 1}`;
   if (granularity === "month") return `${year}-${pad2(month)}`;
-  if (granularity === "week") {
-    const { year: weekYear, week } = isoWeek(date);
-    return `${weekYear}-W${pad2(week)}`;
-  }
+  if (granularity === "week") return weekPeriodLabel(date);
   return `${year}-${pad2(month)}-${pad2(date.getUTCDate())}`;
 };
 
@@ -244,9 +344,14 @@ export const buildBarOption = (
   const measures = stacked ? fieldKeys(component, "measures") : fieldKeys(component, "measure");
   const fieldLabels = new Map(fields.map((field) => [field.key, field.label]));
   const currencyMeasures = new Set(measures.filter((measure) => isCurrencyMetric(measure, fields)));
+  const quantityMeasures = new Set(measures.filter((measure) => isQuantityMetric(measure, fields)));
   const allMeasuresAreCurrency = measures.length > 0 && currencyMeasures.size === measures.length;
+  const allMeasuresAreQuantity = measures.length > 0 && quantityMeasures.size === measures.length;
   const currencySeriesNames = new Set(measures
     .filter((measure) => currencyMeasures.has(measure))
+    .map((measure) => stacked || measures.length > 1 ? fieldLabels.get(measure) ?? measure : component.title ?? fieldLabels.get(measure) ?? measure));
+  const quantitySeriesNames = new Set(measures
+    .filter((measure) => quantityMeasures.has(measure))
     .map((measure) => stacked || measures.length > 1 ? fieldLabels.get(measure) ?? measure : component.title ?? fieldLabels.get(measure) ?? measure));
   const dimensionField = fields.find((field) => field.key === dimension);
   const aggregation = propString(component, "aggregation", "sum") as CrosstabAggregation;
@@ -259,7 +364,12 @@ export const buildBarOption = (
       dimensionField,
       (measure) => metricAggregationFor(component, stacked ? "measures" : "measure", measure, aggregation),
     );
+  const categoryLabels = aggregatedRows.map((row) => lineDimensionLabel(row[dimension], dimensionField));
   const denseCategories = aggregatedRows.length > 8;
+  const angledCategoryLabels = denseCategories || hasLongCategoryLabels(categoryLabels);
+  const showLegend = propBoolean(component, "showLegend", true);
+  const gridInsets = barGridInsets(containerHeight, showLegend, angledCategoryLabels);
+  const barMaxWidth = responsiveBarMaximumWidth(categoryLabels.length, measures.length, stacked);
   // A taller card can support more grid lines. Derive the target interval from
   // the actual chart container rather than preserving the same three segments
   // at every height.
@@ -277,7 +387,7 @@ export const buildBarOption = (
   return {
     color: colors,
     legend: {
-      show: propBoolean(component, "showLegend", true),
+      show: showLegend,
       top: 8,
       left: 12,
       orient: "horizontal",
@@ -288,21 +398,21 @@ export const buildBarOption = (
       textStyle: { color: "#475569", fontSize: 12 },
     },
     grid: {
-      top: 44,
+      top: gridInsets.top,
       right: independentScales ? 18 + Math.max(0, Math.floor(measures.length / 2) - 1) * 44 : 18,
       // Leave room for every dense category label. In particular, a grouped
       // result with 10 products must not visually look like it only has five.
       // The vertical space belongs to the plotting area. Dense labels still
       // need room, but the old 80px reservation left tall preview cards mostly
       // empty below the chart.
-      bottom: denseCategories ? 60 : 40,
+      bottom: gridInsets.bottom,
       left: independentScales ? 52 + Math.max(0, Math.ceil(measures.length / 2) - 1) * 44 : 52,
       containLabel: true,
     },
     tooltip: percentage
-      ? { trigger: "item", formatter: (params: Parameters<typeof percentTooltipFormatter>[0]) => percentTooltipFormatter(params, aggregatedRows) }
+      ? { trigger: "item", formatter: (params: Parameters<typeof percentTooltipFormatter>[0]) => percentTooltipFormatter(params, aggregatedRows, currencyMeasures, quantityMeasures) }
       : stacked
-        ? { trigger: "item", formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, currencySeriesNames) }
+        ? { trigger: "item", formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, currencySeriesNames, quantitySeriesNames) }
         : { trigger: "axis", axisPointer: { type: "shadow" } },
     xAxis: {
       type: "category",
@@ -319,11 +429,12 @@ export const buildBarOption = (
         // labels for a normal dense result set. Compact and slightly rotate
         // them instead, while keeping the full name available in the tooltip.
         interval: 0,
-        rotate: denseCategories ? 24 : 0,
+        rotate: hasLongCategoryLabels(categoryLabels) ? 32 : denseCategories ? 24 : 0,
         hideOverlap: false,
-        formatter: (value: string) => compactCategoryLabel(value, denseCategories ? 7 : 18),
+        margin: angledCategoryLabels ? 12 : 8,
+        formatter: (value: string) => compactCategoryLabel(value, denseCategories ? 7 : angledCategoryLabels ? 16 : 18),
       },
-      data: aggregatedRows.map((row) => lineDimensionLabel(row[dimension], dimensionField)),
+      data: categoryLabels,
     },
     yAxis: independentScales
       ? measures.map((measure, index) => ({
@@ -332,13 +443,13 @@ export const buildBarOption = (
         position: index % 2 === 0 ? "left" : "right",
         offset: Math.floor(index / 2) * 44,
         axisLine: { show: true, lineStyle: { color: colors[index % colors.length] } },
-        axisLabel: { color: colors[index % colors.length], formatter: (value: number) => compactAxisValue(value, currencyMeasures.has(measure)) },
+        axisLabel: { color: colors[index % colors.length], formatter: (value: number) => compactAxisValue(value, currencyMeasures.has(measure), quantityMeasures.has(measure)) },
         splitLine: { show: index === 0, lineStyle: { color: "#edf2f7" } },
       }))
       : {
         type: "value",
         ...yAxisScale,
-        axisLabel: { color: "#64748b", formatter: percentage ? (value: number) => `${value.toFixed(2)}%` : allMeasuresAreCurrency ? (value: number) => compactAxisValue(value, true) : undefined },
+        axisLabel: { color: "#64748b", formatter: percentage ? (value: number) => `${value.toFixed(2)}%` : allMeasuresAreCurrency ? (value: number) => compactAxisValue(value, true) : allMeasuresAreQuantity ? (value: number) => compactAxisValue(value, false, true) : undefined },
         splitLine: { lineStyle: { color: "#edf2f7" } },
       },
     series: (percentage ? measures.map((measure, index) => ({ measure, index })).reverse() : measures.map((measure, index) => ({ measure, index }))).map(({ measure, index }) => ({
@@ -353,7 +464,8 @@ export const buildBarOption = (
       }),
       stack: stacked ? "total" : undefined,
       ...(independentScales ? { yAxisIndex: index } : {}),
-      barMaxWidth: 40,
+      barGap: stacked ? "0%" : "12%",
+      barMaxWidth,
       barMinHeight: 2,
       itemStyle: percentage
         ? {
@@ -365,9 +477,242 @@ export const buildBarOption = (
         : { color: colors[index % colors.length] },
       emphasis: { focus: percentage ? "none" : "series" },
       tooltip: percentage ? undefined : {
-        valueFormatter: (value: unknown) => formatMetricValue(Number(value), currencyMeasures.has(measure)),
+        valueFormatter: (value: unknown) => formatMetricValue(Number(value), currencyMeasures.has(measure), quantityMeasures.has(measure)),
       },
     })),
+  };
+};
+
+/**
+ * A ranked horizontal bar chart. Unlike the richer ranking surface, this keeps
+ * the familiar one-metric visual encoding used in operational dashboards.
+ */
+export const buildHorizontalBarOption = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  fields: readonly DatasetField[] = [],
+  rowsAreAggregated = false,
+) => {
+  const dimension = fieldKeys(component, "dimension")[0] ?? "";
+  const measure = fieldKeys(component, "measure")[0] ?? "";
+  const aggregation = propString(component, "aggregation", "sum") as CrosstabAggregation;
+  const dimensionField = fields.find((field) => field.key === dimension);
+  const fieldLabels = new Map(fields.map((field) => [field.key, field.label]));
+  const aggregatedRows = rowsAreAggregated
+    ? rows
+    : aggregateBarRows(rows, dimension, [measure], dimensionField, (fieldKey) => metricAggregationFor(component, "measure", fieldKey, aggregation));
+  const maxItems = Math.max(3, Math.min(20, Math.trunc(typeof component.props.maxItems === "number" ? component.props.maxItems : 10)));
+  const rankedRows = [...aggregatedRows]
+    .sort((left, right) => numericValue(right, measure) - numericValue(left, measure) || compareLabels(lineDimensionLabel(left[dimension], dimensionField), lineDimensionLabel(right[dimension], dimensionField)))
+    .slice(0, maxItems);
+  const isCurrency = isCurrencyMetric(measure, fields);
+  const isQuantity = isQuantityMetric(measure, fields);
+  const isNumericMeasure = fields.find((field) => field.key === measure)?.type === "number";
+  const values = rankedRows.map((row) => numericValue(row, measure));
+  // The headline reflects the full filtered result, rather than only the
+  // visible Top-N bars, so it remains a reliable total when authors reduce
+  // the chart's maximum display count.
+  const total = aggregatedRows.reduce((sum, row) => sum + numericValue(row, measure), 0);
+  const maximum = Math.max(0, ...values);
+  const showValue = component.props.showValue !== false;
+  const color = propString(component, "color", "#5b6ff0");
+  const measureLabel = fieldLabels.get(measure) ?? measure;
+  return {
+    // Keep the right-side total aligned with the drawable X-axis edge, not
+    // the full canvas edge (which reserves space for bar value labels).
+    ...(isNumericMeasure ? {
+      title: {
+        text: `总计 ${formatMetricValue(total, isCurrency, isQuantity)}`,
+        right: showValue ? 72 : 20,
+        top: 4,
+        textStyle: { color: "#334155", fontSize: 12, fontWeight: 600 },
+      },
+    } : {}),
+    grid: { top: isNumericMeasure ? 38 : 14, right: showValue ? 72 : 20, bottom: 14, left: 12, containLabel: true },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, isCurrency ? new Set([measureLabel]) : new Set(), isQuantity ? new Set([measureLabel]) : new Set()),
+    },
+    xAxis: {
+      type: "value",
+      min: 0,
+      max: maximum === 0 ? 1 : Math.ceil(maximum * 1.08),
+      axisLabel: { color: "#64748b", formatter: (value: number) => compactAxisValue(value, isCurrency, isQuantity) },
+      splitLine: { show: false },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: "category",
+      inverse: true,
+      data: rankedRows.map((row) => lineDimensionLabel(row[dimension], dimensionField)),
+      axisTick: { show: false },
+      axisLine: { show: false },
+      axisLabel: { color: "#475569", width: 176, overflow: "truncate", margin: 16 },
+      splitLine: { show: true, lineStyle: { color: "#edf0f5" } },
+    },
+    series: [{
+      type: "bar",
+      name: measureLabel,
+      data: values,
+      barMaxWidth: 28,
+      itemStyle: { color, borderRadius: [0, 8, 8, 0] },
+      label: showValue ? {
+        show: true,
+        position: "right",
+        color: "#475569",
+        formatter: ({ value }: { readonly value: unknown }) => formatMetricValue(Number(value), isCurrency, isQuantity),
+      } : { show: false },
+      tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), isCurrency, isQuantity) },
+    }],
+  };
+};
+
+/** Column and line measures share a category axis but retain independent scales. */
+export type BarLineDisplayMode = "combined" | "bar" | "line";
+
+export const buildBarLineOption = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  fields: readonly DatasetField[] = [],
+  rowsAreAggregated = false,
+  runtimeDisplayMode: BarLineDisplayMode = "combined",
+) => {
+  const dimension = fieldKeys(component, "dimension")[0] ?? "";
+  const barMeasure = fieldKeys(component, "barMeasure")[0] ?? "";
+  const lineMeasure = fieldKeys(component, "lineMeasure")[0] ?? "";
+  const aggregation = propString(component, "aggregation", "sum") as CrosstabAggregation;
+  const showBar = runtimeDisplayMode !== "line";
+  const showLine = runtimeDisplayMode !== "bar";
+  const dimensionField = fields.find((field) => field.key === dimension);
+  const labels = new Map(fields.map((field) => [field.key, field.label]));
+  const measures = [barMeasure, lineMeasure].filter((fieldKey, index, values) => fieldKey.length > 0 && values.indexOf(fieldKey) === index);
+  const aggregatedRows = rowsAreAggregated
+    ? rows
+    : aggregateBarRows(rows, dimension, measures, dimensionField, (fieldKey) => metricAggregationFor(component, fieldKey === barMeasure ? "barMeasure" : "lineMeasure", fieldKey, aggregation));
+  const hideZeroValues = propBoolean(component, "hideZeroValues", true);
+  const rowsWithValues = hideZeroValues
+    ? aggregatedRows.filter((row) => showBar && showLine
+      ? numericValue(row, barMeasure) !== 0 || numericValue(row, lineMeasure) !== 0
+      : showBar ? numericValue(row, barMeasure) !== 0 : numericValue(row, lineMeasure) !== 0)
+    : aggregatedRows;
+  const sortedRows = component.binding?.sort === undefined
+    ? [...rowsWithValues].sort((left, right) => (showBar ? numericValue(right, barMeasure) - numericValue(left, barMeasure) : 0)
+      || (showLine ? numericValue(right, lineMeasure) - numericValue(left, lineMeasure) : 0)
+      || compareLabels(lineDimensionLabel(left[dimension], dimensionField), lineDimensionLabel(right[dimension], dimensionField)))
+    : rowsWithValues;
+  const topN = component.binding?.limit;
+  const displayRows = topN === undefined ? sortedRows : sortedRows.slice(0, topN);
+  const useDataZoom = displayRows.length > 10;
+  const categoryLabels = displayRows.map((row) => lineDimensionLabel(row[dimension], dimensionField));
+  const angledCategoryLabels = displayRows.length > 8 || hasLongCategoryLabels(categoryLabels);
+  const barIsCurrency = isCurrencyMetric(barMeasure, fields);
+  const barIsQuantity = isQuantityMetric(barMeasure, fields);
+  const lineIsCurrency = isCurrencyMetric(lineMeasure, fields);
+  const lineIsQuantity = isQuantityMetric(lineMeasure, fields);
+  const barLabel = labels.get(barMeasure) ?? barMeasure;
+  const lineLabel = labels.get(lineMeasure) ?? lineMeasure;
+  const showLegend = propBoolean(component, "showLegend", true);
+  return {
+    color: [propString(component, "barColor", "#2f62dc"), propString(component, "lineColor", "#ff7417")],
+    legend: {
+      show: showLegend,
+      top: 8,
+      left: 12,
+      icon: "circle",
+      itemWidth: 8,
+      itemHeight: 8,
+      itemGap: 18,
+      textStyle: { color: "#475569", fontSize: 12 },
+    },
+    // The legend and the runtime lens switch occupy the header band. Keep the
+    // two Y-axis names below it, and give their tick labels a stable gutter.
+    // Without this reserve the left legend and right switch cover the axis
+    // names on a dual-axis chart.
+    grid: {
+      top: showLegend ? 68 : 50,
+      right: showBar && showLine ? 72 : 28,
+      bottom: useDataZoom ? 66 : angledCategoryLabels ? 68 : 42,
+      left: 64,
+      containLabel: true,
+    },
+    tooltip: {
+      trigger: "axis",
+      axisPointer: { type: "shadow" },
+      formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(
+        params,
+        new Set([...(barIsCurrency ? [barLabel] : []), ...(lineIsCurrency ? [lineLabel] : [])]),
+        new Set([...(barIsQuantity ? [barLabel] : []), ...(lineIsQuantity ? [lineLabel] : [])]),
+      ),
+    },
+    xAxis: {
+      type: "category",
+      boundaryGap: true,
+      data: categoryLabels,
+      axisLine: { lineStyle: { color: "#cbd5e1" } },
+      axisTick: { show: false },
+      axisLabel: {
+        color: "#64748b",
+        interval: 0,
+        rotate: angledCategoryLabels ? 32 : 0,
+        hideOverlap: false,
+        margin: angledCategoryLabels ? 12 : 8,
+        formatter: (value: string) => compactCategoryLabel(value, angledCategoryLabels ? 16 : 9),
+      },
+    },
+    yAxis: [
+      ...(showBar ? [{
+        type: "value",
+        ...lineYAxisScale(displayRows, [barMeasure]),
+        name: barLabel,
+        nameTextStyle: { color: "#64748b", fontSize: 11 },
+        axisLabel: { color: "#64748b", formatter: (value: number) => compactAxisValue(value, barIsCurrency, barIsQuantity) },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { lineStyle: { color: "#edf0f5" } },
+      }] : []),
+      ...(showLine ? [{
+        type: "value",
+        ...(propBoolean(component, "smartLineScale", true)
+          ? smartLineYAxisScale(displayRows, lineMeasure)
+          : lineYAxisScale(displayRows, [lineMeasure])),
+        name: lineLabel,
+        nameTextStyle: { color: "#64748b", fontSize: 11 },
+        axisLabel: { color: "#64748b", formatter: (value: number) => compactAxisValue(value, lineIsCurrency, lineIsQuantity) },
+        axisLine: { show: false },
+        axisTick: { show: false },
+        splitLine: { show: showBar ? false : true, lineStyle: { color: "#edf0f5" } },
+      }] : []),
+    ],
+    series: [
+      ...(showBar ? [{
+        type: "bar",
+        name: barLabel,
+        data: displayRows.map((row) => numericValue(row, barMeasure)),
+        barMaxWidth: 42,
+        itemStyle: { color: propString(component, "barColor", "#2f62dc"), borderRadius: [7, 7, 0, 0] },
+        tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), barIsCurrency, barIsQuantity) },
+      }] : []),
+      ...(showLine ? [{
+        type: "line",
+        name: lineLabel,
+        yAxisIndex: showBar ? 1 : 0,
+        data: displayRows.map((row) => numericValue(row, lineMeasure)),
+        smooth: propBoolean(component, "smooth", true),
+        symbol: "circle",
+        symbolSize: 9,
+        lineStyle: { width: 4, color: propString(component, "lineColor", "#ff7417") },
+        itemStyle: { color: propString(component, "lineColor", "#ff7417") },
+        tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), lineIsCurrency, lineIsQuantity) },
+      }] : []),
+    ],
+    ...(useDataZoom ? {
+      dataZoom: [
+        { type: "inside", xAxisIndex: 0, start: 0, end: 100 },
+        { type: "slider", xAxisIndex: 0, bottom: 10, height: 14, borderColor: "transparent", fillerColor: "rgba(47, 98, 220, 0.16)", handleSize: 0, moveHandleSize: 0 },
+      ],
+    } : {}),
   };
 };
 
@@ -380,11 +725,15 @@ export const buildLineOption = (
   const measures = fieldKeys(component, "measures");
   const fieldLabels = new Map(fields.map((field) => [field.key, field.label]));
   const currencyMeasures = new Set(measures.filter((measure) => isCurrencyMetric(measure, fields)));
+  const quantityMeasures = new Set(measures.filter((measure) => isQuantityMetric(measure, fields)));
   const allMeasuresAreCurrency = measures.length > 0 && currencyMeasures.size === measures.length;
+  const allMeasuresAreQuantity = measures.length > 0 && quantityMeasures.size === measures.length;
   const dimensionField = fields.find((field) => field.key === dimension);
   const stacked = component.type === "stackedArea" || component.type === "percentArea";
   const percentage = component.type === "percentArea";
   const area = stacked || component.type === "area" || propBoolean(component, "area", false);
+  const categoryLabels = rows.map((row) => lineDimensionLabel(row[dimension], dimensionField));
+  const angledCategoryLabels = rows.length > 8 || hasLongCategoryLabels(categoryLabels);
   const yAxisScale = percentage ? { min: 0, max: 100, interval: 25 } : lineYAxisScale(rows, measures, stacked);
   const colors = [
     propString(component, "color", "#1677ff"),
@@ -406,9 +755,9 @@ export const buildLineOption = (
       itemGap: 18,
       textStyle: { color: "#475569", fontSize: 12 },
     },
-    grid: { top: 44, right: 18, bottom: 48, left: 52, containLabel: true },
+    grid: { top: 44, right: 18, bottom: angledCategoryLabels ? 68 : 48, left: 52, containLabel: true },
     tooltip: percentage
-      ? { trigger: "item", formatter: (params: Parameters<typeof percentTooltipFormatter>[0]) => percentTooltipFormatter(params, rows) }
+      ? { trigger: "item", formatter: (params: Parameters<typeof percentTooltipFormatter>[0]) => percentTooltipFormatter(params, rows, currencyMeasures, quantityMeasures) }
       : { trigger: "axis", axisPointer: { type: "line" } },
     xAxis: {
       type: "category",
@@ -419,13 +768,20 @@ export const buildLineOption = (
       nameTextStyle: { color: "#94a3b8", fontSize: 11 },
       axisLine: { lineStyle: { color: "#cbd5e1" } },
       axisTick: { show: false },
-      axisLabel: { color: "#64748b", rotate: rows.length > 8 ? 35 : 0, hideOverlap: true },
-      data: rows.map((row) => lineDimensionLabel(row[dimension], dimensionField)),
+      axisLabel: {
+        color: "#64748b",
+        interval: 0,
+        rotate: angledCategoryLabels ? 32 : 0,
+        hideOverlap: false,
+        margin: angledCategoryLabels ? 12 : 8,
+        formatter: angledCategoryLabels ? (value: string) => compactCategoryLabel(value, 16) : undefined,
+      },
+      data: categoryLabels,
     },
     yAxis: {
       type: "value",
       ...yAxisScale,
-      axisLabel: { color: "#64748b", formatter: percentage ? (value: number) => `${value.toFixed(2)}%` : allMeasuresAreCurrency ? (value: number) => compactAxisValue(value, true) : undefined },
+      axisLabel: { color: "#64748b", formatter: percentage ? (value: number) => `${value.toFixed(2)}%` : allMeasuresAreCurrency ? (value: number) => compactAxisValue(value, true) : allMeasuresAreQuantity ? (value: number) => compactAxisValue(value, false, true) : undefined },
       splitLine: { lineStyle: { color: "#edf2f7" } },
     },
     series: (percentage ? measures.map((measure, index) => ({ measure, index })).reverse() : measures.map((measure, index) => ({ measure, index }))).map(({ measure, index }) => ({
@@ -446,7 +802,7 @@ export const buildLineOption = (
       itemStyle: percentage ? { color: colors[index % colors.length] } : undefined,
       emphasis: { focus: percentage ? "none" : "series" },
       tooltip: percentage ? undefined : {
-        valueFormatter: (value: unknown) => formatMetricValue(Number(value), currencyMeasures.has(measure)),
+        valueFormatter: (value: unknown) => formatMetricValue(Number(value), currencyMeasures.has(measure), quantityMeasures.has(measure)),
       },
     })),
   };
@@ -481,6 +837,7 @@ export const buildTrendModel = (component: ComponentInstance, rows: readonly Row
     timeLabel: labels.get(timeDimension) ?? timeDimension,
     measureLabel: labels.get(measure) ?? measure,
     measureIsCurrency: isCurrencyMetric(measure, fields),
+    measureIsQuantity: isQuantityMetric(measure, fields),
     points,
     latest,
     previous,
@@ -490,9 +847,12 @@ export const buildTrendModel = (component: ComponentInstance, rows: readonly Row
   };
 };
 
-export const buildTrendOption = (component: ComponentInstance, model: ReturnType<typeof buildTrendModel>) => ({
+export const buildTrendOption = (component: ComponentInstance, model: ReturnType<typeof buildTrendModel>) => {
+  const categoryLabels = model.points.map((point) => point.label);
+  const angledCategoryLabels = categoryLabels.length > 8 || hasLongCategoryLabels(categoryLabels);
+  return {
   color: [propString(component, "color", "#1677ff")],
-  grid: { left: 42, right: 18, top: 24, bottom: 34 },
+  grid: { left: 42, right: 18, top: 24, bottom: angledCategoryLabels ? 62 : 34 },
   tooltip: {
     trigger: "axis",
     backgroundColor: "rgba(15, 23, 42, 0.92)",
@@ -501,15 +861,22 @@ export const buildTrendOption = (component: ComponentInstance, model: ReturnType
   },
   xAxis: {
     type: "category",
-    data: model.points.map((point) => point.label),
+    data: categoryLabels,
     axisLine: { lineStyle: { color: "#dbe3ee" } },
     axisTick: { show: false },
-    axisLabel: { color: "#64748b", formatter: model.measureIsCurrency ? (value: number) => compactAxisValue(value, true) : undefined },
+    axisLabel: {
+      color: "#64748b",
+      interval: 0,
+      rotate: angledCategoryLabels ? 32 : 0,
+      hideOverlap: false,
+      margin: angledCategoryLabels ? 12 : 8,
+      formatter: angledCategoryLabels ? (value: string) => compactCategoryLabel(value, 16) : undefined,
+    },
   },
   yAxis: {
     type: "value",
     splitLine: { lineStyle: { color: "#edf2f7" } },
-    axisLabel: { color: "#64748b" },
+    axisLabel: { color: "#64748b", formatter: model.measureIsCurrency ? (value: number) => compactAxisValue(value, true) : model.measureIsQuantity ? (value: number) => compactAxisValue(value, false, true) : undefined },
   },
   series: [{
     type: "line",
@@ -520,9 +887,10 @@ export const buildTrendOption = (component: ComponentInstance, model: ReturnType
     lineStyle: { width: 3 },
     itemStyle: { borderColor: "#fff", borderWidth: 2 },
     areaStyle: { opacity: 0.12 },
-    tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), model.measureIsCurrency) },
+    tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), model.measureIsCurrency, model.measureIsQuantity) },
   }],
-});
+  };
+};
 
 export const buildMetricTrendModel = (component: ComponentInstance, rows: readonly Row[], fields: readonly DatasetField[] = []) => {
   const labels = new Map(fields.map((field) => [field.key, field.label]));
@@ -576,6 +944,7 @@ export const buildMetricTrendModel = (component: ComponentInstance, rows: readon
       key: measure,
       label: labels.get(measure) ?? measure,
       isCurrency: isCurrencyMetric(measure, fields),
+      isQuantity: isQuantityMetric(measure, fields),
       points,
       total,
       latest,
@@ -600,7 +969,7 @@ export const buildMetricTrendOption = (
   activeMeasureKey?: string,
 ) => {
   const activeMeasure = model.measures.find((measure) => measure.key === activeMeasureKey) ?? model.measures[0];
-  const denseCategoryAxis = !model.isTimeDimension && model.periods.length > 6;
+  const denseCategoryAxis = !model.isTimeDimension && (model.periods.length > 6 || hasLongCategoryLabels(model.periods));
   return {
     color: ["#2f6fed"],
     grid: { left: 48, right: 20, top: 16, bottom: denseCategoryAxis ? 68 : 38 },
@@ -635,7 +1004,7 @@ export const buildMetricTrendOption = (
     yAxis: {
       type: "value",
       splitLine: { lineStyle: { color: "#edf2f7", type: "solid" } },
-      axisLabel: { color: "#64748b", fontSize: 11, margin: 10, formatter: activeMeasure?.isCurrency ? (value: number) => compactAxisValue(value, true) : undefined },
+      axisLabel: { color: "#64748b", fontSize: 11, margin: 10, formatter: activeMeasure?.isCurrency ? (value: number) => compactAxisValue(value, true) : activeMeasure?.isQuantity ? (value: number) => compactAxisValue(value, false, true) : undefined },
     },
     series: activeMeasure === undefined ? [] : [{
       type: "line",
@@ -648,7 +1017,7 @@ export const buildMetricTrendOption = (
       itemStyle: { color: "#2f6fed", borderColor: "#fff", borderWidth: 2 },
       areaStyle: { color: "#2f6fed", opacity: 0.08 },
       emphasis: { focus: "series", scale: true },
-      tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), activeMeasure.isCurrency) },
+      tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), activeMeasure.isCurrency, activeMeasure.isQuantity) },
     }],
   };
 };
@@ -658,8 +1027,9 @@ const piePalette = [
   "#2d83ca", "#f77aa2", "#138b78", "#d48368", "#5599ac", "#b68de9",
 ];
 
-const formatPieValue = (value: number): string => {
+const formatPieValue = (value: number, isCurrency = false): string => {
   const absolute = Math.abs(value);
+  if (isCurrency && absolute > 1_000) return `${new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2, useGrouping: false }).format(value / 10_000)}万`;
   if (absolute >= 100_000_000) return `${(value / 100_000_000).toFixed(1).replace(/\.0$/, "")}亿`;
   if (absolute >= 10_000) return `${(value / 10_000).toFixed(1).replace(/\.0$/, "")}万`;
   return formatMetricValue(value);
@@ -713,7 +1083,8 @@ export const buildRadarOption = (
       formatter: (params: { readonly seriesName?: string; readonly marker?: string; readonly value?: readonly unknown[] }) => {
         const values = Array.isArray(params.value) ? params.value : [];
         const measure = measures.find((fieldKey) => (labels.get(fieldKey) ?? fieldKey) === params.seriesName) ?? "";
-        const lines = items.map((item, index) => `${item.name}：${withCurrencyUnit(formatPieValue(Number(values[index] ?? 0)), isCurrencyMetric(measure, fields))}`);
+        const measureIsCurrency = isCurrencyMetric(measure, fields);
+        const lines = items.map((item, index) => `${item.name}：${withMetricUnit(formatPieValue(Number(values[index] ?? 0), measureIsCurrency), measureIsCurrency, isQuantityMetric(measure, fields))}`);
         return `${params.marker ?? ""}${params.seriesName ?? "指标"}<br/>${lines.join("<br/>")}`;
       },
     },
@@ -763,13 +1134,14 @@ export const buildTreemapOption = (
   }));
   const measureLabel = (labels.get(measure) ?? measure) || "指标";
   const measureIsCurrency = isCurrencyMetric(measure, fields);
+  const measureIsQuantity = isQuantityMetric(measure, fields);
 
   return {
     tooltip: {
       formatter: (params: { readonly name?: string; readonly value?: unknown; readonly data?: { readonly percent?: number }; readonly marker?: string }) => {
         const value = typeof params.value === "number" ? params.value : Number(params.value);
         const percent = params.data?.percent ?? 0;
-        return `${params.marker ?? ""}${params.name ?? "未分类"}<br/>${measureLabel}：${withCurrencyUnit(formatPieValue(Number.isFinite(value) ? value : 0), measureIsCurrency)}<br/>占比：${percent.toFixed(2)}%`;
+        return `${params.marker ?? ""}${params.name ?? "未分类"}<br/>${measureLabel}：${withMetricUnit(formatPieValue(Number.isFinite(value) ? value : 0, measureIsCurrency), measureIsCurrency, measureIsQuantity)}<br/>占比：${percent.toFixed(2)}%`;
       },
     },
     series: [{
@@ -806,6 +1178,7 @@ export const buildPieOption = (
   const labels = fieldLabelMap(fields);
   const primaryMeasureLabel = labels.get(primaryMeasure) ?? (primaryMeasure || "指标");
   const primaryMeasureIsCurrency = isCurrencyMetric(primaryMeasure, fields);
+  const primaryMeasureIsQuantity = isQuantityMetric(primaryMeasure, fields);
   // The title check preserves existing dashboards created before rose became a
   // first-class component type. New charts always use the explicit type.
   const rose = component.type === "rose" || (component.type === "pie" && (component.title ?? "").includes("玫瑰"));
@@ -836,7 +1209,8 @@ export const buildPieOption = (
         const metricLines = measures.map((measure, index) => {
           const value = item?.metricValues[measure] ?? (index === 0 && typeof params.value === "number" ? params.value : 0);
           const suffix = index === 0 ? `（${percent.toFixed(2)}%）` : "";
-          return `${labels.get(measure) ?? measure}：${withCurrencyUnit(formatPieValue(value), isCurrencyMetric(measure, fields))}${suffix}`;
+          const measureIsCurrency = isCurrencyMetric(measure, fields);
+          return `${labels.get(measure) ?? measure}：${withMetricUnit(formatPieValue(value, measureIsCurrency), measureIsCurrency, isQuantityMetric(measure, fields))}${suffix}`;
         });
         return `${params.marker ?? ""}${params.name ?? "未分类"}<br/>${metricLines.length > 0 ? metricLines.join("<br/>") : `${primaryMeasureLabel}：0（0.00%）`}`;
       },
@@ -860,7 +1234,7 @@ export const buildPieOption = (
           const value = typeof params.value === "number" ? params.value : Number(params.value);
           const safeValue = Number.isFinite(value) ? value : 0;
           const percent = typeof params.percent === "number" && Number.isFinite(params.percent) ? params.percent : 0;
-          return `${params.name ?? "未分类"} ${withCurrencyUnit(formatPieValue(safeValue), primaryMeasureIsCurrency)} (${percent.toFixed(2)}%)`;
+          return `${params.name ?? "未分类"} ${withMetricUnit(formatPieValue(safeValue, primaryMeasureIsCurrency), primaryMeasureIsCurrency, primaryMeasureIsQuantity)} (${percent.toFixed(2)}%)`;
         },
       },
       labelLine: { show: !donut, length: 12, length2: 8, lineStyle: { width: 1 } },
@@ -900,7 +1274,8 @@ export const buildSunburstOption = (
         const item = items.find((candidate) => candidate.name === params.name);
         const metricLines = displayedMetrics.map((measure, index) => {
           const metricValue = item?.metricValues[measure] ?? (index === 0 && Number.isFinite(value) ? value : 0);
-          return `${labels.get(measure) ?? measure}：${withCurrencyUnit(formatPieValue(metricValue), isCurrencyMetric(measure, fields))}`;
+          const measureIsCurrency = isCurrencyMetric(measure, fields);
+          return `${labels.get(measure) ?? measure}：${withMetricUnit(formatPieValue(metricValue, measureIsCurrency), measureIsCurrency, isQuantityMetric(measure, fields))}`;
         });
         return `${params.marker ?? ""}${params.name ?? "未分类"}<br/>${metricLines.length > 0 ? metricLines.join("<br/>") : `${measureLabel}：0`}`;
       },
@@ -968,6 +1343,7 @@ export const buildRingBarOption = (
   const maximumWithHeadroom = maximum === 0 ? 1 : maximum * 1.15;
   const measureLabel = labels.get(measure) ?? measure;
   const measureIsCurrency = isCurrencyMetric(measure, fields);
+  const measureIsQuantity = isQuantityMetric(measure, fields);
   const color = propString(component, "color", "#3478f6");
   // Keep adjacent tracks visually distinct, including when a chart has many
   // dimensions. The width compensates automatically below.
@@ -999,8 +1375,8 @@ export const buildRingBarOption = (
         const share = maximum === 0 ? 0 : item.value / maximum * 100;
         return [
           item.name,
-          `${measureLabel}：${formatMetricValue(item.value, measureIsCurrency)}`,
-          ...item.tooltipValues.map((entry) => `${labels.get(entry.fieldKey) ?? entry.fieldKey}：${formatMetricValue(entry.value, isCurrencyMetric(entry.fieldKey, fields))}`),
+          `${measureLabel}：${formatMetricValue(item.value, measureIsCurrency, measureIsQuantity)}`,
+          ...item.tooltipValues.map((entry) => `${labels.get(entry.fieldKey) ?? entry.fieldKey}：${formatMetricValue(entry.value, isCurrencyMetric(entry.fieldKey, fields), isQuantityMetric(entry.fieldKey, fields))}`),
           `相对最大值：${share.toFixed(1)}%`,
         ].join("<br/>");
       },
@@ -1057,16 +1433,18 @@ export const buildRankingOption = (
   const color = propString(component, "color", "#1677ff");
   const isWeighted = model.rankingMode === "weighted";
   const isCurrency = !isWeighted && isCurrencyMetric(model.measures[0]?.key ?? "", fields);
+  const isQuantity = !isWeighted && isQuantityMetric(model.measures[0]?.key ?? "", fields);
+  const primaryMeasureLabel = model.measures[0]?.label ?? "指标";
   const values = model.items.map((item) => isWeighted ? item.score : item.values[0]?.value ?? 0);
   const maximum = Math.max(0, ...values);
   return {
     grid: { top: 12, right: showValue ? 64 : 20, bottom: 12, left: 88, containLabel: true },
-    tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, isCurrency ? new Set([model.measures[0]?.label ?? "指标"]) : new Set()) },
+    tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, isCurrency ? new Set([primaryMeasureLabel]) : new Set(), isQuantity ? new Set([primaryMeasureLabel]) : new Set()) },
     xAxis: {
       type: "value",
       min: 0,
       max: maximum === 0 ? 1 : Math.ceil(maximum * 1.08),
-      axisLabel: { color: "#64748b", formatter: (value: number) => compactAxisValue(value, isCurrency) },
+      axisLabel: { color: "#64748b", formatter: (value: number) => compactAxisValue(value, isCurrency, isQuantity) },
       splitLine: { lineStyle: { color: "#edf2f7" } },
     },
     yAxis: {
@@ -1090,7 +1468,7 @@ export const buildRankingOption = (
           show: true,
           position: "right",
           color: "#475569",
-          formatter: ({ value }: { readonly value: unknown }) => formatMetricValue(Number(value), isCurrency),
+          formatter: ({ value }: { readonly value: unknown }) => formatMetricValue(Number(value), isCurrency, isQuantity),
         }
         : { show: false },
     }],
@@ -1175,11 +1553,29 @@ const aggregateKpiSlot = (
   return buildKpiValue(rows.flatMap((row) => typeof row[field] === "number" ? [row[field] as number] : []), aggregation);
 };
 
-export const buildKpiModel = (component: ComponentInstance, rows: readonly Row[]) => {
-  const aggregation = propString(component, "aggregation", "first") as Aggregation;
-  const value = aggregateKpiSlot(component, rows, "measure", aggregation);
-  const targetValue = aggregateKpiSlot(component, rows, "target", aggregation);
-  const comparisonValue = aggregateKpiSlot(component, rows, "comparison", aggregation);
+const aggregateKpiField = (
+  rows: readonly Row[],
+  field: string | undefined,
+  aggregation: Aggregation,
+): number | null => field === undefined
+  ? null
+  : buildKpiValue(rows.flatMap((row) => typeof row[field] === "number" ? [row[field] as number] : []), aggregation);
+
+export const buildKpiModelForFields = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  measureKey: string,
+  targetKey?: string,
+  comparisonKey?: string,
+  aggregationOverride?: string,
+) => {
+  const requestedAggregation = aggregationOverride ?? propString(component, "aggregation", "first");
+  const aggregation: Aggregation = requestedAggregation === "sum" || requestedAggregation === "avg" || requestedAggregation === "count" || requestedAggregation === "max" || requestedAggregation === "min" || requestedAggregation === "first"
+    ? requestedAggregation
+    : "first";
+  const value = aggregateKpiField(rows, measureKey, aggregation);
+  const targetValue = aggregateKpiField(rows, targetKey, aggregation);
+  const comparisonValue = aggregateKpiField(rows, comparisonKey, aggregation);
   const delta = value !== null && comparisonValue !== null ? value - comparisonValue : null;
 
   return {
@@ -1191,6 +1587,44 @@ export const buildKpiModel = (component: ComponentInstance, rows: readonly Row[]
       ? null
       : { value: comparisonValue, delta, rate: comparisonValue !== 0 ? delta / comparisonValue : null },
   };
+};
+
+export const buildKpiModel = (component: ComponentInstance, rows: readonly Row[]) => {
+  const measureKey = fieldKeys(component, "measure")[0];
+  const targetKey = fieldKeys(component, "target")[0];
+  const comparisonKey = fieldKeys(component, "comparison")[0];
+  if (measureKey === undefined) return buildKpiModelForFields(component, rows, "", targetKey, comparisonKey);
+  return buildKpiModelForFields(component, rows, measureKey, targetKey, comparisonKey);
+};
+
+/**
+ * The KPI card's supporting metrics deliberately stay separate from the core
+ * value/target/comparison model. Existing cards may bind many secondary
+ * measures, while the presentation decides which (at most two) to surface.
+ */
+export const buildKpiSecondaryMeasures = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  fields: readonly DatasetField[] = [],
+) => {
+  return buildKpiSecondaryMeasuresForKeys(component, rows, fieldKeys(component, "secondaryMeasures"), fields);
+};
+
+export const buildKpiSecondaryMeasuresForKeys = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  keys: readonly string[],
+  fields: readonly DatasetField[] = [],
+) => {
+  const aggregation = propString(component, "aggregation", "first") as Aggregation;
+  const labels = fieldLabelMap(fields);
+  return keys.map((key) => ({
+    key,
+    label: labels.get(key) ?? key,
+    isCurrency: isCurrencyMetric(key, fields),
+    isQuantity: isQuantityMetric(key, fields),
+    value: buildKpiValue(rows.flatMap((row) => typeof row[key] === "number" ? [row[key] as number] : []), aggregation),
+  }));
 };
 
 const formatGaugeNumber = (value: number | null): string => value === null ? "—" : new Intl.NumberFormat("zh-CN", {
@@ -1217,6 +1651,8 @@ export const buildGaugeModel = (
     targetKey,
     measureIsCurrency: isCurrencyMetric(measureKey ?? "", fields),
     targetIsCurrency: isCurrencyMetric(targetKey ?? "", fields),
+    measureIsQuantity: isQuantityMetric(measureKey ?? "", fields),
+    targetIsQuantity: isQuantityMetric(targetKey ?? "", fields),
     value,
     target,
     percentage,
@@ -1270,7 +1706,7 @@ export const buildGaugeOption = (
   const percentage = model.percentage;
   const accent = percentage === null ? "#94a3b8" : percentage >= 100 ? "#16a34a" : percentage >= 85 ? "#1677ff" : percentage >= 60 ? "#d97706" : "#dc2626";
   const displayPercentage = percentage === null ? "—" : `${percentage.toFixed(model.decimals)}%`;
-  const summary = `实际 ${withCurrencyUnit(formatGaugeNumber(model.value), model.measureIsCurrency)} / 目标 ${withCurrencyUnit(formatGaugeNumber(model.target), model.targetIsCurrency)}`;
+  const summary = `实际 ${withMetricUnit(formatGaugeNumber(model.value), model.measureIsCurrency, model.measureIsQuantity)} / 目标 ${withMetricUnit(formatGaugeNumber(model.target), model.targetIsCurrency, model.targetIsQuantity)}`;
 
   return {
     series: [{
@@ -1329,6 +1765,8 @@ export const buildLiquidModel = (
     targetKey: target,
     measureIsCurrency: isCurrencyMetric(measure ?? "", fields),
     targetIsCurrency: isCurrencyMetric(target ?? "", fields),
+    measureIsQuantity: isQuantityMetric(measure ?? "", fields),
+    targetIsQuantity: isQuantityMetric(target ?? "", fields),
     value,
     target: targetValue,
     percentage,
@@ -1376,6 +1814,7 @@ export const buildMetricBreakdownModel = (
     measureLabel: labels.get(measure) ?? measure,
     measureKey: measure,
     measureIsCurrency: isCurrencyMetric(measure, fields),
+    measureIsQuantity: isQuantityMetric(measure, fields),
     total,
     decimals: Math.max(0, Math.min(4, Math.trunc(decimals))),
     items: values.map((item) => ({
@@ -1398,6 +1837,7 @@ export const buildFlipNumberModel = (
         key: measure,
         label: labels.get(measure) ?? measure,
         isCurrency: isCurrencyMetric(measure, fields),
+        isQuantity: isQuantityMetric(measure, fields),
         value: aggregateField(rows, measure, aggregation),
     })),
   };
@@ -1452,6 +1892,8 @@ export const buildProgressBarModel = (
         label: labels.get(measure) ?? measure,
         isCurrency: isCurrencyMetric(measure, fields),
         targetIsCurrency: isCurrencyMetric(targetKey ?? "", fields),
+        isQuantity: isQuantityMetric(measure, fields),
+        targetIsQuantity: isQuantityMetric(targetKey ?? "", fields),
         value,
         target,
         progress: value !== null && target !== null && target !== 0 ? value / target : null,
@@ -1488,6 +1930,8 @@ export const buildTargetProgressModel = (
     targetKey: target,
     measureIsCurrency: isCurrencyMetric(measure, fields),
     targetIsCurrency: isCurrencyMetric(target, fields),
+    measureIsQuantity: isQuantityMetric(measure, fields),
+    targetIsQuantity: isQuantityMetric(target, fields),
     items: [...groups.entries()].map(([label, groupRows]) => {
       const value = aggregateNumbers(
         groupRows.map((row) => numericValue(row, measure)),
@@ -1508,6 +1952,127 @@ export const buildTargetProgressModel = (
         progress: targetValue > 0 ? value / targetValue : null,
       };
     }),
+  };
+};
+
+type ProgressIndicatorMetricSetting = {
+  readonly measureKey: string;
+  readonly targetKey: string | null;
+  readonly label: string;
+  readonly color: string;
+  readonly weight: number;
+  readonly includeInScore: boolean;
+};
+
+const progressIndicatorColors = ["#2f6bff", "#ff7a18", "#13b5a6", "#8b5cf6", "#e34d59", "#4f86f7"];
+
+const progressIndicatorSettings = (component: ComponentInstance): readonly ProgressIndicatorMetricSetting[] => {
+  const measures = fieldKeys(component, "measure");
+  const targets = fieldKeys(component, "target");
+  const rawSettings = Array.isArray(component.props.metricSettings) ? component.props.metricSettings : [];
+  const settingsByMeasure = new Map(
+    rawSettings.flatMap((value) => {
+      if (value === null || typeof value !== "object") return [];
+      const setting = value as Record<string, unknown>;
+      if (typeof setting.measureKey !== "string" || setting.measureKey.length === 0) return [];
+      return [[setting.measureKey, setting] as const];
+    }),
+  );
+  return measures.slice(0, 6).map((measureKey, index) => {
+    const setting = settingsByMeasure.get(measureKey);
+    const targetCandidate = setting?.targetKey;
+    const targetKey = typeof targetCandidate === "string" && targets.includes(targetCandidate)
+      ? targetCandidate
+      : targets[index] ?? null;
+    return {
+      measureKey,
+      targetKey,
+      label: typeof setting?.label === "string" ? setting.label : "",
+      color: typeof setting?.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(setting.color)
+        ? setting.color : progressIndicatorColors[index % progressIndicatorColors.length]!,
+      weight: typeof setting?.weight === "number" && Number.isFinite(setting.weight) ? Math.max(0, Math.min(100, setting.weight)) : 0,
+      includeInScore: setting?.includeInScore !== false,
+    };
+  });
+};
+
+const aggregateNullableNumbers = (rows: readonly Row[], fieldKey: string, aggregation: CrosstabAggregation): number | null => {
+  const values = rows.flatMap((row) => typeof row[fieldKey] === "number" && Number.isFinite(row[fieldKey]) ? [row[fieldKey] as number] : []);
+  return values.length === 0 ? null : aggregateNumbers(values, aggregation);
+};
+
+const progressIndicatorMetricModels = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  fields: readonly DatasetField[],
+) => {
+  const labels = fieldLabelMap(fields);
+  const fallbackAggregation = propString(component, "aggregation", "sum") as CrosstabAggregation;
+  return progressIndicatorSettings(component).map((setting) => {
+    const value = aggregateNullableNumbers(rows, setting.measureKey, metricAggregationFor(component, "measure", setting.measureKey, fallbackAggregation));
+    const target = setting.targetKey === null
+      ? null
+      : aggregateNullableNumbers(rows, setting.targetKey, metricAggregationFor(component, "target", setting.targetKey, "max"));
+    return {
+      ...setting,
+      label: setting.label.trim() || labels.get(setting.measureKey) || setting.measureKey,
+      value,
+      target,
+      progress: value !== null && target !== null && target > 0 ? value / target : null,
+      isCurrency: isCurrencyMetric(setting.measureKey, fields),
+      isQuantity: isQuantityMetric(setting.measureKey, fields),
+      targetIsCurrency: setting.targetKey !== null && isCurrencyMetric(setting.targetKey, fields),
+      targetIsQuantity: setting.targetKey !== null && isQuantityMetric(setting.targetKey, fields),
+    };
+  });
+};
+
+const progressIndicatorScore = (metrics: readonly { readonly progress: number | null; readonly weight: number; readonly includeInScore: boolean }[]): number | null => {
+  const scored = metrics.filter((metric) => metric.includeInScore && metric.progress !== null);
+  if (scored.length === 0) return null;
+  const totalWeight = scored.reduce((total, metric) => total + metric.weight, 0);
+  if (totalWeight <= 0) return scored.reduce((total, metric) => total + Math.min(metric.progress ?? 0, 1.2), 0) / scored.length;
+  return scored.reduce((total, metric) => total + Math.min(metric.progress ?? 0, 1.2) * metric.weight, 0) / totalWeight;
+};
+
+export const buildProgressIndicatorModel = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  fields: readonly DatasetField[] = [],
+) => {
+  const employeeKey = fieldKeys(component, "employeeDimension")[0] ?? null;
+  const employeeField = employeeKey === null ? undefined : fields.find((field) => field.key === employeeKey);
+  const metrics = progressIndicatorMetricModels(component, rows, fields);
+  const groups = new Map<string, Row[]>();
+  if (employeeKey !== null) {
+    rows.forEach((row) => {
+      const label = lineDimensionLabel(row[employeeKey], employeeField);
+      const group = groups.get(label);
+      if (group === undefined) groups.set(label, [row]);
+      else group.push(row);
+    });
+  }
+  const employees = [...groups.entries()].map(([label, groupRows]) => {
+    const employeeMetrics = progressIndicatorMetricModels(component, groupRows, fields);
+    return {
+      key: label,
+      label,
+      metrics: employeeMetrics,
+      score: progressIndicatorScore(employeeMetrics),
+      completion: employeeMetrics.filter((metric) => metric.progress !== null).length === 0
+        ? null
+        : employeeMetrics.filter((metric) => metric.progress !== null).reduce((total, metric) => total + (metric.progress ?? 0), 0)
+          / employeeMetrics.filter((metric) => metric.progress !== null).length,
+    };
+  }).sort((left, right) => (right.score ?? -1) - (left.score ?? -1) || left.label.localeCompare(right.label, "zh-CN"));
+
+  return {
+    employeeLabel: employeeKey === null ? "员工" : fieldLabelMap(fields).get(employeeKey) ?? employeeKey,
+    periodLabel: propString(component, "periodLabel", "本月").trim() || "本月",
+    metrics,
+    score: progressIndicatorScore(metrics),
+    employees,
+    weights: metrics.filter((metric) => metric.includeInScore).map((metric) => ({ label: metric.label, weight: metric.weight })),
   };
 };
 
@@ -1561,6 +2126,7 @@ export const buildKpiBoardModel = (
           key,
           label: labels.get(key) ?? key,
           isCurrency: isCurrencyMetric(key, fields),
+          isQuantity: isQuantityMetric(key, fields),
           value: aggregateField(groupRows, key, aggregation),
         })),
       })),
@@ -1621,6 +2187,7 @@ export const buildCrosstabModel = (component: ComponentInstance, rows: readonly 
     measureLabel: labels.get(measure) ?? measure,
     measureKey: measure,
     measureIsCurrency: isCurrencyMetric(measure, fields),
+    measureIsQuantity: isQuantityMetric(measure, fields),
     columns: columnLabels.map((label) => ({ key: label, label })),
     rows: crosstabRows,
     columnTotals,
@@ -1676,6 +2243,7 @@ export const buildHeatmapModel = (component: ComponentInstance, rows: readonly R
     measureLabel: labels.get(measure) ?? measure,
     measureKey: measure,
     measureIsCurrency: isCurrencyMetric(measure, fields),
+    measureIsQuantity: isQuantityMetric(measure, fields),
     columns: columnLabels.map((label) => ({ key: label, label })),
     rows: heatmapRows,
     minValue,
@@ -1719,7 +2287,7 @@ export const buildMultidimensionalModel = (component: ComponentInstance, rows: r
       ...(dateDimension.length > 0 ? [{ key: dateDimension, label: labels.get(dateDimension) ?? dateDimension }] : []),
       ...dimensions.map((key) => ({ key, label: labels.get(key) ?? key })),
     ],
-    measures: measures.map((key) => ({ key, label: labels.get(key) ?? key, isCurrency: isCurrencyMetric(key, fields) })),
+    measures: measures.map((key) => ({ key, label: labels.get(key) ?? key, isCurrency: isCurrencyMetric(key, fields), isQuantity: isQuantityMetric(key, fields) })),
     rows: analysisRows,
     totals: measures.map((measure) => aggregateNumbers(rows.map((row) => numericValue(row, measure)), aggregation)),
     showTotals: propBoolean(component, "showTotals", true),

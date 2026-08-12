@@ -71,7 +71,7 @@ describe("GridCanvas", () => {
     expect(received?.layout).toEqual([{ i: "bar-1", x: 0, y: 0, w: 6, h: 5, minW: 2, minH: 2 }]);
     expect(received?.compactor).toMatchObject({ type: null, allowOverlap: false });
     expect(received?.compactor).not.toMatchObject({ preventCollision: true });
-    expect(received?.dragConfig).toMatchObject({ enabled: true, cancel: ".component-frame__menu-trigger, .component-frame__title-button, .component-frame__title-input, .react-resizable-handle" });
+    expect(received?.dragConfig).toMatchObject({ enabled: true, cancel: ".analysis-group-canvas, .analysis-group-canvas *, .component-frame__menu-trigger, .component-frame__title-button, .component-frame__title-input, .react-resizable-handle" });
     expect(received?.dragConfig).not.toHaveProperty("bounded");
     expect(received?.dragConfig).not.toHaveProperty("handle");
     expect(received?.resizeConfig).toMatchObject({

@@ -47,6 +47,28 @@ final result: passed
 
 ---
 
+## Horizontal bar chart total — visual QA
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-edde332b-f44a-40bd-9bad-05c44cb337cc.png`.
+- Implementation capture: local preview at `http://localhost:5173/preview/2323cfe5-94b6-47b5-b32e-a5410704f8b4`.
+
+**Findings**
+
+- [P1 resolved] The horizontal bar chart now places a compact `总计 57.81万 ¥` at the upper-right of the plot area. Its right edge aligns with the X-axis end rather than the card edge, preserving the value-label gutter.
+- The plot receives a 38 px top inset only when the bound measure is numeric, so the new headline does not collide with the longest bar. Non-numeric measures intentionally render no total.
+- The total is calculated from the complete filtered aggregation, not only the visible Top-N bars; its amount uses the product-wide monetary unit rule.
+
+**Verification**
+
+- Renderer unit test asserts the numeric total text, its shared right inset, and the reserved chart top space.
+- Browser-rendered preview confirms the headline, bar labels, and X-axis remain readable together.
+
+final result: passed
+
+---
+
 ## Chart-scoped date filter — visual QA
 
 **Comparison target**
@@ -114,6 +136,176 @@ final result: passed
 **Blocker**
 
 - A browser-rendered dashboard-center capture containing at least one populated tile is required to compare this change against the supplied populated-gallery reference and close visual QA.
+
+final result: blocked
+
+---
+
+## Dual-axis bar-line header clearance — visual QA
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-3ab291bb-5935-4ee6-ad86-22a466a24fad.png` (1109 × 484 px).
+- Implementation screenshot path: transient in-app Browser capture of `http://localhost:5173/preview/2323cfe5-94b6-47b5-b32e-a5410704f8b4` (1280 × 720 CSS px; 2× screenshot density, compared at CSS scale).
+- State: `柱状折线组合图` in `组合图` mode, with the legend enabled, dual Y axes, and the in-chart `组合图 / 仅柱形 / 仅曲线` control present.
+
+**Findings**
+
+- [P1 — resolved] The original layout started the plot directly beneath the legend/control band. The left legend and right runtime control consequently intersected their respective Y-axis names.
+  - Fix: reserve a 68 px header band when the legend is shown, increase the left axis gutter to 64 px and the dual-axis right gutter to 72 px. Single-series lenses retain a compact 28 px right gutter.
+  - Post-fix evidence: the renderer’s dual-axis option now places both axis labels below the header band; the in-app Browser capture shows the title, legend, and left axis name in separate rows, with the runtime switch retaining its top-right position.
+
+**Fidelity surfaces**
+
+- Fonts and typography: the existing chart title, 12 px legend text, and axis-label hierarchy are retained; only their collision-free placement changes.
+- Spacing and layout rhythm: the dedicated header band separates title controls, legend, and axis names, while symmetric side gutters keep both numeric scales inside the card.
+- Colors and visual tokens: the original blue column, orange curve, neutral grid, and control states are unchanged.
+- Image quality and asset fidelity: no image assets are used or changed; this is native ECharts and Ant Design rendering.
+- Copy and content: existing labels — `销售毛利`, `价格`, `组合图`, `仅柱形`, `仅曲线` — are preserved.
+
+**Interaction and validation**
+
+- Browser-checked the preview route and located the live chart plus its 172 × 24 px in-chart switch; the switch remains within the chart’s top-right header area.
+- Automated: focused bar-line option tests pass, including the new dual-axis header and gutter assertion; `pnpm --dir apps/web build` and `git diff --check` pass.
+
+**Comparison history**
+
+- Iteration 1: the supplied screenshot exposed top-header overlap on both Y-axis sides.
+- Iteration 2: added header and side-gutter reserves, then re-captured the preview state and rechecked the chart’s control geometry.
+
+final result: passed
+
+---
+
+## Bar-line in-chart display switch — visual QA
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-36fff395-e3dc-426e-8293-8ccff2c6686f.png` (1080 × 469 px).
+- Implementation: authenticated local editor and preview at `http://localhost:5173/editor/2323cfe5-94b6-47b5-b32e-a5410704f8b4` and `http://localhost:5173/preview/2323cfe5-94b6-47b5-b32e-a5410704f8b4`.
+- State: the existing dual-axis “柱状折线组合图” was opened in the preview route with “平滑曲线” enabled. The reference contains the combined state only; the runtime view switch is an intentional extension of that state.
+
+**Findings**
+
+- No actionable P0/P1/P2 differences in the combined state. The existing blue column, orange line, two business axes, title, legend, and grid treatment remain intact.
+- A three-way segmented control — `组合图 / 仅柱形 / 仅曲线` — sits in the chart’s upper-right corner, aligned to the plot area rather than the editor inspector. It is visible in preview and therefore available to dashboard viewers.
+- In `仅曲线`, the chart removes the blue bars and the unused left axis; in `仅柱形`, it removes the orange line and right axis. This prevents a misleading empty scale and gives the single measure the full plot width.
+
+**Fidelity surfaces**
+
+- Fonts and typography: the existing compact chart title is retained; the new labels follow the dashboard’s compact control vocabulary.
+- Spacing and layout rhythm: the compact switch remains within the chart header area without shifting the plot; single-series charts reclaim the former secondary-axis gutter.
+- Colors and visual tokens: existing blue column (`#2f62dc`), orange curve (`#ff7417`), neutral grid, and selected-control blue are retained.
+- Image quality and asset fidelity: no assets are introduced or replaced; this is native chart and Ant Design control rendering.
+- Copy and content: “组合图”“仅柱形”“仅曲线” are explicit and consistent with the chart’s existing Chinese labels. “平滑曲线” remains an editor style setting because it defines the default line treatment rather than a viewer choice.
+
+**Interaction evidence**
+
+- Browser-tested the preview switch: selected `仅曲线`, confirmed that only the orange curve and its axis remained, then returned to `组合图`, confirmed that the blue bars and orange curve returned, and verified the selected mode was `组合图`.
+- Focused renderer tests cover combined, bar-only, and curve-only series/axis output; the style-panel test confirms the editor no longer exposes a persisted display-mode configuration.
+
+**Comparison history**
+
+- Iteration 1: compared the supplied combined chart with the browser-rendered combined state and introduced the three-way display control plus conditional axes.
+- Iteration 2: moved the control from the editor inspector into the rendered chart, exercised `仅曲线`, then restored `组合图`; no P0/P1/P2 visual corrections remained.
+
+**Implementation checklist**
+
+- [x] Make new bar-line charts smooth by default while retaining a curve switch.
+- [x] Add combination, bar-only, and curve-only runtime display modes.
+- [x] Keep the view switch out of persisted editor configuration.
+- [x] Retain existing dual-axis behavior in combination mode.
+
+final result: passed
+
+---
+
+## Dashboard header and global-filter container — visual QA blocked
+
+**Comparison target**
+
+- Source visual truth: Product Design option 1 generated in this task, constrained by `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-cff7732f-005e-436a-a136-b5b70e7ad535.png`; the KPI-card region was explicitly excluded from scope.
+- Intended implementation state: authenticated desktop editor with a newly added “看板头部” component selected, then the published/preview state with its controls visible.
+- Browser state: the local application at `http://localhost:5173/` presents the account login page. No pre-authenticated editor session or test account was supplied, so the implementation view could not be captured at the matching state.
+
+**Evidence and findings**
+
+- [P1] Browser-rendered comparison is unavailable. Authentication blocks the required selected-editor and preview states; no credentials or account-creation authority were provided.
+- Automated evidence: component registry tests verify the data-free `dashboardHeader` definition and full-width default layout; renderer tests verify the title, period switch and store selection; inspector tests verify the dedicated settings tab and persisted settings changes. Type checking and production build are recorded with the implementation pass.
+
+**Fidelity surfaces**
+
+- Fonts and typography: blocked pending browser capture; implementation follows the existing dashboard’s 22 px heading, 13 px description, and 12 px metadata hierarchy.
+- Spacing and layout rhythm: blocked pending browser capture; implementation targets a full-width two-column header, 26 px content inset, and 8 px filter-control rhythm.
+- Colors and visual tokens: blocked pending browser capture; implementation uses the existing neutral control borders and #172033 active-period state.
+- Image quality and asset fidelity: no raster or custom-drawn assets are introduced; the selected design is UI-only.
+- Copy and content: title, explanation, update text, date, store and operation labels are all configurable in the dedicated settings panel.
+
+**Implementation checklist**
+
+1. Open an authenticated local editor session and add “看板头部” from the left “内容” category.
+2. Capture the selected editor state and preview state at desktop width.
+3. Compare the header region with the chosen visual direction, then resolve any P0–P2 visual differences.
+
+final result: blocked
+
+---
+
+## KPI insight aggregation table drawer — visual QA blocked
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-784e4ecd-d6de-4dfe-86b0-79ed400e728f.png` (1920 × 711 px), focused on its tab, column-header, grouped metric-row, and fixed-footer composition.
+- Intended implementation state: an editor with a selected `kpiInsight` component, one or more bound primary metrics, and “指标洞察设置” open.
+- Browser evidence: an existing authenticated editor was available at `http://127.0.0.1:5173/editor/adbeb149-3c53-4922-badd-35741698b549`, but its dashboard has no KPI insight component. I did not add or bind a component because that would alter the user’s current dashboard.
+
+**Implementation review**
+
+- The drawer now uses a full-width white surface, a compact active “指标配置” tab, table headers (“指标名称 / 聚合方式 / 说明”), a “看板指标/度量” grouping row, and a fixed footer. It intentionally retains only the aggregation control needed by the current product scope.
+- Automated evidence: the inspector test opens the drawer, verifies the grouped table row and aggregation combobox, changes the value to “平均值”, and verifies the saved binding. Workspace typecheck and production build pass.
+
+**Fidelity surfaces**
+
+- Fonts and typography, spacing and layout rhythm, colors and visual tokens: implemented to follow the supplied reference’s compact table treatment, but blocked from browser-rendered comparison in the matching state.
+- Image quality and asset fidelity: no raster assets are involved; icons use the existing Ant Design icon library.
+- Copy and content: labels are constrained to the product scope and avoid the reference’s unrelated field-formatting columns.
+
+**Implementation checklist**
+
+1. Open a safe editor dashboard that already contains a bound KPI insight component.
+2. Capture the open drawer at desktop width and compare the full view and header/table/footer regions against the reference.
+3. Resolve any visually observed P0–P2 discrepancies.
+
+final result: blocked
+
+---
+
+## Multi-metric KPI insight drawer — visual QA blocked
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-052595f6-9e56-4a64-93cb-1365aa396ae7.png` (1903 × 726 px).
+- Intended implementation state: authenticated desktop editor, multiple bound KPI insight primary metrics, with the settings drawer open.
+- Browser blocker: the local editor route redirects to `/auth`; no QA account or already authenticated editor tab was supplied. No credentials or accounts were created for this pass.
+
+**Findings**
+
+- [P1] Browser-rendered comparison is blocked by the protected editor route. The exact drawer width, two-column card density, and control wrapping require an authenticated capture before a visual pass can be declared.
+- Automated evidence: `packages/chart-renderer` passes 103 tests, including a two-metric test that verifies separate target and comparison calculations. `InspectorPanel` passes 6 tests. The production web build passes.
+
+**Fidelity surfaces**
+
+- Fonts and typography: implementation uses the established 12–16 px product scale; final rendered verification is blocked.
+- Spacing and layout rhythm: configuration uses a centered 1120 px content rail, 16 px metric-card gaps, 18 px card padding, and nested rule sections; final capture is blocked.
+- Colors and visual tokens: neutral `#f6f8fb` drawer stage, white cards, blue primary-metric numbering, and restrained blue-gray borders map to the reference's enterprise visual language; final capture is blocked.
+- Image quality and asset fidelity: no new images are required; standard Ant Design icons are retained.
+- Copy and content: each group explicitly identifies its 主指标, 目标值, 对比值, 辅助指标 and 展示内容.
+
+**Implementation checklist**
+
+1. Open the authenticated local editor with two or more KPI insight metrics.
+2. Capture drawer and primary-binding states at desktop width.
+3. Compare full-view and focused card regions with the source, then address any P0–P2 discrepancy.
 
 final result: blocked
 
@@ -366,3 +558,46 @@ final result: passed
 - Iteration 2: increased chart inset, normalized control heights, grouped the field/range controls, and adjusted text hierarchy; the optimized capture shows no remaining actionable P0/P1/P2 discrepancy.
 
 final result: passed
+
+---
+
+## KPI insight settings drawer — visual QA blocked
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-70a0c072-5e93-4929-808d-6ef09e344c77.png` (主指标右侧设置入口) and `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-a6621e80-fcd0-404b-a25b-89d375aa505d.png` (底部配置抽屉).
+- Intended implementation state: authenticated desktop editor with a selected `kpiInsight` component, a bound primary metric, and its bottom settings drawer open.
+- Browser state: `http://localhost:5173/editor/:id` redirects to `/auth`; no local QA account or pre-authenticated editor tab was supplied.
+
+**Evidence and findings**
+
+- [P1] Browser-rendered visual comparison is unavailable. The protected route prevents capture of the matching editor state without creating an account or using credentials, neither of which was authorized for this QA pass.
+- Automated evidence: `apps/web/src/features/editor/InspectorPanel.test.tsx` passes and verifies the settings button opens an Ant Design bottom drawer containing the associated-metrics region and insight-content controls. `pnpm --filter @drag-visual/web typecheck` passes.
+
+**Fidelity surfaces**
+
+- Fonts and typography, spacing and layout rhythm, and colors/tokens: blocked pending an authenticated browser capture.
+- Image quality and asset fidelity: no custom raster assets are introduced; the standard Ant Design icon set is used.
+- Copy and content: code review confirms the drawer separates “关联指标” from “展示内容”; final wrapping requires browser capture.
+
+**Implementation checklist**
+
+1. Open a safe authenticated local editor session.
+2. Capture the primary-metric settings entry and open-drawer state at desktop width.
+3. Compare full and focused regions with the references; resolve any P0–P2 differences.
+
+final result: blocked
+
+---
+
+## Latest visual QA status — dual-axis bar-line header clearance
+
+- Source: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-3ab291bb-5935-4ee6-ad86-22a466a24fad.png` (1109 × 484 px).
+- Implementation: in-app Browser capture of `http://localhost:5173/preview/2323cfe5-94b6-47b5-b32e-a5410704f8b4` at 1280 × 720 CSS px, 2× capture density; `柱状折线组合图` in combined mode.
+- Full-view and focused evidence: the live chart and its 172 × 24 px upper-right switch were located in the preview. The expanded top reserve separates the legend/control band from both Y-axis names; 64 px left and 72 px dual-axis right gutters keep numeric labels inside the card.
+- Required fidelity surfaces: typography, visual tokens, copy, and native chart assets are unchanged; spacing is improved by the dedicated header band.
+- Earlier P1: header overlays on both Y-axis names. Fix: `grid.top` 68 px with legend, `left` 64 px, `right` 72 px for a combined chart (28 px for a single series). Post-fix focused option test, web production build, and diff validation all pass.
+
+final result: passed
+
+---

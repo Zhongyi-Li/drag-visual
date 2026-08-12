@@ -1,11 +1,20 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
-import { Button, Collapse, Empty, Tabs, Tooltip, Typography } from "antd";
+import { MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined } from "@ant-design/icons";
+import { Button, Collapse, Drawer, Empty, Tabs, Tooltip, Typography } from "antd";
+import { useState } from "react";
 import type { ComponentRegistry } from "@drag-visual/component-registry";
 import { useStore } from "zustand";
 
 import { ComponentBindingPanel } from "./ComponentBindingPanel.js";
 import { ComponentDataPanel } from "./ComponentDataPanel.js";
+import { ComponentInfoPanel } from "./ComponentInfoPanel.js";
+import { ComponentStylePanel } from "./ComponentStylePanel.js";
+import { DisplayHintsPanel } from "./DisplayHintsPanel.js";
 import { DateFilterConfigurationPanel } from "./DateFilterConfigurationPanel.js";
+import { DashboardHeaderPanel } from "./DashboardHeaderPanel.js";
+import { KpiInsightPanel } from "./KpiInsightPanel.js";
+import { AnalysisGroupPanel } from "./AnalysisGroupPanel.js";
+import { AnalysisGroupDisplayPanel } from "./AnalysisGroupDisplayPanel.js";
+import { QueryFiltersPanel } from "./QueryFiltersPanel.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
 
 interface InspectorPanelProps {
@@ -26,15 +35,59 @@ export const InspectorPanel = ({
   onToggleDataCollapsed = () => undefined,
 }: InspectorPanelProps) => {
   const selected = useStore(store, editorSelectors.selectedComponent);
-  const configurationTitle = selected === null ? "配置" : `${selected.title ?? "柱图"}配置`;
+  const [insightSettingsOpen, setInsightSettingsOpen] = useState(false);
+  const configurationTitle = selected === null ? "配置" : `${selected.title?.trim() || registry.get(selected.type).title}配置`;
   const content = selected === null ? (
     <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未选择组件" />
   ) : (() => {
     const definition = registry.get(selected.type);
     return (
       <div className="inspector-selected">
-        {definition.dataSlots.length === 0 ? (
+        {selected.type === "dashboardHeader" ? (
+          <DashboardHeaderPanel component={selected} definition={definition} store={store} />
+        ) : selected.type === "analysisGroup" ? (
+          <AnalysisGroupPanel component={selected} definition={definition} store={store} />
+        ) : definition.dataSlots.length === 0 ? (
           <Typography.Text type="secondary">该组件不需要数据绑定。</Typography.Text>
+        ) : selected.type === "kpiInsight" ? (
+          <>
+            <ComponentBindingPanel
+              compact
+              component={selected}
+              definition={definition}
+              showRefreshButton
+              slotKeys={["measure"]}
+              slotActions={{
+                measure: <Tooltip title="配置指标洞察" placement="topRight">
+                  <Button
+                    aria-label="打开指标洞察设置"
+                    className="binding-field__settings"
+                    icon={<SettingOutlined />}
+                    size="small"
+                    type="text"
+                    onClick={() => setInsightSettingsOpen(true)}
+                  />
+                </Tooltip>,
+              }}
+              store={store}
+            />
+            <Drawer
+              className="kpi-insight-drawer"
+              destroyOnHidden
+              footer={<div className="kpi-insight-drawer__footer"><Button type="primary" onClick={() => setInsightSettingsOpen(false)}>完成</Button></div>}
+              open={insightSettingsOpen}
+              placement="bottom"
+              size="large"
+              title="指标洞察设置"
+              onClose={() => setInsightSettingsOpen(false)}
+            >
+              <div className="kpi-insight-drawer__content">
+                <KpiInsightPanel component={selected} definition={definition} store={store} />
+              </div>
+            </Drawer>
+          </>
+        ) : selected.type === "progressIndicator" ? (
+          <ComponentBindingPanel store={store} component={selected} definition={definition} />
         ) : (
           <ComponentBindingPanel store={store} component={selected} definition={definition} />
         )}
@@ -51,7 +104,12 @@ export const InspectorPanel = ({
           label: "数据交互",
           children: selected === null
             ? <Typography.Text type="secondary">选择图表后配置日期筛选。</Typography.Text>
-            : <DateFilterConfigurationPanel store={store} component={selected} />,
+            : selected.type === "analysisGroup" || selected.type === "dashboardHeader"
+              ? <Typography.Text type="secondary">该组件不支持独立数据交互。</Typography.Text>
+              : <>
+                  <DateFilterConfigurationPanel store={store} component={selected} />
+                  <QueryFiltersPanel component={selected} definition={registry.get(selected.type)} scope="component" store={store} />
+                </>,
         },
         {
           key: "advanced",
@@ -61,6 +119,18 @@ export const InspectorPanel = ({
       ]}
     />
   );
+  const displayContent = selected === null
+    ? <Typography.Text type="secondary">选择图表后配置展示方式。</Typography.Text>
+    : selected.type === "analysisGroup"
+      ? <div className="display-configuration">
+          <ComponentInfoPanel component={selected} store={store} />
+          <AnalysisGroupDisplayPanel component={selected} definition={registry.get(selected.type)} store={store} />
+        </div>
+    : <div className="display-configuration">
+        <ComponentInfoPanel component={selected} store={store} />
+        <ComponentStylePanel component={selected} definition={registry.get(selected.type)} store={store} />
+        <DisplayHintsPanel component={selected} store={store} />
+      </div>;
 
   if (collapsed) {
     return (
@@ -102,10 +172,13 @@ export const InspectorPanel = ({
           </Tooltip>
         </span>
         </div>
-        <Tabs size="small" defaultActiveKey="component" items={[
-          { key: "component", label: "字段", children: content },
-          { key: "analysis", label: "分析", children: analysisContent },
-        ]} />
+        <Tabs size="small" defaultActiveKey="component" items={selected?.type === "dashboardHeader"
+          ? [{ key: "component", label: "设置", children: content }]
+          : [
+              { key: "component", label: "字段", children: content },
+              { key: "display", label: "显示", children: displayContent },
+              { key: "analysis", label: "分析", children: analysisContent },
+            ]} />
       </section>
       <ComponentDataPanel
         store={store}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { barDefinition, kpiDefinition } from "@drag-visual/component-registry";
+import { barDefinition, barLineDefinition, kpiDefinition } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -50,5 +50,48 @@ describe("ComponentStylePanel", () => {
     fireEvent.blur(decimals);
 
     expect(store.getState().history.present.components[0]!.props).toMatchObject({ prefix: "¥", decimals: 2 });
+  });
+
+  it("updates bar-line switches while preserving hidden runtime props", async () => {
+    const barLineDashboard = DashboardSchema.parse({
+      ...dashboard,
+      components: [{
+        id: "bar-1",
+        type: "barLine",
+        title: "柱状折线组合图",
+        props: {
+          aggregation: "sum",
+          appliedResultLimit: 100,
+          barColor: "#2f62dc",
+          dataRefreshVersion: 11,
+          hideZeroValues: true,
+          lineColor: "#ff7417",
+          resultLimit: 100,
+          showLegend: true,
+          smartLineScale: true,
+          smooth: true,
+        },
+      }],
+    });
+    const store = createEditorStore(barLineDashboard);
+    const component = store.getState().history.present.components[0]!;
+    const { rerender } = render(<AppProviders><ComponentStylePanel store={store} component={component} definition={barLineDefinition} /></AppProviders>);
+
+    expect(screen.queryByRole("spinbutton", { name: "resultLimit" })).not.toBeInTheDocument();
+    expect(screen.queryByText("dataRefreshVersion")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("switch", { name: "隐藏全零类目" }));
+    await userEvent.click(screen.getByRole("switch", { name: "折线轴智能缩放" }));
+    await userEvent.click(screen.getByRole("switch", { name: "平滑曲线" }));
+
+    expect(store.getState().history.present.components[0]!.props).toMatchObject({
+      hideZeroValues: false,
+      smartLineScale: false,
+      smooth: false,
+      resultLimit: 100,
+      appliedResultLimit: 100,
+      dataRefreshVersion: 11,
+    });
+    rerender(<AppProviders><ComponentStylePanel store={store} component={store.getState().history.present.components[0]!} definition={barLineDefinition} /></AppProviders>);
+    expect(screen.getByLabelText("柱状颜色")).toBeInTheDocument();
   });
 });

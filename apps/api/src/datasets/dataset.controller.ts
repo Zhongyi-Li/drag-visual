@@ -13,12 +13,15 @@ import {
   Logger,
   Param,
   Post,
+  Query,
   UseGuards,
   UseFilters,
 } from "@nestjs/common";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { ZodError } from "zod";
 
+import { CurrentUser } from "../auth/current-user.decorator.js";
+import type { AuthenticatedUser } from "../auth/auth.service.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import {
   DatasetInvalidResponseError,
@@ -88,7 +91,7 @@ export class DatasetExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const http = host.switchToHttp();
     const reply = http.getResponse<FastifyReply>();
-    if (exception instanceof DatasetHttpException || (exception instanceof HttpException && exception.getStatus() === HttpStatus.UNAUTHORIZED)) {
+    if (exception instanceof HttpException) {
       const response = exception.getResponse();
       if (
         typeof response === "object" &&
@@ -119,14 +122,35 @@ export class DatasetController {
   constructor(@Inject(DatasetService) private readonly datasets: DatasetService) {}
 
   @Get()
-  async list() {
-    return this.datasets.list();
+  async list(@CurrentUser() user: AuthenticatedUser) {
+    try {
+      return await this.datasets.list(user.id);
+    } catch (error: unknown) {
+      return httpError(error);
+    }
   }
 
   @Get(":datasetId/schema")
-  async schema(@Param("datasetId") datasetId: string) {
+  async schema(@Param("datasetId") datasetId: string, @CurrentUser() user: AuthenticatedUser) {
     try {
-      return await this.datasets.getSchema(datasetId);
+      return await this.datasets.getSchema(datasetId, user.id);
+    } catch (error: unknown) {
+      return httpError(error);
+    }
+  }
+
+  @Get(":datasetId/fields/:fieldKey/options")
+  async fieldOptions(
+    @Param("datasetId") datasetId: string,
+    @Param("fieldKey") fieldKey: string,
+    @Query("search") search: string | undefined,
+    @Query("limit") rawLimit: string | undefined,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    const limit = rawLimit === undefined ? 200 : Number(rawLimit);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 200) return apiException(HttpStatus.BAD_REQUEST, API_ERRORS.queryInvalid);
+    try {
+      return await this.datasets.getFieldOptions(datasetId, fieldKey, search?.trim() || undefined, limit, user.id);
     } catch (error: unknown) {
       return httpError(error);
     }
@@ -134,10 +158,14 @@ export class DatasetController {
 
   @Post(":datasetId/query")
   @HttpCode(HttpStatus.OK)
-  async query(@Param("datasetId") datasetId: string, @Body() body: unknown) {
+  async query(
+    @Param("datasetId") datasetId: string,
+    @Body() body: unknown,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     const request = parseBody(body);
     try {
-      return await this.datasets.query(datasetId, request);
+      return await this.datasets.query(datasetId, request, user.id);
     } catch (error: unknown) {
       return httpError(error);
     }

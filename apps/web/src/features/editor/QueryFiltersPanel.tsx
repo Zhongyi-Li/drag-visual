@@ -1,0 +1,193 @@
+import type { ComponentDefinition } from "@drag-visual/component-registry";
+import { QueryFilterControl, type ComponentInstance, type DatasetField, type QueryFilterControl as QueryFilterControlValue } from "@drag-visual/contracts";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { CloseOutlined, DeleteOutlined, FilterOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
+import { Alert, Button, Drawer, Input, InputNumber, Select, Space, Typography } from "antd";
+import { useEffect, useMemo, useState } from "react";
+import { useStore } from "zustand";
+
+import { getDataset, getDatasetFieldOptions } from "../datasets/datasetApi.js";
+import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
+import type { EditorStore } from "./store/editorStore.js";
+import { analysisGroupQueryFilterControls, componentQueryFilterControls } from "../viewer/dashboardGlobalFilters.js";
+
+type Scope = "component" | "analysisGroup";
+type DraftFilter = QueryFilterControlValue;
+
+interface Props {
+  readonly component: { readonly id: string; readonly type: ComponentInstance["type"]; readonly props: Readonly<Record<string, unknown>>; readonly binding?: { readonly datasetId: string } | undefined };
+  readonly definition: ComponentDefinition;
+  readonly scope: Scope;
+  readonly store: EditorStore;
+}
+
+const filterForField = (field: DatasetField): DraftFilter => field.type === "number"
+    ? { kind: "numberComparison", fieldKey: field.key, operator: "gte", value: 0 }
+  : field.type === "boolean"
+    ? { kind: "fieldValue", fieldKey: field.key, values: ["true"] }
+    : { kind: "fieldText", fieldKey: field.key, value: "" };
+
+const fieldLabel = (field: DatasetField): string => `${field.label}（${field.key}）`;
+
+const operatorLabel = (filter: DraftFilter): string => {
+  if (filter.kind === "numberComparison") return ({ eq: "等于", neq: "不等于", gt: "大于", gte: "大于等于", lt: "小于", lte: "小于等于" })[filter.operator];
+  if (filter.kind === "dateRange") return "范围";
+  return filter.kind === "fieldValue" ? "等于" : "包含";
+};
+
+const valueLabel = (filter: DraftFilter): string => {
+  if (filter.kind === "numberComparison") return String(filter.value);
+  if (filter.kind === "dateRange") return `${filter.start} 至 ${filter.end}`;
+  if (filter.kind === "fieldValue") return String(filter.values[0] ?? "未填写");
+  return filter.value || "未填写";
+};
+
+const replaceAt = <Value,>(items: readonly Value[], index: number, next: Value): Value[] => items.map((item, current) => current === index ? next : item);
+
+export const QueryFiltersPanel = ({ component, definition, scope, store }: Props) => {
+  const localDatasets = useLocalDatasets();
+  const dashboard = useStore(store, (state) => state.history.present);
+  const current = dashboard.components.find((candidate) => candidate.id === component.id) ?? component;
+  const componentDatasetId = current.binding?.datasetId;
+  const childDatasetIds = useMemo(() => [...new Set(dashboard.components
+    .filter((candidate) => candidate.parentId === current.id && candidate.binding !== undefined)
+    .map((candidate) => candidate.binding!.datasetId))], [current.id, dashboard.components]);
+  const componentSchema = useQuery({
+    queryKey: ["dataset-schema", componentDatasetId],
+    queryFn: () => getDataset(componentDatasetId!),
+    enabled: scope === "component" && componentDatasetId !== undefined && !localDatasets.isUploadedDataset(componentDatasetId),
+  });
+  const groupSchemas = useQueries({
+    queries: childDatasetIds.map((datasetId) => ({
+      queryKey: ["dataset-schema", datasetId],
+      queryFn: () => getDataset(datasetId),
+      enabled: scope === "analysisGroup" && !localDatasets.isUploadedDataset(datasetId),
+    })),
+  });
+  const fields = useMemo<readonly DatasetField[]>(() => {
+    if (scope === "component") return componentDatasetId === undefined
+      ? []
+      : localDatasets.getDataset(componentDatasetId)?.fields ?? componentSchema.data?.fields ?? [];
+    if (childDatasetIds.length === 0) return [];
+    const schemas = childDatasetIds.map((datasetId, index) => localDatasets.getDataset(datasetId)?.fields ?? groupSchemas[index]?.data?.fields ?? []);
+    if (schemas.some((schema) => schema.length === 0)) return [];
+    return schemas[0]!.filter((field) => schemas.every((schema) => schema.some((candidate) => candidate.key === field.key && candidate.type === field.type)));
+  }, [childDatasetIds, componentDatasetId, componentSchema.data?.fields, groupSchemas, localDatasets, scope]);
+  // 日期范围由上方的“日期筛选”单独管理，查询条件只承载非日期字段。
+  const queryFields = useMemo(() => fields.filter((field) => field.type !== "date"), [fields]);
+  const storedFilters = scope === "component" ? componentQueryFilterControls(current) : analysisGroupQueryFilterControls(current);
+  const dateFilters = storedFilters.filter((filter) => filter.kind === "dateRange");
+  const savedFilters = storedFilters.filter((filter) => filter.kind !== "dateRange");
+  const savedKey = JSON.stringify(savedFilters);
+  const [draft, setDraft] = useState<readonly DraftFilter[]>(savedFilters);
+  const [error, setError] = useState<string | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const optionQueries = useQueries({
+    queries: draft.map((filter) => ({
+      queryKey: ["dataset-field-options", componentDatasetId, filter.fieldKey],
+      queryFn: () => getDatasetFieldOptions(componentDatasetId!, filter.fieldKey),
+      enabled: scope === "component" && componentDatasetId !== undefined && !localDatasets.isUploadedDataset(componentDatasetId) && filter.kind === "fieldValue",
+    })),
+  });
+  const localRows = componentDatasetId === undefined ? undefined : localDatasets.queryDataset(componentDatasetId)?.rows;
+  useEffect(() => { setDraft(savedFilters); setError(null); }, [savedKey]);
+
+  const add = () => {
+    const field = queryFields[0];
+    if (field === undefined) return;
+    setDraft((items) => [...items, filterForField(field)]);
+  };
+  const apply = (): boolean => {
+    const parsed = QueryFilterControl.array().max(6).safeParse(draft);
+    if (!parsed.success) {
+      setError("筛选条件格式不正确，请检查后重试。");
+      return false;
+    }
+    const nextFilters = [...dateFilters, ...parsed.data];
+    if (scope === "component") {
+      store.getState().dispatch({ type: "component.props.update", componentId: current.id, nextProps: { ...current.props, queryFilters: nextFilters } as ComponentInstance["props"] });
+    } else {
+      const props = { ...definition.createDefaults(), ...current.props, queryFilters: nextFilters };
+      const next = definition.propsSchema.safeParse(props);
+      if (!next.success) {
+        setError("查询条件保存失败，请检查输入。");
+        return false;
+      }
+      store.getState().dispatch({ type: "component.props.update", componentId: current.id, nextProps: next.data });
+    }
+    setError(null);
+    return true;
+  };
+  const clear = () => { setDraft([]); setError(null); };
+  const unavailableMessage = scope === "component"
+    ? "请先在“字段”页绑定数据集，再添加查询条件。"
+    : "请先在复合分析中添加已绑定数据集的图表。仅展示所有子图共同拥有的字段。";
+
+  const remove = (index: number) => setDraft((items) => items.filter((_, currentIndex) => currentIndex !== index));
+  const finishEditing = () => {
+    if (apply()) setDrawerOpen(false);
+  };
+
+  return <section aria-label={scope === "component" ? "图表查询条件" : "复合分析查询条件"} className="query-filters-panel">
+    <div className="query-filters-panel__heading">
+      <span className="query-filters-panel__heading-icon"><FilterOutlined /></span>
+      <div><strong>查询分析</strong></div>
+    </div>
+    {fields.length === 0 ? <Typography.Text type="secondary">{unavailableMessage}</Typography.Text> : queryFields.length === 0 ? <Typography.Text type="secondary">当前数据集没有可配置的非日期筛选字段。</Typography.Text> : <>
+      <div className="query-filters-panel__summary" aria-label="已选查询条件">
+        {draft.length === 0 ? <div className="query-filters-panel__empty">暂未添加筛选条件</div> : draft.map((filter, index) => {
+          const field = queryFields.find((candidate) => candidate.key === filter.fieldKey);
+          return <article className="query-filters-panel__summary-item" key={`${filter.fieldKey}-${index}`}>
+            <div><strong>{field?.label ?? filter.fieldKey}</strong><span>{operatorLabel(filter)} · {valueLabel(filter)}</span></div>
+            <Button aria-label={`删除已选条件${index + 1}`} type="text" size="small" danger icon={<CloseOutlined />} onClick={() => remove(index)} />
+          </article>;
+        })}
+      </div>
+      {error !== null && <Alert type="warning" showIcon message={error} style={{ marginTop: 10 }} />}
+      <Space className="query-filters-panel__actions" style={{ marginTop: 14 }}>
+        <Button icon={<span aria-hidden="true"><SettingOutlined /></span>} onClick={() => setDrawerOpen(true)}>配置筛选条件</Button>
+        <Button type="text" danger onClick={clear} disabled={draft.length === 0}>清空</Button>
+        <Button aria-label="查询" type="primary" onClick={() => { apply(); }}>查询</Button>
+      </Space>
+      <Drawer
+        className="query-filters-drawer"
+        destroyOnClose={false}
+        extra={<Button type="primary" onClick={finishEditing}>完成编辑</Button>}
+        open={drawerOpen}
+        placement="bottom"
+        size={540}
+        title="配置筛选条件"
+        onClose={() => setDrawerOpen(false)}
+      >
+        <div className="query-filters-drawer__intro">所有条件以“且”组合。完成配置后返回分析面板执行查询。</div>
+        <div className="query-filters-drawer__conditions">
+          {draft.map((filter, index) => {
+            const field = queryFields.find((candidate) => candidate.key === filter.fieldKey) ?? queryFields[0]!;
+            const matchingOptions = filter.kind !== "fieldValue" ? [] : localRows === undefined
+              ? optionQueries[index]?.data ?? []
+              : [...new Set(localRows.map((row) => row[filter.fieldKey]).filter((value): value is string | boolean => typeof value === "string" || typeof value === "boolean").map(String))].sort();
+            const textValue = filter.kind === "fieldValue"
+              ? String(filter.values[0] ?? "")
+              : filter.kind === "fieldText" ? filter.value : "";
+            return <div aria-label={`筛选条件${index + 1}`} className="query-filters-drawer__condition" key={`${filter.fieldKey}-${index}`} role="group">
+              <Select aria-label={`查询字段${index + 1}`} className="query-filters-drawer__field" value={filter.fieldKey} options={queryFields.map((candidate) => ({ value: candidate.key, label: fieldLabel(candidate) }))} onChange={(fieldKey: string) => {
+                const nextField = queryFields.find((candidate) => candidate.key === fieldKey);
+                if (nextField !== undefined) setDraft((items) => replaceAt(items, index, filterForField(nextField)));
+              }} />
+              <Select aria-label={`查询运算符${index + 1}`} className="query-filters-drawer__operator" value={field.type === "number" ? filter.kind === "numberComparison" ? filter.operator : "gte" : filter.kind === "fieldValue" ? "equals" : "contains"} options={field.type === "number" ? [{ value: "eq", label: "等于" }, { value: "neq", label: "不等于" }, { value: "gt", label: "大于" }, { value: "gte", label: "大于等于" }, { value: "lt", label: "小于" }, { value: "lte", label: "小于等于" }] : field.type === "boolean" ? [{ value: "equals", label: "等于" }] : [{ value: "contains", label: "包含" }, { value: "equals", label: "等于" }]} onChange={(operator: string) => {
+                if (field.type === "number") {
+                  setDraft((items) => replaceAt(items, index, { kind: "numberComparison", fieldKey: field.key, operator: operator as "eq" | "neq" | "gt" | "gte" | "lt" | "lte", value: filter.kind === "numberComparison" ? filter.value : 0 }));
+                  return;
+                }
+                setDraft((items) => replaceAt(items, index, operator === "equals" ? { kind: "fieldValue", fieldKey: field.key, values: [textValue] } : { kind: "fieldText", fieldKey: field.key, value: textValue }));
+              }} />
+              {field.type === "number" ? <InputNumber aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "numberComparison" ? filter.value : 0} onChange={(value) => setDraft((items) => replaceAt(items, index, { kind: "numberComparison", fieldKey: field.key, operator: filter.kind === "numberComparison" ? filter.operator : "gte", value: typeof value === "number" ? value : 0 }))} /> : field.type === "boolean" ? <Select aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "fieldValue" ? String(filter.values[0] ?? "true") : "true"} options={[{ value: "true", label: "是" }, { value: "false", label: "否" }]} onChange={(value: string) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value] }))} /> : filter.kind === "fieldValue" && scope === "component" ? <Select allowClear aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" showSearch optionFilterProp="label" placeholder="选择或搜索精确值" value={textValue || null} options={matchingOptions.map((value) => ({ value, label: value }))} onChange={(value: string | undefined) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value ?? ""] }))} /> : <Input aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" placeholder={filter.kind === "fieldValue" ? "输入精确值" : "输入关键字"} value={textValue} onChange={(event) => setDraft((items) => replaceAt(items, index, filter.kind === "fieldValue" ? { ...filter, values: [event.target.value] } : { kind: "fieldText", fieldKey: field.key, value: event.target.value }))} />}
+              <Button aria-label={`删除配置条件${index + 1}`} className="query-filters-drawer__remove" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
+            </div>;
+          })}
+        </div>
+        <Button className="query-filters-drawer__add" icon={<span aria-hidden="true"><PlusOutlined /></span>} onClick={add} disabled={draft.length >= 6}>添加筛选条件</Button>
+      </Drawer>
+    </>}
+  </section>;
+};

@@ -1,0 +1,8 @@
+.chart-query-filter-bar { align-items: flex-end; align-self: flex-start; background: #f8fafc; border-bottom: 1px solid #edf1f5; display: flex; flex-wrap: wrap; gap: 10px; margin-left: auto; max-width: 100%; padding: 8px 12px; width: fit-content; }
+.chart-query-filter-bar__fields { align-items: flex-end; display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.chart-query-filter-bar__condition { align-items: center; display: flex; gap: 6px; min-width: 0; }
+.chart-query-filter-bar__label { color: #475569; font-size: 12px; white-space: nowrap; }
+.chart-query-filter-bar__operator { color: #64748b; font-size: 12px; white-space: nowrap; }
+.chart-query-filter-bar__condition .ant-input, .chart-query-filter-bar__condition .ant-input-number, .chart-query-filter-bar__condition .ant-select { width: 132px; }
+.chart-query-filter-bar__actions { margin-left: auto; }
+@media (max-width: 640px) { .chart-query-filter-bar { align-self: stretch; margin-left: 0; width: auto; } .chart-query-filter-bar__fields { flex: 1 1 100%; } .chart-query-filter-bar__actions { margin-left: 0; } }

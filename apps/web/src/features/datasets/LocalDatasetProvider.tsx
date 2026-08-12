@@ -23,7 +23,7 @@ interface LocalDatasetContextValue {
   readonly deleteDataset: (datasetId: string) => void;
   readonly replaceDataset: (datasetId: string, dataset: ImportedDataset) => void;
   readonly updateField: (datasetId: string, fieldKey: string, update: FieldUpdate) => void;
-  /** True only for a user-uploaded file persisted in browser storage. */
+  /** True only for a legacy browser-stored import retained for backward compatibility. */
   readonly isUploadedDataset: (datasetId: string) => boolean;
   readonly getDataset: (datasetId: string) => DatasetValue | undefined;
   readonly queryDataset: (datasetId: string) => DatasetQueryResultValue | undefined;
@@ -143,6 +143,8 @@ export const LocalDatasetProvider = ({ children }: LocalDatasetProviderProps) =>
       name: schema.name,
       schemaVersion: schema.schemaVersion,
     })),
+    // New imports are persisted through the upload API. Keep this path only so
+    // dashboards created before server uploads remain available to their owner.
     addDataset: (dataset) => {
       setDatasets((current) => {
         const next = new Map(current);

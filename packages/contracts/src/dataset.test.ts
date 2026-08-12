@@ -100,6 +100,25 @@ describe("Dataset contracts", () => {
     }).success).toBe(false);
   });
 
+  it("keeps global and chart-scoped filters separate in a query request", () => {
+    const request = DatasetQueryRequest.parse({
+      parameters: {},
+      globalFilters: [{ kind: "dateRange", fieldKey: "paymentTime", start: "2026-07-01", end: "2026-07-31", timezone: "Asia/Shanghai" }],
+      componentFilters: [{ kind: "dateRange", fieldKey: "orderTime", start: "2026-07-20", end: "2026-07-31", timezone: "Asia/Shanghai" }],
+    });
+
+    expect(request.globalFilters).toHaveLength(1);
+    expect(request.componentFilters).toHaveLength(1);
+    expect(DatasetQueryRequest.safeParse({ ...request, filters: [] }).success).toBe(false);
+  });
+
+  it("accepts a numeric query condition", () => {
+    expect(DatasetQueryRequest.parse({
+      parameters: {},
+      componentFilters: [{ kind: "numberComparison", fieldKey: "saleAmount", operator: "gt", value: 1000 }],
+    }).componentFilters).toEqual([{ kind: "numberComparison", fieldKey: "saleAmount", operator: "gt", value: 1000 }]);
+  });
+
   it.each([
     ["dataset", Dataset, { ...validDataset(), extra: true }],
     [

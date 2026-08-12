@@ -188,7 +188,10 @@ const validQueryParameters = (dataset: Dataset, value: unknown): boolean => {
       (Object.hasOwn(parsed.data.parameters, parameter.key) && parsed.data.parameters[parameter.key] !== null),
   ) && (parsed.data.filters ?? []).every((filter) => {
     const field = dataset.fields.find((candidate) => candidate.key === filter.fieldKey);
-    return field?.type === "date" && calendarDate(filter.start) && calendarDate(filter.end) && filter.start <= filter.end;
+    if (filter.kind === "dateRange") return field?.type === "date" && calendarDate(filter.start) && calendarDate(filter.end) && filter.start <= filter.end;
+    if (filter.kind === "fieldValue") return field?.type === "string" || field?.type === "boolean";
+    if (filter.kind === "numberComparison") return field?.type === "number";
+    return field?.type === "string";
   });
 };
 
@@ -196,13 +199,25 @@ const applyDateFilters = (
   rows: readonly Record<string, unknown>[],
   filters: DatasetQueryRequest["filters"],
 ): Record<string, unknown>[] => {
-  const filter = filters?.[0];
-  if (filter === undefined) return rows.map((row) => ({ ...row }));
-  return rows.filter((row) => {
+  if (filters === undefined || filters.length === 0) return rows.map((row) => ({ ...row }));
+  return rows.filter((row) => filters.every((filter) => {
     const value = row[filter.fieldKey];
-    const day = typeof value === "string" ? value.slice(0, 10) : "";
-    return calendarDate(day) && day >= filter.start && day <= filter.end;
-  }).map((row) => ({ ...row }));
+    if (filter.kind === "dateRange") {
+      const day = typeof value === "string" ? value.slice(0, 10) : "";
+      return calendarDate(day) && day >= filter.start && day <= filter.end;
+    }
+    if (filter.kind === "fieldValue") return filter.values.some((candidate) => String(value) === String(candidate));
+    if (filter.kind === "numberComparison") {
+      if (typeof value !== "number") return false;
+      if (filter.operator === "eq") return value === filter.value;
+      if (filter.operator === "neq") return value !== filter.value;
+      if (filter.operator === "gt") return value > filter.value;
+      if (filter.operator === "gte") return value >= filter.value;
+      if (filter.operator === "lt") return value < filter.value;
+      return value <= filter.value;
+    }
+    return typeof value === "string" && value.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase());
+  })).map((row) => ({ ...row }));
 };
 
 const validDatasetResult = (value: unknown): value is DatasetQueryResult => {
@@ -372,6 +387,20 @@ export const handlers: RequestHandler[] = [
       });
     }
     return HttpResponse.json(clone(dataset));
+  }),
+
+  http.get("*/datasets/:datasetId/fields/:fieldKey/options", ({ params, request }) => {
+    const dataset = findDataset(String(params.datasetId ?? ""));
+    const fieldKey = String(params.fieldKey ?? "");
+    const field = dataset?.fields.find((candidate) => candidate.key === fieldKey);
+    if (dataset === undefined || field === undefined || field.type === "date" || field.type === "number") return apiError(404, "DATASET_NOT_FOUND");
+    const search = new URL(request.url).searchParams.get("search")?.toLocaleLowerCase();
+    const rows = dataset.id === "sales" ? salesRowsFixture : [];
+    const options = [...new Set(rows.map((row) => row[fieldKey]).filter((value): value is string | boolean => typeof value === "string" || typeof value === "boolean").map(String))]
+      .filter((value) => search === undefined || value.toLocaleLowerCase().includes(search))
+      .sort((left, right) => left.localeCompare(right, "zh-CN"))
+      .slice(0, 200);
+    return HttpResponse.json({ options });
   }),
 
   http.post("*/datasets/:datasetId/query", async ({ params, request }) => {

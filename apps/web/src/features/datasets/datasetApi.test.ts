@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createApiClient } from "../../api/client.js";
 import { datasetFixtures, datasetSummaryFixtures, salesQueryResultFixture } from "../../mocks/fixtures.js";
 import { server } from "../../mocks/server.js";
-import { getDataset, listDatasets, queryDataset, queryDatasetRequest } from "./datasetApi.js";
+import { getDataset, listDatasets, queryDataset, queryDatasetRequest, uploadDataset } from "./datasetApi.js";
 
 const client = createApiClient("http://localhost");
 
@@ -49,5 +49,26 @@ describe("datasetApi", () => {
   it("rejects invalid gateway payloads", async () => {
     server.use(http.get("http://localhost/datasets", () => HttpResponse.json([{ id: "sales" }])));
     await expect(listDatasets(client)).rejects.toThrow();
+  });
+
+  it("uploads the original file with parsed schema and result as multipart form data", async () => {
+    let body: FormData | undefined;
+    const uploaded = {
+      dataset: { ...datasetFixtures[0]!, id: "uploaded-1" },
+      result: { ...salesQueryResultFixture, datasetName: "uploaded sales" },
+    };
+    server.use(http.post("http://localhost/datasets/uploads", async ({ request }) => {
+      body = await request.formData();
+      return HttpResponse.json(uploaded);
+    }));
+
+    const file = new File(["month,revenue\\n2026-07,10"], "sales.csv", { type: "text/csv" });
+    await expect(uploadDataset(file, {
+      schema: datasetFixtures[0]!,
+      result: salesQueryResultFixture,
+    }, client)).resolves.toEqual(uploaded);
+    expect(body?.get("file")).toBeInstanceOf(File);
+    expect(body?.get("schema")).toBe(JSON.stringify(datasetFixtures[0]));
+    expect(body?.get("result")).toBe(JSON.stringify(salesQueryResultFixture));
   });
 });

@@ -1,5 +1,6 @@
 import {
   Dataset,
+  DatasetFieldOptions,
   DatasetQueryResult,
   type DatasetAggregation,
   type DatasetAggregationRequest,
@@ -15,11 +16,31 @@ import { DatasetUpstreamError } from "./dataset.errors.js";
 import type { DatasetRepository } from "./dataset.repository.js";
 
 export const RETAIL_ORDER_DATASET_ID = "retail-delivery-orders";
+export const STORAGE_TURNOVER_DATASET_ID = "storage-turnover";
 const RETAIL_ORDER_DATABASE = "os";
-const RETAIL_ORDER_TABLE = "os_order_combined";
-const RETAIL_ORDER_RESULT_NAME = "零售发货单";
 const DEFAULT_RESULT_LIMIT = 1_000;
 const MAX_RESULT_LIMIT = 5_000;
+
+interface MysqlTableDatasetConfig {
+  readonly id: string;
+  readonly table: string;
+  readonly schemaVersion: string;
+  readonly sortColumn: string;
+}
+
+const RETAIL_ORDER_DATASET: MysqlTableDatasetConfig = {
+  id: RETAIL_ORDER_DATASET_ID,
+  table: "os_order_combined",
+  schemaVersion: "retail-delivery-orders-v2",
+  sortColumn: "order_time",
+};
+
+const STORAGE_TURNOVER_DATASET: MysqlTableDatasetConfig = {
+  id: STORAGE_TURNOVER_DATASET_ID,
+  table: "os_storage_turnover",
+  schemaVersion: "storage-turnover-v1",
+  sortColumn: "id",
+};
 
 interface MysqlColumnRow extends RowDataPacket {
   readonly sourceKey: string;
@@ -32,6 +53,10 @@ interface MysqlCountRow extends RowDataPacket {
   readonly total: number | string;
 }
 
+interface MysqlTableRow extends RowDataPacket {
+  readonly tableComment: string | null;
+}
+
 interface RetailOrderColumn {
   readonly sourceKey: string;
   readonly field: DatasetField;
@@ -42,17 +67,17 @@ interface SqlFilter {
   readonly values: readonly string[];
 }
 
-const retailOrderDataset = Dataset.parse({
-  id: RETAIL_ORDER_DATASET_ID,
-  name: "零售发货单（业务表）",
-  fields: [],
+const mysqlTableDataset = (config: MysqlTableDatasetConfig, name: string, fields: readonly DatasetField[] = []): Dataset => Dataset.parse({
+  id: config.id,
+  name,
+  fields,
   parameters: [
     // This is an output cap for a chart query, not a pagination control.
     // It deliberately stays out of the chart header and is configured per
     // component in the inspector next to the 更新 button.
     { key: "limit", label: "结果展示", type: "number", required: false, defaultValue: DEFAULT_RESULT_LIMIT },
   ],
-  schemaVersion: "retail-delivery-orders-v2",
+  schemaVersion: config.schemaVersion,
 });
 
 const clone = <Value>(value: Value): Value => structuredClone(value);
@@ -64,6 +89,8 @@ export const validateRetailOrderResultLimit = (parameters: Record<string, unknow
   const limit = parameters.limit;
   return limit === undefined || (typeof limit === "number" && Number.isInteger(limit) && limit > 0 && limit <= MAX_RESULT_LIMIT);
 };
+
+export const validateStorageTurnoverResultLimit = validateRetailOrderResultLimit;
 
 const toCamelCase = (value: string): string => value.replace(/_([a-z0-9])/g, (_, character: string) => character.toUpperCase());
 
@@ -126,16 +153,39 @@ const sqlFilter = (
   columns: readonly RetailOrderColumn[],
   filters: DatasetQueryRequest["filters"],
 ): SqlFilter => {
-  const filter = filters?.[0];
-  if (filter === undefined) return { whereSql: "", values: [] };
-  const column = columns.find((candidate) => candidate.field.key === filter.fieldKey);
-  if (column === undefined || column.field.type !== "date") throw new DatasetUpstreamError();
-  // A half-open range includes every time on the selected final day while
-  // keeping the indexed source column bare in the predicate.
-  return {
-    whereSql: ` WHERE ${quoteIdentifier(column.sourceKey)} >= ? AND ${quoteIdentifier(column.sourceKey)} < ?`,
-    values: [filter.start, nextCalendarDay(filter.end)],
-  };
+  if (filters === undefined || filters.length === 0) return { whereSql: "", values: [] };
+  const predicates: string[] = [];
+  const values: string[] = [];
+  for (const filter of filters) {
+    const column = columns.find((candidate) => candidate.field.key === filter.fieldKey);
+    if (column === undefined) throw new DatasetUpstreamError();
+    const source = quoteIdentifier(column.sourceKey);
+    if (filter.kind === "dateRange") {
+      if (column.field.type !== "date") throw new DatasetUpstreamError();
+      // Half-open ranges include every time on the selected final day while
+      // keeping the indexed source column bare in the predicate.
+      predicates.push(`${source} >= ? AND ${source} < ?`);
+      values.push(filter.start, nextCalendarDay(filter.end));
+      continue;
+    }
+    if (filter.kind === "fieldValue") {
+      if (column.field.type !== "string" && column.field.type !== "boolean") throw new DatasetUpstreamError();
+      predicates.push(`${source} IN (${filter.values.map(() => "?").join(", ")})`);
+      values.push(...filter.values.map(String));
+      continue;
+    }
+    if (filter.kind === "numberComparison") {
+      if (column.field.type !== "number") throw new DatasetUpstreamError();
+      const operator = { eq: "=", neq: "!=", gt: ">", gte: ">=", lt: "<", lte: "<=" }[filter.operator];
+      predicates.push(`${source} ${operator} ?`);
+      values.push(String(filter.value));
+      continue;
+    }
+    if (column.field.type !== "string") throw new DatasetUpstreamError();
+    predicates.push(`${source} LIKE ?`);
+    values.push(`%${filter.value}%`);
+  }
+  return { whereSql: ` WHERE ${predicates.join(" AND ")}`, values };
 };
 
 const execute = <Value extends RowDataPacket[]>(pool: Pool, sql: string, values: readonly string[]): Promise<[Value, unknown]> =>
@@ -175,25 +225,29 @@ const createPool = (): Pool => {
 export class RetailOrderDatasetRepository implements DatasetRepository {
   private managedPool: Pool | undefined;
   private columnsPromise: Promise<readonly RetailOrderColumn[]> | undefined;
+  private datasetNamePromise: Promise<string> | undefined;
 
-  constructor(@Optional() private readonly suppliedPool?: Pool) {}
+  constructor(
+    @Optional() private readonly suppliedPool?: Pool,
+    private readonly config: MysqlTableDatasetConfig = RETAIL_ORDER_DATASET,
+  ) {}
 
   async list(): Promise<readonly DatasetSummary[]> {
-    const { id, name, schemaVersion } = retailOrderDataset;
+    const { id, name, schemaVersion } = mysqlTableDataset(this.config, await this.datasetName());
     return [{ id, name, schemaVersion }];
   }
 
   async getSchema(id: string): Promise<Dataset | null> {
-    if (id !== RETAIL_ORDER_DATASET_ID) return null;
+    if (id !== this.config.id) return null;
     const fields = (await this.columns()).map(({ field }) => field);
-    return Dataset.parse({ ...retailOrderDataset, fields });
+    return mysqlTableDataset(this.config, await this.datasetName(), fields);
   }
 
   async query(id: string, request: DatasetQueryRequest): Promise<DatasetQueryResultValue | null> {
-    if (id !== RETAIL_ORDER_DATASET_ID) return null;
+    if (id !== this.config.id) return null;
     const columns = await this.columns();
     const limit = Math.min(positiveInteger(request.parameters.limit, DEFAULT_RESULT_LIMIT), MAX_RESULT_LIMIT);
-    const table = `${quoteIdentifier(RETAIL_ORDER_DATABASE)}.${quoteIdentifier(RETAIL_ORDER_TABLE)}`;
+    const table = `${quoteIdentifier(RETAIL_ORDER_DATABASE)}.${quoteIdentifier(this.config.table)}`;
     const filter = sqlFilter(columns, request.filters);
     if (request.aggregation !== undefined) {
       return this.queryAggregation(columns, request.aggregation, table, limit, filter);
@@ -206,7 +260,7 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
         this.pool(),
         // This MySQL instance rejects prepared placeholders in LIMIT. The
         // value is validated as a bounded positive integer before interpolation.
-        `SELECT ${selectedColumns} FROM ${table}${filter.whereSql} ORDER BY ${quoteIdentifier("order_time")} DESC LIMIT ${limit}`,
+        `SELECT ${selectedColumns} FROM ${table}${filter.whereSql} ORDER BY ${quoteIdentifier(this.config.sortColumn)} DESC LIMIT ${limit}`,
         filter.values,
       );
       const total = Number(totalRows[0]?.total ?? 0);
@@ -215,9 +269,30 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
         columns: columns.map(({ field }) => field),
         rows: rows.map((row) => toRetailOrderRow(row, columns)),
         total: Number.isSafeInteger(total) && total >= 0 ? total : 0,
-        datasetName: RETAIL_ORDER_RESULT_NAME,
+        datasetName: await this.datasetName(),
         sampledAt: new Date().toISOString(),
       });
+    } catch (error: unknown) {
+      if (error instanceof DatasetUpstreamError) throw error;
+      throw new DatasetUpstreamError();
+    }
+  }
+
+  async getFieldOptions(id: string, fieldKey: string, search: string | undefined, limit: number): Promise<DatasetFieldOptions | null> {
+    if (id !== this.config.id) return null;
+    const column = (await this.columns()).find((candidate) => candidate.field.key === fieldKey);
+    if (column === undefined || (column.field.type !== "string" && column.field.type !== "boolean")) return null;
+    const table = `${quoteIdentifier(RETAIL_ORDER_DATABASE)}.${quoteIdentifier(this.config.table)}`;
+    const source = quoteIdentifier(column.sourceKey);
+    const whereSql = search ? ` WHERE ${source} IS NOT NULL AND ${source} LIKE ?` : ` WHERE ${source} IS NOT NULL`;
+    const values = search ? [`%${search}%`] : [];
+    try {
+      const [rows] = await execute<RowDataPacket[]>(
+        this.pool(),
+        `SELECT DISTINCT ${source} AS value FROM ${table}${whereSql} ORDER BY ${source} ASC LIMIT ${limit}`,
+        values,
+      );
+      return DatasetFieldOptions.parse({ options: rows.map((row) => String(row.value)) });
     } catch (error: unknown) {
       if (error instanceof DatasetUpstreamError) throw error;
       throw new DatasetUpstreamError();
@@ -275,7 +350,7 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
         columns: resultColumns.map(({ field }) => field),
         rows: rows.map((row) => toRetailOrderRow(row, resultColumns)),
         total: Number.isSafeInteger(total) && total >= 0 ? total : 0,
-        datasetName: RETAIL_ORDER_RESULT_NAME,
+        datasetName: await this.datasetName(),
         sampledAt: new Date().toISOString(),
       });
     } catch (error: unknown) {
@@ -291,8 +366,42 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
   }
 
   private columns(): Promise<readonly RetailOrderColumn[]> {
-    this.columnsPromise ??= this.loadColumns();
+    if (this.columnsPromise === undefined) {
+      const request = this.loadColumns();
+      const retryable = request.catch((error: unknown) => {
+        if (this.columnsPromise === retryable) this.columnsPromise = undefined;
+        throw error;
+      });
+      this.columnsPromise = retryable;
+    }
     return this.columnsPromise;
+  }
+
+  private datasetName(): Promise<string> {
+    if (this.datasetNamePromise === undefined) {
+      const request = this.loadDatasetName();
+      const retryable = request.catch((error: unknown) => {
+        if (this.datasetNamePromise === retryable) this.datasetNamePromise = undefined;
+        throw error;
+      });
+      this.datasetNamePromise = retryable;
+    }
+    return this.datasetNamePromise;
+  }
+
+  private async loadDatasetName(): Promise<string> {
+    try {
+      const [rows] = await this.pool().execute<MysqlTableRow[]>(
+        `SELECT TABLE_COMMENT AS tableComment
+         FROM INFORMATION_SCHEMA.TABLES
+         WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+        [RETAIL_ORDER_DATABASE, this.config.table],
+      );
+      return rows[0]?.tableComment?.trim() || this.config.table;
+    } catch (error: unknown) {
+      if (error instanceof DatasetUpstreamError) throw error;
+      throw new DatasetUpstreamError();
+    }
   }
 
   private async loadColumns(): Promise<readonly RetailOrderColumn[]> {
@@ -302,7 +411,7 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
          FROM INFORMATION_SCHEMA.COLUMNS
          WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
          ORDER BY ORDINAL_POSITION`,
-        [RETAIL_ORDER_DATABASE, RETAIL_ORDER_TABLE],
+        [RETAIL_ORDER_DATABASE, this.config.table],
       );
       const columns = rows.map((row) => ({
         sourceKey: row.sourceKey,
@@ -319,5 +428,12 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
       if (error instanceof DatasetUpstreamError) throw error;
       throw new DatasetUpstreamError();
     }
+  }
+}
+
+@Injectable()
+export class StorageTurnoverDatasetRepository extends RetailOrderDatasetRepository {
+  constructor(@Optional() suppliedPool?: Pool) {
+    super(suppliedPool, STORAGE_TURNOVER_DATASET);
   }
 }

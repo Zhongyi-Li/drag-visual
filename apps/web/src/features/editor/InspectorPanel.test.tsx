@@ -2,7 +2,7 @@
 
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -49,6 +49,54 @@ describe("InspectorPanel", () => {
     expect(screen.getByRole("button", { name: "收起数据栏" })).toBeInTheDocument();
   });
 
+  it("shows bar-line display optimization switches in the display tab", async () => {
+    const selectedDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "bar-line-1", x: 0, y: 0, w: 7, h: 5 }],
+      components: [{
+        id: "bar-line-1",
+        type: "barLine",
+        title: "柱状折线组合图",
+        props: { aggregation: "sum", barColor: "#2f62dc", hideZeroValues: true, lineColor: "#ff7417", showLegend: true, smartLineScale: true, smooth: false },
+      }],
+    });
+    const store = createEditorStore(selectedDashboard);
+    store.getState().select("bar-line-1");
+    render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
+
+    await userEvent.click(screen.getByRole("tab", { name: "显示" }));
+
+    expect(screen.getByRole("switch", { name: "隐藏全零类目" })).toBeChecked();
+    expect(screen.getByRole("switch", { name: "折线轴智能缩放" })).toBeChecked();
+  });
+
+  it("provides analysis-group container controls in the display tab", async () => {
+    const selectedDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "group-1", x: 0, y: 0, w: 12, h: 8 }],
+      components: [{
+        id: "group-1",
+        type: "analysisGroup",
+        title: "复合分析",
+        props: { description: "按商品查看库存与销量。", columns: 12, gap: 12, showSurface: true, queryFilters: [] },
+      }],
+    });
+    const store = createEditorStore(selectedDashboard);
+    store.getState().select("group-1");
+    render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
+
+    await userEvent.click(screen.getByRole("tab", { name: "显示" }));
+
+    expect(screen.getByRole("textbox", { name: "图表标题" })).toHaveValue("复合分析");
+    expect(screen.getByRole("textbox", { name: "复合分析说明" })).toHaveValue("按商品查看库存与销量。");
+    expect(screen.getByRole("spinbutton", { name: "内部栅格列数" })).toHaveValue("12");
+    expect(screen.getByRole("spinbutton", { name: "图表间距" })).toHaveValue("12");
+    expect(screen.getByRole("switch", { name: "显示容器边框" })).toBeChecked();
+
+    await userEvent.click(screen.getByRole("switch", { name: "显示容器边框" }));
+    expect(store.getState().history.present.components[0]?.props.showSurface).toBe(false);
+  });
+
   it("explains that a chart must be selected before configuring data interaction", async () => {
     const store = createEditorStore(dashboard);
     render(
@@ -63,6 +111,99 @@ describe("InspectorPanel", () => {
     expect(screen.getByText("选择图表后配置日期筛选。")).toBeInTheDocument();
     expect(screen.getByText("高级设置")).toBeInTheDocument();
     expect(document.querySelector(".inspector-analysis")).toBeInTheDocument();
+  });
+
+  it("opens the standalone KPI insight configuration in a bottom drawer", async () => {
+    const selectedDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "insight-1", x: 0, y: 0, w: 3, h: 3 }],
+      datasets: [{ datasetId: "sales", schemaVersion: "v1", parameters: {} }],
+      components: [{
+        id: "insight-1",
+        type: "kpiInsight",
+        title: "GMV 洞察",
+        props: {
+          aggregation: "sum",
+          prefix: "¥",
+          suffix: "",
+          decimals: 0,
+          insightRows: [{ type: "comparison", prefix: "环比", tone: "auto" }],
+        },
+        binding: { datasetId: "sales", slots: { measure: [{ fieldKey: "gmv" }] } },
+      }],
+    });
+    const store = createEditorStore(selectedDashboard);
+    store.getState().select("insight-1");
+    render(
+      <AppProviders>
+        <InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} />
+      </AppProviders>,
+    );
+
+    expect(screen.getByRole("button", { name: "打开指标洞察设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "指标洞察配置" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "打开指标洞察设置" }));
+    expect(await screen.findByRole("dialog")).toHaveTextContent("指标洞察设置");
+    expect(screen.getByRole("row", { name: "gmv聚合设置" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "gmv聚合方式" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "更新" })).toBeInTheDocument();
+    expect(screen.queryByText("展示内容")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "收起看板指标/度量" }));
+    expect(screen.queryByRole("row", { name: "gmv聚合设置" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "展开看板指标/度量" })).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(screen.getByRole("button", { name: "展开看板指标/度量" }));
+    await userEvent.click(screen.getByRole("combobox", { name: "gmv聚合方式" }));
+    await userEvent.click(screen.getByText("平均值"));
+    expect(store.getState().history.present.components[0]?.binding?.slots.measure).toEqual([{ fieldKey: "gmv", aggregation: "avg" }]);
+  });
+
+  it("configures a dashboard header from its dedicated settings tab", async () => {
+    const selectedDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "header-1", x: 0, y: 0, w: 12, h: 3 }],
+      components: [{
+        id: "header-1", type: "dashboardHeader", title: "",
+        props: {
+          headline: "经营数据看板", description: "用于快速掌握经营表现与关键指标。", updatedAt: "更新时间：2026-08-05 10:00",
+          date: "2026-08-05", dateRange: { start: "2026-08-05", end: "2026-08-05" }, globalFilters: [],
+        },
+      }],
+    });
+    const store = createEditorStore(selectedDashboard);
+    store.getState().select("header-1");
+    render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
+
+    expect(screen.getByText("看板信息栏配置")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "设置" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "分析" })).not.toBeInTheDocument();
+    await userEvent.clear(screen.getByRole("textbox", { name: "看板信息栏标题" }));
+    await userEvent.type(screen.getByRole("textbox", { name: "看板信息栏标题" }), "小米旗舰店经营看板");
+    expect(store.getState().history.present.components[0]!.props.headline).toBe("小米旗舰店经营看板");
+    expect(screen.getByText("双击右侧字段或拖入此处添加；已添加字段可在右侧单击移除。")).toBeInTheDocument();
+  });
+
+  it("removes a legacy KPI insight dimension binding", async () => {
+    const selectedDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "insight-legacy", x: 0, y: 0, w: 3, h: 3 }],
+      datasets: [{ datasetId: "sales", schemaVersion: "v1", parameters: {} }],
+      components: [{
+        id: "insight-legacy",
+        type: "kpiInsight",
+        title: "GMV 洞察",
+        props: { aggregation: "sum", prefix: "¥", suffix: "", decimals: 0, displayName: "", insightRows: [{ type: "comparison", prefix: "环比", tone: "auto" }] },
+        binding: { datasetId: "sales", slots: { dimension: { fieldKey: "store" }, measure: { fieldKey: "gmv" } } },
+      }],
+    });
+    const store = createEditorStore(selectedDashboard);
+    store.getState().select("insight-legacy");
+    render(
+      <AppProviders>
+        <InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} />
+      </AppProviders>,
+    );
+
+    await waitFor(() => expect(store.getState().history.present.components[0]?.binding?.slots.dimension).toBeUndefined());
   });
 
   it("saves a selected chart's date-filter control in its binding", async () => {

@@ -70,4 +70,37 @@ describe("addRegistryComponent", () => {
       props: { aggregation: "sum", showTotals: true, timeGranularity: "day" },
     });
   });
+
+  it("allows only one dashboard information bar and selects the existing one", () => {
+    const store = createEditorStore(empty);
+    const registry = createDefaultRegistry();
+    expect(addRegistryComponent(store, registry, () => "header-1", "dashboardHeader")).toBe("header-1");
+    expect(addRegistryComponent(store, registry, () => "header-2", "dashboardHeader")).toBe("header-1");
+    expect(store.getState().history.present.components.filter((component) => component.type === "dashboardHeader")).toHaveLength(1);
+    expect(store.getState().selectedComponentId).toBe("header-1");
+  });
+
+  it("pins a clicked dashboard information bar to the top and shifts the canvas below it", () => {
+    const populated = DashboardSchema.parse({
+      ...empty,
+      layout: [
+        { i: "bar-1", x: 0, y: 0, w: 6, h: 5 },
+        { i: "table-1", x: 6, y: 5, w: 6, h: 6 },
+      ],
+      components: [
+        { id: "bar-1", type: "bar", title: "柱图", props: { aggregation: "sum", color: "#1677ff", showLegend: true } },
+        { id: "table-1", type: "table", title: "明细表", props: { pageSize: 20, striped: false } },
+      ],
+    });
+    const store = createEditorStore(populated);
+
+    addRegistryComponent(store, createDefaultRegistry(), () => "header-1", "dashboardHeader");
+
+    expect(store.getState().history.present.layout).toEqual(expect.arrayContaining([
+      { i: "header-1", x: 0, y: 0, w: 12, h: 3 },
+      { i: "bar-1", x: 0, y: 3, w: 6, h: 5 },
+      { i: "table-1", x: 6, y: 8, w: 6, h: 6 },
+    ]));
+    expect(store.getState().history.past).toHaveLength(1);
+  });
 });

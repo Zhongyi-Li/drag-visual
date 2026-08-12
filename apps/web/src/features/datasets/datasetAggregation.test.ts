@@ -150,4 +150,55 @@ describe("buildDatasetAggregation", () => {
       ],
     });
   });
+
+  it("aggregates the column and line metrics of a bar-line chart independently", () => {
+    const barLine = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1",
+        type: "barLine",
+        props: { aggregation: "sum", barColor: "#2f62dc", lineColor: "#ff7417", showLegend: true, smooth: false },
+        binding: {
+          datasetId: "sales",
+          slots: {
+            dimension: { fieldKey: "month" },
+            barMeasure: { fieldKey: "revenue", aggregation: "sum" },
+            lineMeasure: { fieldKey: "orders", aggregation: "avg" },
+          },
+        },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(barLine)).toEqual({
+      groupBy: ["month"],
+      measures: [
+        { fieldKey: "revenue", aggregation: "sum" },
+        { fieldKey: "orders", aggregation: "avg" },
+      ],
+    });
+  });
+
+  it("deduplicates a metric reused by the column and line of a bar-line chart", () => {
+    const barLine = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1",
+        type: "barLine",
+        props: { aggregation: "sum", barColor: "#2f62dc", lineColor: "#ff7417", showLegend: true, smooth: false },
+        binding: {
+          datasetId: "sales",
+          slots: {
+            dimension: { fieldKey: "psCProEname" },
+            barMeasure: { fieldKey: "saleGrossProfit" },
+            lineMeasure: { fieldKey: "saleGrossProfit" },
+          },
+        },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(barLine)).toEqual({
+      groupBy: ["psCProEname"],
+      measures: [{ fieldKey: "saleGrossProfit", aggregation: "sum" }],
+    });
+  });
 });

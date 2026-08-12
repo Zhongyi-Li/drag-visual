@@ -66,6 +66,7 @@ const addComponent = (
   dashboard: Dashboard,
   component: ComponentInstance,
   layout: GridItem,
+  layoutUpdates: readonly GridItem[] = [],
 ): Dashboard => {
   if (component.id !== layout.i) {
     return fail(
@@ -79,10 +80,20 @@ const addComponent = (
   ) {
     return fail("DUPLICATE_ID", `Dashboard ID already exists: ${component.id}`);
   }
+  const updatesById = new Map<string, GridItem>();
+  for (const update of layoutUpdates) {
+    if (updatesById.has(update.i)) {
+      return fail("DUPLICATE_UPDATE_ID", `Layout update ID occurs more than once: ${update.i}`);
+    }
+    if (!hasComponent(dashboard, update.i)) {
+      return fail("MISSING_COMPONENT", `Component does not exist: ${update.i}`);
+    }
+    updatesById.set(update.i, update);
+  }
   return validateDashboardSnapshot({
     ...dashboard,
     components: [...dashboard.components, component],
-    layout: [...dashboard.layout, layout],
+    layout: [...dashboard.layout.map((item) => updatesById.get(item.i) ?? item), layout],
   });
 };
 
@@ -155,7 +166,7 @@ const applyKnownCommand = (
 ): Dashboard => {
   switch (command.type) {
     case "component.add":
-      return addComponent(dashboard, command.component, command.layout);
+      return addComponent(dashboard, command.component, command.layout, command.layoutUpdates);
     case "component.remove": {
       if (!hasComponent(dashboard, command.componentId)) {
         return fail(
@@ -163,12 +174,23 @@ const applyKnownCommand = (
           `Component does not exist: ${command.componentId}`,
         );
       }
+      const removedIds = new Set([command.componentId]);
+      let foundChild = true;
+      while (foundChild) {
+        foundChild = false;
+        dashboard.components.forEach((component) => {
+          if (component.parentId !== undefined && removedIds.has(component.parentId) && !removedIds.has(component.id)) {
+            removedIds.add(component.id);
+            foundChild = true;
+          }
+        });
+      }
       return validateDashboardSnapshot({
         ...dashboard,
         components: dashboard.components.filter(
-          (component) => component.id !== command.componentId,
+          (component) => !removedIds.has(component.id),
         ),
-        layout: dashboard.layout.filter((item) => item.i !== command.componentId),
+        layout: dashboard.layout.filter((item) => !removedIds.has(item.i)),
       });
     }
     case "component.duplicate":
@@ -196,6 +218,26 @@ const applyKnownCommand = (
           dashboard,
           command.componentId,
           (component) => ({ ...component, title: command.nextTitle }),
+        ),
+      });
+    case "component.subtitle.update":
+      return validateDashboardSnapshot({
+        ...dashboard,
+        components: replaceComponent(
+          dashboard,
+          command.componentId,
+          (component) => ({ ...component, subtitle: command.nextSubtitle }),
+        ),
+      });
+    case "component.display-annotations.update":
+      return validateDashboardSnapshot({
+        ...dashboard,
+        components: replaceComponent(
+          dashboard,
+          command.componentId,
+          (component) => command.nextDisplayAnnotations === undefined
+            ? (({ displayAnnotations: _displayAnnotations, ...rest }) => rest)(component)
+            : { ...component, displayAnnotations: command.nextDisplayAnnotations },
         ),
       });
     case "component.binding.update":

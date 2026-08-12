@@ -5,13 +5,17 @@ import {
   ComponentRegistryError,
   areaDefinition,
   barDefinition,
+  barLineDefinition,
   crosstabDefinition,
+  dashboardHeaderDefinition,
   createDefaultRegistry,
   donutDefinition,
   flipNumberDefinition,
   gaugeDefinition,
   heatmapDefinition,
+  horizontalBarDefinition,
   kpiDefinition,
+  kpiInsightDefinition,
   liquidDefinition,
   metricBreakdownDefinition,
   metricTrendDefinition,
@@ -34,14 +38,19 @@ import {
 describe("component registry", () => {
   it("registers all component types", () => {
     expect(createDefaultRegistry().list().map((definition) => definition.type).sort()).toEqual([
+      "analysisGroup",
       "area",
       "bar",
+      "barLine",
       "crosstab",
+      "dashboardHeader",
       "donut",
       "flipNumber",
       "gauge",
       "heatmap",
+      "horizontalBar",
       "kpi",
+      "kpiInsight",
       "line",
       "liquid",
       "metricBreakdown",
@@ -64,6 +73,11 @@ describe("component registry", () => {
       "treemap",
       "trend",
     ]);
+  });
+
+  it("provides a data-free dashboard header component", () => {
+    expect(dashboardHeaderDefinition.dataSlots).toEqual([]);
+    expect(dashboardHeaderDefinition.defaultLayout).toEqual({ w: 12, h: 3 });
   });
 
   it("defines a first-class rose chart so its polar-area encoding survives renaming", () => {
@@ -204,6 +218,33 @@ describe("component registry", () => {
     })).toEqual({ valid: true, messages: [] });
   });
 
+  it("defines horizontal bar and bar-line charts with dedicated metric slots", () => {
+    const registry = createDefaultRegistry();
+    const horizontalBar = registry.get("horizontalBar");
+    const barLine = registry.get("barLine");
+
+    expect(horizontalBarDefinition.title).toBe("条形图");
+    expect(horizontalBar.defaultLayout).toEqual({ w: 7, h: 5 });
+    expect(horizontalBar.createDefaults()).toEqual({ aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true });
+    expect(horizontalBar.dataSlots).toEqual([
+      expect.objectContaining({ key: "dimension", title: "分类维度", required: true }),
+      expect.objectContaining({ key: "measure", title: "条形指标", required: true, multiple: false }),
+    ]);
+
+    expect(barLineDefinition.title).toBe("柱状折线组合图");
+    expect(barLine.defaultLayout).toEqual({ w: 7, h: 5 });
+    expect(barLine.createDefaults()).toEqual({ aggregation: "sum", barColor: "#2f62dc", hideZeroValues: true, lineColor: "#ff7417", showLegend: true, smartLineScale: true, smooth: true });
+    expect(barLine.dataSlots).toEqual([
+      expect.objectContaining({ key: "dimension", required: true }),
+      expect.objectContaining({ key: "barMeasure", title: "柱状指标", required: true }),
+      expect.objectContaining({ key: "lineMeasure", title: "折线指标", required: true }),
+    ]);
+    expect(barLine.validateBinding?.({
+      datasetId: "sales",
+      slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "inventoryAmount" }, lineMeasure: { fieldKey: "inventoryQuantity" } },
+    })).toEqual({ valid: true, messages: [] });
+  });
+
   it("exposes a multi-metric Chinese bar definition and validates its props", () => {
     expect(barDefinition.type).toBe("bar");
     expect(barDefinition.title).toBe("柱图");
@@ -258,6 +299,46 @@ describe("component registry", () => {
       slots: {
         measure: [{ fieldKey: "revenue" }, { fieldKey: "orders" }],
       },
+    }).valid).toBe(true);
+  });
+
+  it("supports up to two typed KPI insight rows while keeping legacy props valid", () => {
+    const legacyProps = { aggregation: "first", prefix: "¥", suffix: "", decimals: 0 };
+
+    expect(kpiDefinition.propsSchema.parse(legacyProps)).toEqual({ ...legacyProps, insightRows: [] });
+    expect(kpiDefinition.propsSchema.parse({
+      ...legacyProps,
+      insightRows: [
+        { type: "comparison" },
+        { type: "secondary", prefix: "客单价", secondaryIndex: 1, tone: "positive" },
+      ],
+    }).insightRows).toEqual([
+      { type: "comparison", prefix: "环比", tone: "auto" },
+      { type: "secondary", prefix: "客单价", secondaryIndex: 1, tone: "positive" },
+    ]);
+    expect(kpiDefinition.propsSchema.safeParse({
+      ...legacyProps,
+      insightRows: [
+        { type: "notice", text: "3 个 SKU 存在缺货风险" },
+        { type: "target" },
+        { type: "comparison" },
+      ],
+    }).success).toBe(false);
+    expect(kpiDefinition.propsSchema.safeParse({
+      ...legacyProps,
+      insightRows: [{ type: "notice", prefix: "风险", tone: "warning" }],
+    }).success).toBe(false);
+  });
+
+  it("defines a standalone KPI insight card", () => {
+    expect(kpiInsightDefinition.type).toBe("kpiInsight");
+    expect(kpiInsightDefinition.title).toBe("指标洞察");
+    expect(kpiInsightDefinition.createDefaults().insightRows).toHaveLength(2);
+    expect(kpiInsightDefinition.createDefaults().displayName).toBe("");
+    expect(kpiInsightDefinition.dataSlots.map((slot) => slot.key)).not.toContain("dimension");
+    expect(kpiInsightDefinition.validateBinding?.({
+      datasetId: "sales",
+      slots: { measure: { fieldKey: "revenue" } },
     }).valid).toBe(true);
   });
 

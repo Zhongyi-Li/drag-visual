@@ -77,6 +77,15 @@ class FakeDatasetRepository implements DatasetRepository {
   }
 }
 
+class CapturingDatasetRepository extends FakeDatasetRepository {
+  request: DatasetQueryRequest | undefined;
+
+  override async query(id: string, request: DatasetQueryRequest): Promise<DatasetQueryResult | null> {
+    this.request = structuredClone(request);
+    return super.query(id, request);
+  }
+}
+
 const validRequest = (): DatasetQueryRequest => ({
   parameters: { year: 2026, fromDate: "2026-01-01" },
 });
@@ -151,6 +160,31 @@ describe("DatasetService", () => {
       ...validRequest(),
       filters: [{ kind: "dateRange", fieldKey: "businessDate", start: "2026-02-01", end: "2026-01-31", timezone: "Asia/Shanghai" }],
     })).rejects.toBeInstanceOf(DatasetQueryInvalidError);
+  });
+
+  it("combines global and chart-scoped filters with AND semantics before querying", async () => {
+    const repository = new CapturingDatasetRepository();
+    const service = new DatasetService(repository);
+    await service.query("sales", {
+      ...validRequest(),
+      globalFilters: [
+        { kind: "dateRange", fieldKey: "businessDate", start: "2026-01-01", end: "2026-01-31", timezone: "Asia/Shanghai" },
+        { kind: "fieldText", fieldKey: "month", value: "1" },
+      ],
+      componentFilters: [
+        { kind: "dateRange", fieldKey: "businessDate", start: "2026-01-15", end: "2026-01-15", timezone: "Asia/Shanghai" },
+      ],
+    });
+
+    expect(repository.request).toMatchObject({
+      filters: [
+        { kind: "dateRange", fieldKey: "businessDate", start: "2026-01-01", end: "2026-01-31" },
+        { kind: "fieldText", fieldKey: "month", value: "1" },
+        { kind: "dateRange", fieldKey: "businessDate", start: "2026-01-15", end: "2026-01-15" },
+      ],
+    });
+    expect(repository.request).not.toHaveProperty("globalFilters");
+    expect(repository.request).not.toHaveProperty("componentFilters");
   });
 
   it.each([

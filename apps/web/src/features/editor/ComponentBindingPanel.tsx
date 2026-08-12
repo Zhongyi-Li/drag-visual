@@ -4,7 +4,7 @@ import type { ComponentType, DataBinding, Dataset, DatasetField, MetricAggregati
 import { validateBinding } from "@drag-visual/data-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Dropdown, InputNumber, Select, Space, Spin, Tooltip, Typography } from "antd";
-import { type DragEvent, useEffect, useState } from "react";
+import { type DragEvent, type ReactNode, useEffect, useState } from "react";
 import { useStore } from "zustand";
 
 import { getDataset, listDatasets } from "../datasets/datasetApi.js";
@@ -17,6 +17,14 @@ interface ComponentBindingPanelProps {
   readonly store: EditorStore;
   readonly component: BindableComponent;
   readonly definition: ComponentDefinition;
+  /** Restrict the panel to selected slots when the remaining fields live in a focused surface. */
+  readonly slotKeys?: readonly string[] | undefined;
+  /** Optional actions rendered beside a slot label, such as a component-specific settings entry. */
+  readonly slotActions?: Readonly<Partial<Record<string, ReactNode>>> | undefined;
+  /** Hide dataset/query/ordering controls when this panel is embedded in a focused configuration surface. */
+  readonly compact?: boolean | undefined;
+  /** Keep the data refresh action available in a compact, component-specific panel. */
+  readonly showRefreshButton?: boolean | undefined;
 }
 
 type StoredFieldBinding = { readonly fieldKey: string; readonly aggregation?: MetricAggregation | undefined };
@@ -151,6 +159,9 @@ const slotHelpText = (slotKey: string, slotTitle: string, componentType: Compone
   if (slotKey === "dimensions") return "作为多维分析的分组层级，可选择地区、品类、渠道等多个分类字段。";
   if (slotKey === "measures") return "作为多维分析要汇总的数值指标，可选择销售额、订单数、访客数等多个指标。";
   if (componentType === "bar" && slotKey === "measure") return "可选择一个或多个数值指标；多个指标会按同一维度并列展示为多组柱。";
+  if (componentType === "horizontalBar" && slotKey === "measure") return "选择一个数值指标，图表会按汇总结果从高到低排列，适合展示商品、门店或品类排名。";
+  if (componentType === "barLine" && slotKey === "barMeasure") return "选择以柱状展示的主指标，例如库存金额或销售额。";
+  if (componentType === "barLine" && slotKey === "lineMeasure") return "选择以折线展示的对比指标，例如库存数量或订单数；该指标使用右侧纵轴。";
   if (componentType === "ringBar" && slotKey === "measure") return "主指标决定各维度同心环的长度，系统会按所选聚合方式汇总。";
   if (componentType === "ringBar" && slotKey === "tooltipMeasures") return "可选的辅助指标，只在鼠标悬浮同心环时显示，不会生成新的环。";
   if (componentType === "ranking" && slotKey === "measure") return "只选择参与排名的业务指标，例如订单数、访客数。只选一个指标时会自动按该指标从高到低排行；选择多个指标后，可决定按主指标或综合加权结果排行。";
@@ -187,10 +198,13 @@ const slotHelpText = (slotKey: string, slotTitle: string, componentType: Compone
 const visibleDataSlots = (
   definition: ComponentDefinition,
   componentType: ComponentType,
+  slotKeys?: readonly string[],
 ): ComponentDefinition["dataSlots"] => {
-  if (componentType !== "kpi") return definition.dataSlots;
-  return definition.dataSlots.filter((slot) =>
+  const componentSlots = componentType !== "kpi"
+    ? definition.dataSlots
+    : definition.dataSlots.filter((slot) =>
     slot.key !== "target" && slot.key !== "comparison" && slot.key !== "secondaryMeasures");
+  return slotKeys === undefined ? componentSlots : componentSlots.filter((slot) => slotKeys.includes(slot.key));
 };
 
 export const fieldOptionsForSlot = (
@@ -201,7 +215,7 @@ export const fieldOptionsForSlot = (
     .filter((field) => slot.acceptedTypes.includes(field.type))
     .map((field) => ({ label: field.label, value: field.key }));
 
-const BindingFieldLabel = ({ label, help }: { readonly label: string; readonly help: string }) => (
+const BindingFieldLabel = ({ label, help, action }: { readonly label: string; readonly help: string; readonly action?: ReactNode }) => (
   <div className="binding-field__label">
     <Typography.Text strong>{label}</Typography.Text>
     <Tooltip title={help} placement="topRight">
@@ -213,6 +227,7 @@ const BindingFieldLabel = ({ label, help }: { readonly label: string; readonly h
         icon={<QuestionCircleOutlined />}
       />
     </Tooltip>
+    {action !== undefined && <span className="binding-field__label-actions">{action}</span>}
   </div>
 );
 
@@ -238,7 +253,15 @@ const isLegacyRankingAuxiliaryField = (key: string, label?: string): boolean =>
 const DEFAULT_CHART_RESULT_LIMIT = 1_000;
 const MAX_CHART_RESULT_LIMIT = 5_000;
 
-export const ComponentBindingPanel = ({ store, component, definition }: ComponentBindingPanelProps) => {
+export const ComponentBindingPanel = ({
+  store,
+  component,
+  definition,
+  slotKeys,
+  slotActions = {},
+  compact = false,
+  showRefreshButton = false,
+}: ComponentBindingPanelProps) => {
   const queryClient = useQueryClient();
   const localDatasets = useLocalDatasets();
   const [selectionError, setSelectionError] = useState<unknown>(null);
@@ -250,6 +273,16 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
   const currentComponent = toBindableComponent(storedComponent ?? component);
   const binding = currentComponent.binding;
   const componentProps = currentComponent.props ?? {};
+  const savedTopN = binding?.limit ?? null;
+  const savedResultLimit = typeof componentProps.resultLimit === "number" && Number.isInteger(componentProps.resultLimit)
+    ? componentProps.resultLimit
+    : typeof componentProps.appliedResultLimit === "number" && Number.isInteger(componentProps.appliedResultLimit)
+      ? componentProps.appliedResultLimit
+      : DEFAULT_CHART_RESULT_LIMIT;
+  const [draftTopN, setDraftTopN] = useState<number | null>(savedTopN);
+  const [draftResultLimit, setDraftResultLimit] = useState<number | null>(savedResultLimit);
+  useEffect(() => { setDraftTopN(savedTopN); }, [component.id, savedTopN]);
+  useEffect(() => { setDraftResultLimit(savedResultLimit); }, [component.id, savedResultLimit]);
   const defaultProps = definition.createDefaults();
   const supportsTimeGranularity = isTimeGranularity(componentProps.timeGranularity) || isTimeGranularity(defaultProps.timeGranularity);
   const timeGranularityValue = isTimeGranularity(componentProps.timeGranularity)
@@ -274,6 +307,13 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
     ].map((dataset) => [dataset.id, dataset])).values(),
   ).map((dataset) => ({ label: dataset.name, value: dataset.id }));
   const showDatasetListError = datasets.isError && localDatasets.summaries.length === 0;
+
+  // KPI insight used to expose a dimension slot. The component now represents
+  // one aggregated metric, so old dashboards must not keep an inert grouping
+  // binding that would both confuse the query and fail binding validation.
+  const legacyInsightSlotKeys = currentComponent.type === "kpiInsight" && binding !== undefined
+    ? Object.keys(binding.slots).filter((key) => !definition.dataSlots.some((slot) => slot.key === key))
+    : [];
 
   const dispatchDatasetBinding = (dataset: Dataset) => {
     store.getState().dispatch({
@@ -360,6 +400,17 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
     if (nextMeasures.length !== selectedMeasures.length) updateSlot("measure", nextMeasures, true);
   }, [binding, currentComponent.type, schema.data]);
 
+  useEffect(() => {
+    if (legacyInsightSlotKeys.length === 0 || binding === undefined) return;
+    const nextSlots = cloneSlots(binding.slots);
+    legacyInsightSlotKeys.forEach((key) => { delete nextSlots[key]; });
+    store.getState().dispatch({
+      type: "component.binding.update",
+      componentId: component.id,
+      nextBinding: { ...cloneBinding(binding), slots: nextSlots },
+    });
+  }, [binding, component.id, legacyInsightSlotKeys.join("|"), store]);
+
   const updateTimeGranularity = (timeGranularity: string) => {
     store.getState().dispatch({
       type: "component.props.update",
@@ -390,12 +441,14 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
   }, 0);
 
   const updateRankingProps = (nextValues: Readonly<Record<string, unknown>>) => {
-    const parsed = definition.propsSchema.safeParse({ ...definition.createDefaults(), ...componentProps, ...nextValues });
+    const { queryFilters, ...schemaComponentProps } = componentProps;
+    const preservedQueryFilters = Array.isArray(queryFilters) ? queryFilters : undefined;
+    const parsed = definition.propsSchema.safeParse({ ...definition.createDefaults(), ...schemaComponentProps, ...nextValues });
     if (!parsed.success) return;
     store.getState().dispatch({
       type: "component.props.update",
       componentId: component.id,
-      nextProps: parsed.data,
+      nextProps: { ...parsed.data, ...(preservedQueryFilters === undefined ? {} : { queryFilters: preservedQueryFilters }) },
     });
   };
 
@@ -456,8 +509,13 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
   const updateLimit = (limit: number | null) => {
     if (binding === undefined) return;
     const nextBinding = cloneBinding(binding);
-    if (limit === null) delete nextBinding.limit;
-    else nextBinding.limit = limit;
+    if (limit === null) {
+      if (binding.limit === undefined) return;
+      delete nextBinding.limit;
+    } else {
+      if (binding.limit === limit) return;
+      nextBinding.limit = limit;
+    }
     store.getState().dispatch({
       type: "component.binding.update",
       componentId: component.id,
@@ -477,20 +535,27 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
   const showTimeGranularity = supportsTimeGranularity && (
     currentComponent.type !== "metricTrend" || metricTrendDimension === undefined || metricTrendDimension.type === "date"
   );
-  const progressMeasureKeys = currentComponent.type === "progressBar"
+  const isProgressPairingComponent = currentComponent.type === "progressBar" || currentComponent.type === "progressIndicator";
+  const progressMeasureKeys = isProgressPairingComponent
     ? (Array.isArray(selectedKeys(binding, "measure", true)) ? selectedKeys(binding, "measure", true) as string[] : [])
     : [];
-  const progressTargetKeys = currentComponent.type === "progressBar"
+  const progressTargetKeys = isProgressPairingComponent
     ? (Array.isArray(selectedKeys(binding, "target", true)) ? selectedKeys(binding, "target", true) as string[] : [])
     : [];
-  const rawProgressPairs = Array.isArray(componentProps.progressPairs) ? componentProps.progressPairs : [];
+  const rawProgressPairs = currentComponent.type === "progressIndicator"
+    ? (Array.isArray(componentProps.metricSettings) ? componentProps.metricSettings : [])
+    : (Array.isArray(componentProps.progressPairs) ? componentProps.progressPairs : []);
   const savedProgressPairs = rawProgressPairs.flatMap((pair) => {
     const measure = Array.isArray(pair)
       ? pair[0]
-      : pair !== null && typeof pair === "object" ? (pair as { readonly measure?: unknown }).measure : undefined;
+      : pair !== null && typeof pair === "object"
+        ? ((pair as { readonly measure?: unknown; readonly measureKey?: unknown }).measure ?? (pair as { readonly measureKey?: unknown }).measureKey)
+        : undefined;
     const target = Array.isArray(pair)
       ? pair[1]
-      : pair !== null && typeof pair === "object" ? (pair as { readonly target?: unknown }).target : undefined;
+      : pair !== null && typeof pair === "object"
+        ? ((pair as { readonly target?: unknown; readonly targetKey?: unknown }).target ?? (pair as { readonly targetKey?: unknown }).targetKey)
+        : undefined;
     if (typeof measure !== "string" || !progressMeasureKeys.includes(measure)) return [];
     return [{ measure, ...(typeof target === "string" ? { target } : {}) }];
   });
@@ -532,13 +597,29 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
       componentId: component.id,
       nextBinding: { ...cloneBinding(binding), slots: nextSlots },
     });
+    const nextProps = currentComponent.type === "progressIndicator"
+      ? {
+          ...componentProps,
+          metricSettings: normalizedPairs.map((pair, index) => {
+            const previous = rawProgressPairs.find((candidate) => candidate !== null && typeof candidate === "object" && !Array.isArray(candidate) && (candidate as { readonly measureKey?: unknown }).measureKey === pair.measure) as Record<string, unknown> | undefined;
+            return {
+              measureKey: pair.measure,
+              targetKey: pair.target ?? null,
+              label: typeof previous?.label === "string" ? previous.label : "",
+              color: typeof previous?.color === "string" ? previous.color : ["#2f6bff", "#ff7a18", "#13b5a6", "#8b5cf6", "#e34d59", "#4f86f7"][index % 6]!,
+              weight: typeof previous?.weight === "number" ? previous.weight : 0,
+              includeInScore: previous?.includeInScore !== false,
+            };
+          }),
+        }
+      : {
+          ...componentProps,
+          progressPairs: normalizedPairs.map((pair) => pair.target === undefined ? [pair.measure] : [pair.measure, pair.target]),
+        };
     store.getState().dispatch({
       type: "component.props.update",
       componentId: component.id,
-      nextProps: {
-        ...componentProps,
-        progressPairs: normalizedPairs.map((pair) => pair.target === undefined ? [pair.measure] : [pair.measure, pair.target]),
-      },
+      nextProps,
     });
   };
   const updateProgressPair = (index: number, slot: "measure" | "target", fieldKey: string | undefined) => {
@@ -563,20 +644,25 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
   };
   const canAcceptProgressField = (event: DragEvent<HTMLDivElement>) => event.dataTransfer.types.includes(FIELD_DRAG_TYPE);
   const supportsResultLimit = schema.data?.parameters.some((parameter) => parameter.key === "limit" && parameter.type === "number") === true;
-  const draftResultLimit = typeof componentProps.resultLimit === "number" && Number.isInteger(componentProps.resultLimit)
-    ? componentProps.resultLimit
-    : typeof componentProps.appliedResultLimit === "number" && Number.isInteger(componentProps.appliedResultLimit)
-      ? componentProps.appliedResultLimit
-      : DEFAULT_CHART_RESULT_LIMIT;
   const updateResultLimit = (limit: number | null) => {
+    const nextLimit = limit ?? DEFAULT_CHART_RESULT_LIMIT;
+    if (savedResultLimit === nextLimit) return;
     store.getState().dispatch({
       type: "component.props.update",
       componentId: component.id,
-      nextProps: { ...componentProps, resultLimit: limit ?? DEFAULT_CHART_RESULT_LIMIT },
+      nextProps: { ...componentProps, resultLimit: nextLimit },
     });
   };
-  const validation = schema.data && binding
-    ? validateBinding(cloneBinding(binding), schema.data.fields, definition.dataSlots)
+  const validationBinding = binding === undefined
+    ? undefined
+    : legacyInsightSlotKeys.length === 0
+      ? cloneBinding(binding)
+      : {
+        ...cloneBinding(binding),
+        slots: Object.fromEntries(Object.entries(cloneBinding(binding).slots).filter(([key]) => !legacyInsightSlotKeys.includes(key))),
+      };
+  const validation = schema.data && validationBinding
+    ? validateBinding(validationBinding, schema.data.fields, definition.dataSlots)
     : null;
   const aggregationWarning = percentBarAggregationWarning(currentComponent.type, binding);
   const canRefresh = binding !== undefined && (validation === null || validation.valid) && aggregationWarning === undefined;
@@ -600,9 +686,9 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
   };
 
   return (
-    <Space className="binding-panel" orientation="vertical" size="middle" style={{ width: "100%" }}>
-      {showDatasetListError && <Alert type="error" showIcon title="加载数据集失败" description={errorMessage(datasets.error)} />}
-      <div className="binding-field binding-panel__dataset-source">
+    <Space className={`binding-panel${compact ? " binding-panel--compact" : ""}`} orientation="vertical" size="middle" style={{ width: "100%" }}>
+      {!compact && showDatasetListError && <Alert type="error" showIcon title="加载数据集失败" description={errorMessage(datasets.error)} />}
+      {!compact && <div className="binding-field binding-panel__dataset-source">
         <BindingFieldLabel label="数据集" help="选择当前组件要使用的 Excel 或接口数据源，下面的字段选项会来自这个数据集。" />
         <Select
           aria-label="数据集"
@@ -628,7 +714,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
             }
           }}
         />
-      </div>
+      </div>}
 
       {(schema.isLoading || selectingDatasetId !== null) && <Spin />}
       {(schema.isError || selectionError !== null) && (
@@ -639,7 +725,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
           description={errorMessage(selectionError ?? schema.error)}
         />
       )}
-      {schema.data !== undefined && schema.data.parameters.some((parameter) => parameter.runtime !== true && parameter.key !== "limit") && (
+      {!compact && schema.data !== undefined && schema.data.parameters.some((parameter) => parameter.runtime !== true && parameter.key !== "limit") && (
         <div className="binding-field">
           <BindingFieldLabel label="查询参数" help="修改后会应用到引用该数据集的所有组件，并自动刷新图表查询。" />
           <ParameterForm
@@ -651,7 +737,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
           />
         </div>
       )}
-      {((validation !== null && !validation.valid) || aggregationWarning !== undefined) && (
+      {!compact && ((validation !== null && !validation.valid) || aggregationWarning !== undefined) && (
         <Alert
           type="warning"
           showIcon
@@ -665,9 +751,9 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
         />
       )}
 
-      {currentComponent.type === "progressBar" && (
+      {isProgressPairingComponent && (
         <div className="binding-field progress-pair-field">
-          <BindingFieldLabel label="指标与目标配对" help="每一行对应画布中的一条进度。左侧为实际指标，右侧为该指标的目标值；未设置目标时，该项默认显示为 100%。" />
+          <BindingFieldLabel label={currentComponent.type === "progressIndicator" ? "指标配对" : "指标与目标配对"} help="每一行对应一项已完成指标和它的目标指标。可从右侧数据栏双击添加，再拖动字段到对应一行完成配对。" />
           <div className="progress-pair-list">
             {progressPairs.map((pair, index) => {
               const measureAggregation = selectedMetricAggregation("measure", pair.measure) ?? "sum";
@@ -679,12 +765,12 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
               return (
                 <div className="progress-pair" key={`${pair.measure}:${index}`}>
                   <div className="progress-pair__heading">
-                    <Typography.Text type="secondary">进度 {index + 1}</Typography.Text>
-                    <Button aria-label={`移除进度 ${index + 1}`} className="progress-pair__remove" danger icon={<DeleteOutlined />} size="small" type="text" onClick={() => updateProgressPair(index, "measure", undefined)} />
+                    <Typography.Text type="secondary">{currentComponent.type === "progressIndicator" ? "指标" : "进度"} {index + 1}</Typography.Text>
+                    <Button aria-label={`移除${currentComponent.type === "progressIndicator" ? "指标" : "进度"} ${index + 1}`} className="progress-pair__remove" danger icon={<DeleteOutlined />} size="small" type="text" onClick={() => updateProgressPair(index, "measure", undefined)} />
                   </div>
                   <div className="progress-pair__controls">
                     <div className="progress-pair__control">
-                      <span>实际指标</span>
+                      <span>{currentComponent.type === "progressIndicator" ? "已完成指标" : "实际指标"}</span>
                       <div
                         className="metric-binding-item progress-pair__field"
                         onDragOver={(event) => { if (canAcceptProgressField(event)) event.preventDefault(); }}
@@ -706,21 +792,21 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
                         }}
                         trigger={["click"]}
                       >
-                        <Button aria-label={`进度 ${index + 1}实际指标聚合方式`} className="progress-pair__aggregation-button" icon={<DownOutlined />} size="small" type="text">
+                        <Button aria-label={`${currentComponent.type === "progressIndicator" ? "指标" : "进度"} ${index + 1}实际指标聚合方式`} className="progress-pair__aggregation-button" icon={<DownOutlined />} size="small" type="text">
                           {aggregationLabel(measureAggregation)}
                         </Button>
                       </Dropdown>
                     </div>
                     <ArrowRightOutlined className="progress-pair__arrow" aria-hidden="true" />
                     <div className="progress-pair__control">
-                      <span>目标值</span>
+                      <span>{currentComponent.type === "progressIndicator" ? "目标指标" : "目标值"}</span>
                       {targetLabel === undefined ? (
                         <div
                           className="binding-field__empty progress-pair__drop-target"
                           onDragOver={(event) => { if (canAcceptProgressField(event)) event.preventDefault(); }}
                           onDrop={(event) => dropProgressField(event, index, "target")}
                         >
-                          从右侧数据栏双击或拖入目标值
+                          从右侧数据栏双击或拖入{currentComponent.type === "progressIndicator" ? "目标指标" : "目标值"}
                         </div>
                       ) : (
                         <div
@@ -730,7 +816,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
                         >
                           <span className="metric-binding-item__kind" aria-hidden="true">Nº</span>
                           <span className="metric-binding-item__name">{targetLabel}</span>
-                          <Button aria-label={`移除进度 ${index + 1}目标值`} className="metric-binding-item__action" icon={<DeleteOutlined />} size="small" type="text" onClick={() => updateProgressPair(index, "target", undefined)} />
+                          <Button aria-label={`移除${currentComponent.type === "progressIndicator" ? "指标" : "进度"} ${index + 1}${currentComponent.type === "progressIndicator" ? "目标指标" : "目标值"}`} className="metric-binding-item__action" icon={<DeleteOutlined />} size="small" type="text" onClick={() => updateProgressPair(index, "target", undefined)} />
                         </div>
                       )}
                       {pair.target === undefined ? (
@@ -749,7 +835,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
                           }}
                           trigger={["click"]}
                         >
-                          <Button aria-label={`进度 ${index + 1}目标值聚合方式`} className="progress-pair__aggregation-button" icon={<DownOutlined />} size="small" type="text">
+                          <Button aria-label={`${currentComponent.type === "progressIndicator" ? "指标" : "进度"} ${index + 1}目标值聚合方式`} className="progress-pair__aggregation-button" icon={<DownOutlined />} size="small" type="text">
                             {aggregationLabel(targetAggregation, "max")}
                           </Button>
                         </Dropdown>
@@ -759,17 +845,17 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
                 </div>
               );
             })}
-            <div className="binding-field__data-panel-hint">从右侧数据栏双击或拖入度量，添加进度</div>
+            <div className="binding-field__data-panel-hint">从右侧数据栏双击或拖入度量，添加{currentComponent.type === "progressIndicator" ? "指标" : "进度"}</div>
           </div>
         </div>
       )}
 
-      {visibleDataSlots(definition, currentComponent.type).map((slot) => {
-        if (currentComponent.type === "progressBar" && (slot.key === "measure" || slot.key === "target")) return null;
+      {visibleDataSlots(definition, currentComponent.type, slotKeys).map((slot) => {
+        if (isProgressPairingComponent && (slot.key === "measure" || slot.key === "target")) return null;
         const value = selectedKeys(binding, slot.key, slot.multiple);
         const isTargetProgress = currentComponent.type === "targetProgress";
         const isTargetProgressTarget = isTargetProgress && slot.key === "target";
-        const isMetricSlot = slot.key === "measure" || slot.key === "measures" || slot.key === "tooltipMeasures" || slot.key === "target";
+        const isMetricSlot = slot.key === "measure" || slot.key === "measures" || slot.key === "tooltipMeasures" || slot.key === "target" || slot.key === "comparison" || slot.key === "secondaryMeasures";
         const isDimensionSlot = !isMetricSlot;
         const metricFieldKeys = !isMetricSlot
           ? []
@@ -801,7 +887,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
             onDragOver={(event) => { if (canAcceptDrag(event)) event.preventDefault(); }}
             onDrop={dropField}
           >
-            <BindingFieldLabel label={slot.title} help={slotHelpText(slot.key, slot.title, currentComponent.type)} />
+            <BindingFieldLabel label={slot.title} help={slotHelpText(slot.key, slot.title, currentComponent.type)} action={slotActions[slot.key]} />
             {isMetricSlot ? (
               <div className="metric-binding-list">
                 {metricFieldKeys.map((fieldKey) => {
@@ -904,7 +990,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
         );
       })}
 
-      {currentComponent.type === "ranking" && rankingMeasures.length > 1 && (
+      {!compact && currentComponent.type === "ranking" && rankingMeasures.length > 1 && (
         <div className="binding-field">
           <BindingFieldLabel label="排序计算" help="综合加权会直接按“指标值 × 权重”求和。例如订单数 30%、访客数 70%，结果为订单数 × 0.3 + 访客数 × 0.7。" />
           <Select
@@ -946,7 +1032,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
         </div>
       )}
 
-      {showTimeGranularity && (
+      {!compact && showTimeGranularity && (
         <div className="binding-field">
           <BindingFieldLabel label="时间粒度" help="选择日期字段向上聚合的时间单位，例如按天、按月或按季度查看。日期字段仍然使用天级原始日期。" />
           <Select
@@ -959,7 +1045,7 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
         </div>
       )}
 
-      {currentComponent.type !== "ranking" && <>
+      {!compact && currentComponent.type !== "ranking" && <>
         <div className="binding-field">
           <BindingFieldLabel label="排序字段" help="按选定字段排序后再交给图表展示；不选择时保留数据源原有顺序。" />
           <Select
@@ -998,13 +1084,15 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
             max={10_000}
             placeholder="展示全部"
             style={{ width: "100%" }}
-            value={binding?.limit ?? null}
-            onChange={updateLimit}
+            value={draftTopN}
+            onChange={setDraftTopN}
+            onBlur={() => updateLimit(draftTopN)}
+            onPressEnter={() => updateLimit(draftTopN)}
           />
         </div>
       </>}
 
-      {supportsResultLimit && (
+      {!compact && supportsResultLimit && (
         <div className="binding-panel__result-limit">
           <Typography.Text>结果展示</Typography.Text>
           <InputNumber
@@ -1013,13 +1101,15 @@ export const ComponentBindingPanel = ({ store, component, definition }: Componen
             max={MAX_CHART_RESULT_LIMIT}
             precision={0}
             value={draftResultLimit}
-            onChange={updateResultLimit}
+            onChange={setDraftResultLimit}
+            onBlur={() => updateResultLimit(draftResultLimit)}
+            onPressEnter={() => updateResultLimit(draftResultLimit)}
           />
         </div>
       )}
-      <div className="binding-panel__footer">
+      {(!compact || showRefreshButton) && <div className="binding-panel__footer">
         <Button aria-label="更新" block type="primary" disabled={!canRefresh} onClick={refreshData}>更新</Button>
-      </div>
+      </div>}
     </Space>
   );
 };

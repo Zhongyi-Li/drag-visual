@@ -44,6 +44,30 @@ const colliding = DashboardSchema.parse({
     { id: "bar-2", type: "bar", title: "利润额", props: { color: "#1677ff", showLegend: true } },
   ],
 });
+const analysisGroup = DashboardSchema.parse({
+  ...base,
+  layout: [{ i: "group-1", x: 0, y: 0, w: 12, h: 9 }],
+  components: [{
+    id: "group-1", type: "analysisGroup", title: "商品分析", props: {
+      description: "用于组织同一业务主题下的多个图表与明细。", columns: 12, gap: 12, showSurface: true,
+    },
+  }],
+});
+const analysisGroupWithChild = DashboardSchema.parse({
+  ...base,
+  layout: [
+    { i: "group-1", x: 0, y: 0, w: 12, h: 9 },
+    { i: "nested-bar", parentId: "group-1", x: 0, y: 0, w: 6, h: 5 },
+  ],
+  components: [
+    {
+      id: "group-1", type: "analysisGroup", title: "商品分析", props: {
+        description: "用于组织同一业务主题下的多个图表与明细。", columns: 12, gap: 12, showSurface: true,
+      },
+    },
+    { id: "nested-bar", parentId: "group-1", type: "bar", title: "内部销量", props: { color: "#1677ff", showLegend: true } },
+  ],
+});
 
 const domRect = (left: number, top: number, width: number, height: number): DOMRect => ({
   left, top, width, height, right: left + width, bottom: top + height, x: left, y: top,
@@ -94,6 +118,7 @@ describe("editor canvas library integration", () => {
     // stable measurements while their real sensors/listeners and event paths remain mounted.
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       if (this.classList.contains("palette-card")) return domRect(100, 120, 60, 76);
+      if (this.classList.contains("analysis-group-canvas")) return domRect(300, 180, 700, 420);
       if (this.classList.contains("editor-canvas")) return domRect(240, 96, 900, 700);
       if (this.classList.contains("editor-canvas__grid-container")) return domRect(240, 96, 900, 700);
       if (this.classList.contains("react-grid-item")) return domRect(252, 108, 438, 268);
@@ -178,6 +203,63 @@ describe("editor canvas library integration", () => {
     fireEvent.pointerMove(document, { clientX: 100, clientY: 40, pointerId: 2, buttons: 1, isPrimary: true });
     fireEvent.pointerUp(document, { clientX: 100, clientY: 40, pointerId: 2, button: 0, isPrimary: true });
     expect(store.getState().history.present.components).toHaveLength(1);
+  });
+
+  it("adds a palette chart inside the analysis group when released over its container", () => {
+    const store = createEditorStore(analysisGroup);
+    renderEditorShell(<EditorShell store={store} createComponentId={() => "nested-bar"} />);
+    const palette = screen.getByRole("button", { name: "添加柱图" });
+
+    fireEvent.pointerDown(palette, { clientX: 130, clientY: 150, pointerId: 4, button: 0, isPrimary: true });
+    fireEvent.pointerMove(document, { clientX: 540, clientY: 270, pointerId: 4, buttons: 1, isPrimary: true });
+    fireEvent.pointerMove(document, { clientX: 541, clientY: 271, pointerId: 4, buttons: 1, isPrimary: true });
+    fireEvent.pointerUp(document, { clientX: 540, clientY: 270, pointerId: 4, button: 0, isPrimary: true });
+
+    expect(store.getState().history.present.components).toContainEqual(expect.objectContaining({
+      id: "nested-bar", type: "bar", parentId: "group-1",
+    }));
+    expect(store.getState().history.present.layout).toContainEqual(expect.objectContaining({
+      i: "nested-bar", parentId: "group-1",
+    }));
+  });
+
+  it("renders the configured analysis-group description below its title without editor status copy", () => {
+    const store = createEditorStore(analysisGroup);
+    renderEditorShell(<EditorShell store={store} createComponentId={() => "unused"} />);
+
+    expect(screen.getByText("用于组织同一业务主题下的多个图表与明细。")).toBeInTheDocument();
+    expect(screen.queryByText(/内部编排/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the analysis group outer resize handle available above its nested grid", () => {
+    const store = createEditorStore(analysisGroup);
+    const dispatch = vi.spyOn(store.getState(), "dispatch");
+    renderEditorShell(<EditorShell store={store} createComponentId={() => "unused"} />);
+    const group = screen.getByRole("group", { name: "商品分析" });
+    const outerGridItem = group.closest<HTMLElement>(".react-grid-item");
+    const resizeHandle = outerGridItem?.querySelector<HTMLElement>(":scope > .react-resizable-handle-se");
+
+    expect(resizeHandle).toBeInTheDocument();
+    fireEvent.mouseDown(resizeHandle!, { clientX: 690, clientY: 376, button: 0 });
+    fireEvent.mouseMove(document, { clientX: 500, clientY: 250, buttons: 1 });
+    fireEvent.mouseUp(document, { clientX: 500, clientY: 250, button: 0 });
+
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(store.getState().history.present.layout[0]).toMatchObject({ i: "group-1", w: 9, h: 7 });
+  });
+
+  it("moves a chart inside the analysis group without moving the group itself", () => {
+    const store = createEditorStore(analysisGroupWithChild);
+    renderEditorShell(<EditorShell store={store} createComponentId={() => "unused"} />);
+    const child = screen.getByRole("group", { name: "内部销量" });
+
+    fireEvent.mouseDown(child, { clientX: 270, clientY: 120, button: 0 });
+    fireEvent.mouseMove(document, { clientX: 420, clientY: 176, buttons: 1 });
+    fireEvent.mouseUp(document, { clientX: 420, clientY: 176, button: 0 });
+
+    const layout = store.getState().history.present.layout;
+    expect(layout.find((item) => item.i === "group-1")).toMatchObject({ x: 0, y: 0 });
+    expect(layout.find((item) => item.i === "nested-bar")).toMatchObject({ parentId: "group-1", x: 5, y: 0 });
   });
 
   it("runs real dnd-kit KeyboardSensor activation, movement, and drop", async () => {

@@ -1,11 +1,11 @@
-import type { DateFilterControl, DateFilterPreset, DateRangeFilter } from "@drag-visual/contracts";
-import { Button, Select } from "antd";
+import type { DateFilterControl } from "@drag-visual/contracts";
+import { DatePicker } from "antd";
+import zhCN from "antd/es/date-picker/locale/zh_CN";
+import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 
 import {
-  dateFilterPresetLabel,
   defaultDateFilterSelection,
-  resolveDateFilterPreset,
   type RuntimeDateSelection,
 } from "./dateFilter.js";
 import "./DateRangeFilterBar.css";
@@ -18,71 +18,44 @@ interface DateRangeFilterBarProps {
   readonly loading?: boolean;
 }
 
-const presetOptions: readonly { readonly value: DateFilterPreset | "custom"; readonly label: string }[] = [
-  { value: "all", label: "全部数据" },
-  { value: "today", label: "今日" },
-  { value: "yesterday", label: "昨日" },
-  { value: "last7Days", label: "近 7 天" },
-  { value: "last30Days", label: "近 30 天" },
-  { value: "thisMonth", label: "本月" },
-  { value: "lastMonth", label: "上月" },
-];
-
 const selectionMatches = (filter: RuntimeDateSelection, control: DateFilterControl): boolean =>
   filter?.fieldKey === control.fieldKey && filter.timezone === control.timezone;
 
 export const DateRangeFilterBar = ({ control, fieldLabel, value, onChange, loading = false }: DateRangeFilterBarProps) => {
-  const [selection, setSelection] = useState<DateFilterPreset | "custom">(control.defaultPreset);
-  const [start, setStart] = useState(value?.start ?? "");
-  const [end, setEnd] = useState(value?.end ?? "");
+  const [range, setRange] = useState(() => value === undefined ? null : [dayjs(value.start), dayjs(value.end)] as [dayjs.Dayjs, dayjs.Dayjs]);
 
   useEffect(() => {
-    setSelection(control.defaultPreset);
     const next = defaultDateFilterSelection(control);
-    setStart(next?.start ?? "");
-    setEnd(next?.end ?? "");
-  }, [control.fieldKey, control.defaultPreset, control.timezone]);
+    setRange(next === undefined ? null : [dayjs(next.start), dayjs(next.end)]);
+  }, [control.defaultPreset, control.defaultRange?.end, control.defaultRange?.start, control.fieldKey, control.timezone]);
 
   useEffect(() => {
     if (!selectionMatches(value, control)) return;
-    setStart(value?.start ?? "");
-    setEnd(value?.end ?? "");
+    setRange(value === undefined ? null : [dayjs(value.start), dayjs(value.end)]);
   }, [control, value]);
-
-  const changePreset = (next: DateFilterPreset | "custom") => {
-    setSelection(next);
-    if (next === "custom") return;
-    const filter = resolveDateFilterPreset(control, next);
-    setStart(filter?.start ?? "");
-    setEnd(filter?.end ?? "");
-    onChange(filter);
-  };
-  const applyCustom = () => {
-    if (start.length !== 10 || end.length !== 10 || start > end) return;
-    onChange({ kind: "dateRange", fieldKey: control.fieldKey, start, end, timezone: control.timezone });
-  };
-  const reset = () => changePreset(control.defaultPreset);
-  const options = control.allowCustom
-    ? [...presetOptions, { value: "custom" as const, label: "自定义" }]
-    : [...presetOptions];
 
   return <div className="date-range-filter" onClick={(event) => event.stopPropagation()}>
     <span className="date-range-filter__label">{fieldLabel}</span>
-    <Select
+    <DatePicker.RangePicker
       aria-label={`${fieldLabel}日期范围`}
-      className="date-range-filter__preset"
-      size="small"
-      value={selection}
-      options={options}
+      allowClear
+      className="date-range-filter__picker"
       disabled={loading}
-      onChange={changePreset}
+      format="YYYY/MM/DD"
+      locale={zhCN}
+      size="small"
+      value={range}
+      onChange={(nextRange) => {
+        if (nextRange === null) {
+          setRange(null);
+          onChange(undefined);
+          return;
+        }
+        const [start, end] = nextRange;
+        if (start === null || end === null) return;
+        setRange([start, end]);
+        onChange({ kind: "dateRange", fieldKey: control.fieldKey, start: start.format("YYYY-MM-DD"), end: end.format("YYYY-MM-DD"), timezone: control.timezone });
+      }}
     />
-    {selection === "custom" && <>
-      <input aria-label="开始日期" className="date-range-filter__input" type="date" value={start} max={end || undefined} onChange={(event) => setStart(event.target.value)} />
-      <span className="date-range-filter__separator">至</span>
-      <input aria-label="结束日期" className="date-range-filter__input" type="date" value={end} min={start || undefined} onChange={(event) => setEnd(event.target.value)} />
-      <Button size="small" type="primary" disabled={start.length !== 10 || end.length !== 10 || start > end} loading={loading} onClick={applyCustom}>应用</Button>
-    </>}
-    {selection !== control.defaultPreset && <Button type="link" size="small" disabled={loading} onClick={reset}>重置</Button>}
   </div>;
 };

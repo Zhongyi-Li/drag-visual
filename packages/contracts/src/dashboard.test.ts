@@ -28,6 +28,29 @@ describe("DashboardSchema", () => {
     expect(Dashboard).toBe(DashboardSchema);
   });
 
+  it("accepts an optional chart subtitle", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "bar-1", x: 0, y: 0, w: 6, h: 5 }],
+      components: [{ id: "bar-1", type: "bar", title: "销售趋势", subtitle: "统计口径：已支付订单", props: { color: "#1677ff", showLegend: true } }],
+    };
+
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
+  it("accepts presentation-only chart display annotations", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "bar-1", x: 0, y: 0, w: 6, h: 5 }],
+      components: [{
+        id: "bar-1", type: "bar", title: "库存分析", props: { color: "#1677ff", showLegend: true },
+        displayAnnotations: { annotations: [], unitText: "数量 / 天数" },
+      }],
+    };
+
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
   it("accepts metric trend components as first-class dashboard components", () => {
     const dashboard = {
       ...validDashboard(),
@@ -41,6 +64,22 @@ describe("DashboardSchema", () => {
     };
 
     expect(ComponentType.parse("metricTrend")).toBe("metricTrend");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
+  it("accepts standalone KPI insight components", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "insight-1", x: 0, y: 0, w: 3, h: 3 }],
+      components: [{
+        id: "insight-1",
+        type: "kpiInsight",
+        title: "GMV 洞察",
+        props: { aggregation: "sum", prefix: "¥", suffix: "", decimals: 0, insightRows: [{ type: "comparison", prefix: "环比", tone: "auto" }] },
+      }],
+    };
+
+    expect(ComponentType.parse("kpiInsight")).toBe("kpiInsight");
     expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
   });
 
@@ -121,6 +160,8 @@ describe("DashboardSchema", () => {
     expect(ComponentType.parse("percentArea")).toBe("percentArea");
     expect(ComponentType.parse("stackedBar")).toBe("stackedBar");
     expect(ComponentType.parse("percentBar")).toBe("percentBar");
+    expect(ComponentType.parse("horizontalBar")).toBe("horizontalBar");
+    expect(ComponentType.parse("barLine")).toBe("barLine");
     expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
   });
 
@@ -177,6 +218,7 @@ describe("DashboardSchema", () => {
 
     expect(ComponentType.parse("flipNumber")).toBe("flipNumber");
     expect(ComponentType.parse("progressBar")).toBe("progressBar");
+    expect(ComponentType.parse("progressIndicator")).toBe("progressIndicator");
     expect(ComponentType.parse("targetProgress")).toBe("targetProgress");
     expect(ComponentType.parse("gauge")).toBe("gauge");
     expect(ComponentType.parse("liquid")).toBe("liquid");

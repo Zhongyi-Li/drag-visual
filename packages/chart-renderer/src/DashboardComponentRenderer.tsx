@@ -1,17 +1,26 @@
-import type { ComponentInstance, DatasetField } from "@drag-visual/contracts";
+import { DashboardGlobalFilterConfig, type ComponentInstance, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetField } from "@drag-visual/contracts";
+import { Button, DatePicker, Input, Segmented, Select } from "antd";
+import zhCN from "antd/es/date-picker/locale/zh_CN.js";
+import dayjs, { type Dayjs } from "dayjs";
+import "dayjs/locale/zh-cn.js";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { EChart } from "./EChart.js";
 import {
   buildBarOption,
+  buildBarLineOption,
+  type BarLineDisplayMode,
   buildCrosstabModel,
   buildFlipNumberModel,
   buildGaugeModel,
   buildGaugeModels,
   buildGaugeOption,
   buildHeatmapModel,
+  buildHorizontalBarOption,
   buildKpiBoardModel,
   buildKpiModel,
+  buildKpiModelForFields,
+  buildKpiSecondaryMeasures,
   buildLineOption,
   buildLiquidModel,
   buildLiquidModels,
@@ -25,13 +34,17 @@ import {
   buildRankingModel,
   buildRingBarOption,
   buildProgressBarModel,
+  buildProgressIndicatorModel,
   buildTargetProgressModel,
   buildTableModel,
   buildTrendModel,
   buildTrendOption,
   buildTreemapOption,
   isCurrencyMetric,
+  isQuantityMetric,
 } from "./options.js";
+
+dayjs.locale("zh-cn");
 
 interface Props {
   readonly component: ComponentInstance;
@@ -45,6 +58,13 @@ interface Props {
   readonly onSunburstMeasureChange?: ((measure: string) => void) | undefined;
   readonly activeTreemapMeasure?: string | undefined;
   readonly onTreemapMeasureChange?: ((measure: string) => void) | undefined;
+  readonly dashboardFilterValues?: Readonly<Record<string, unknown>> | undefined;
+  readonly dashboardFilterOptions?: Readonly<Record<string, readonly string[]>> | undefined;
+  readonly onDashboardFilterChange?: ((filterId: string, value: unknown) => void) | undefined;
+  /** Whether the global filter batch that this header initiated is running. */
+  readonly dashboardFiltersLoading?: boolean | undefined;
+  /** Called after a header's draft filter values have been committed. Returns false when no chart is bound. */
+  readonly onDashboardFiltersApply?: (() => boolean) | undefined;
 }
 
 type Row = Readonly<Record<string, unknown>>;
@@ -96,6 +116,156 @@ const stringProp = (component: ComponentInstance, key: string, fallback: string)
 
 const numberProp = (component: ComponentInstance, key: string, fallback: number): number =>
   typeof component.props[key] === "number" ? component.props[key] : fallback;
+
+const dashboardHeaderShellStyle = (inline: boolean): CSSProperties => ({
+  alignItems: inline ? "center" : "stretch",
+  boxSizing: "border-box",
+  display: "flex",
+  flexDirection: inline ? "row" : "column",
+  flexWrap: inline ? "wrap" : "nowrap",
+  gap: inline ? 24 : 12,
+  height: "100%",
+  minHeight: 0,
+  padding: inline ? "20px 26px" : "12px 26px",
+  width: "100%",
+});
+
+const dashboardHeaderInfoStyle = (inline: boolean): CSSProperties => ({ flex: inline ? "1 1 280px" : "0 0 auto", minWidth: 0 });
+const dashboardHeaderHeadingStyle: CSSProperties = { color: "#172033", fontSize: 22, fontWeight: 700, lineHeight: 1.35, margin: 0 };
+const dashboardHeaderDescriptionStyle: CSSProperties = { color: "#64748b", fontSize: 13, lineHeight: 1.55, margin: "6px 0 0", maxWidth: 680 };
+const dashboardHeaderMetaStyle: CSSProperties = { color: "#94a3b8", fontSize: 12, lineHeight: 1.5, marginTop: 8 };
+const dashboardHeaderControlsStyle = (inline: boolean): CSSProperties => ({ alignItems: "center", display: "flex", flex: inline ? "0 1 auto" : "1 1 auto", flexWrap: "wrap", gap: 12, minWidth: 0, width: inline ? undefined : "100%" });
+const dashboardHeaderFilterFieldsStyle = (inline: boolean): CSSProperties => ({ alignItems: "center", display: "flex", flex: inline ? "0 1 auto" : "1 1 520px", flexWrap: "wrap", gap: 8, minWidth: 0 });
+const dashboardHeaderControlStyle: CSSProperties = { background: "#fff", borderColor: "#d7dee8", borderRadius: 6, borderStyle: "solid", borderWidth: 1, color: "#334155", fontFamily: "inherit", fontSize: 13, height: 34, padding: "0 11px" };
+const dashboardHeaderActionsStyle: CSSProperties = { alignSelf: "flex-end", display: "flex", flex: "0 0 auto", gap: 8 };
+const analysisGroupShellStyle: CSSProperties = { boxSizing: "border-box", display: "flex", flexDirection: "column", gap: 12, height: "100%", minHeight: 0, padding: "18px 20px", background: "#fff", border: "1px solid #e8ecf1", borderRadius: 8, boxShadow: "0 2px 8px rgba(15, 23, 42, .04)" };
+const analysisGroupHeadingStyle: CSSProperties = { color: "#172033", fontSize: 18, fontWeight: 700, lineHeight: 1.35, margin: 0 };
+const analysisGroupDescriptionStyle: CSSProperties = { color: "#64748b", fontSize: 13, lineHeight: 1.5, margin: "4px 0 0" };
+const analysisGroupEmptyStyle: CSSProperties = { flex: "1 1 auto", minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #c9d7e8", borderRadius: 8, color: "#7c8da5", background: "#fff", boxShadow: "0 1px 3px rgba(15, 23, 42, .04)", fontSize: 13 };
+
+const isDashboardHeaderFilterField = (value: unknown): value is { fieldKey: string; label: string } =>
+  typeof value === "object"
+  && value !== null
+  && !Array.isArray(value)
+  && typeof (value as Record<string, unknown>).fieldKey === "string"
+  && typeof (value as Record<string, unknown>).label === "string";
+
+const dashboardHeaderDateRange = (component: ComponentInstance, fallback: string): { start: string; end: string } => {
+  const value = component.props.dateRange;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return { start: fallback, end: fallback };
+  const record = value as Record<string, unknown>;
+  if (typeof record.start !== "string" || typeof record.end !== "string") return { start: fallback, end: fallback };
+  return { start: record.start, end: record.end };
+};
+
+const dashboardHeaderFilters = (component: ComponentInstance) => {
+  const parsed = DashboardGlobalFilterConfig.array().safeParse(component.props.globalFilters);
+  return parsed.success ? parsed.data : [];
+};
+
+const DashboardHeaderSurface = ({ component, rows, dashboardFilterValues, dashboardFilterOptions, onDashboardFilterChange, dashboardFiltersLoading = false, onDashboardFiltersApply }: { readonly component: ComponentInstance; readonly rows: readonly Row[]; readonly dashboardFilterValues?: Readonly<Record<string, unknown>> | undefined; readonly dashboardFilterOptions?: Readonly<Record<string, readonly string[]>> | undefined; readonly onDashboardFilterChange?: ((filterId: string, value: unknown) => void) | undefined; readonly dashboardFiltersLoading?: boolean | undefined; readonly onDashboardFiltersApply?: (() => boolean) | undefined }) => {
+  const date = stringProp(component, "date", "2026-08-05");
+  const configuredDateRange = dashboardHeaderDateRange(component, date);
+  const toDateRange = (start: string, end: string): [Dayjs, Dayjs] => {
+    const parsedStart = dayjs(start);
+    const parsedEnd = dayjs(end);
+    return [parsedStart.isValid() ? parsedStart : dayjs(), parsedEnd.isValid() ? parsedEnd : dayjs()];
+  };
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs]>(() => toDateRange(configuredDateRange.start, configuredDateRange.end));
+  const [localFilterValues, setLocalFilterValues] = useState<Record<string, string>>({});
+  const [pendingAction, setPendingAction] = useState<"apply" | "reset" | null>(null);
+  const headline = stringProp(component, "headline", "经营数据看板");
+  const description = stringProp(component, "description", "");
+  const updatedAt = stringProp(component, "updatedAt", "");
+  const filters = dashboardHeaderFilters(component);
+  const dateFilter = filters.find((filter) => filter.controlType === "dateRange");
+  const useInlineHeaderLayout = filters.length <= 3;
+  const configuredFiltersKey = JSON.stringify(filters.map((filter) => ({ id: filter.id, controlType: filter.controlType })));
+  const appliedValuesKey = JSON.stringify(dashboardFilterValues ?? {});
+  useEffect(() => {
+    const appliedDateRange = dateFilter === undefined ? undefined : dashboardFilterValues?.[dateFilter.id];
+    if (typeof appliedDateRange === "object" && appliedDateRange !== null && !Array.isArray(appliedDateRange)) {
+      const record = appliedDateRange as Record<string, unknown>;
+      if (typeof record.start === "string" && typeof record.end === "string") setDateRange(toDateRange(record.start, record.end));
+      else setDateRange(toDateRange(configuredDateRange.start, configuredDateRange.end));
+    } else setDateRange(toDateRange(configuredDateRange.start, configuredDateRange.end));
+    setLocalFilterValues(Object.fromEntries(filters.filter((filter) => filter.controlType !== "dateRange").map((filter): [string, string] => {
+      const appliedValue = dashboardFilterValues?.[filter.id];
+      return [filter.id, typeof appliedValue === "string" ? appliedValue : ""];
+    })));
+  }, [appliedValuesKey, configuredDateRange.end, configuredDateRange.start, configuredFiltersKey, dateFilter?.id]);
+  useEffect(() => {
+    if (!dashboardFiltersLoading) setPendingAction(null);
+  }, [dashboardFiltersLoading]);
+  const applyFilters = () => {
+    if (dateFilter !== undefined) onDashboardFilterChange?.(dateFilter.id, { start: dateRange[0].format("YYYY-MM-DD"), end: dateRange[1].format("YYYY-MM-DD") });
+    filters.filter((filter) => filter.controlType !== "dateRange").forEach((filter) => onDashboardFilterChange?.(filter.id, localFilterValues[filter.id] ?? ""));
+    if (onDashboardFiltersApply?.() === true) setPendingAction("apply");
+  };
+  const resetFilters = () => {
+    const nextRange = toDateRange(configuredDateRange.start, configuredDateRange.end);
+    const clearedValues = Object.fromEntries(filters.filter((filter) => filter.controlType !== "dateRange").map((filter) => [filter.id, ""]));
+    setDateRange(nextRange);
+    setLocalFilterValues(clearedValues);
+    if (dateFilter !== undefined) onDashboardFilterChange?.(dateFilter.id, { start: nextRange[0].format("YYYY-MM-DD"), end: nextRange[1].format("YYYY-MM-DD") });
+    filters.filter((filter) => filter.controlType !== "dateRange").forEach((filter) => onDashboardFilterChange?.(filter.id, ""));
+    if (onDashboardFiltersApply?.() === true) setPendingAction("reset");
+  };
+  const now = dayjs();
+  return (
+    <section aria-label="看板信息栏与全局筛选" data-layout={useInlineHeaderLayout ? "inline" : "stacked"} style={dashboardHeaderShellStyle(useInlineHeaderLayout)}>
+      <div style={dashboardHeaderInfoStyle(useInlineHeaderLayout)}>
+        <h2 style={dashboardHeaderHeadingStyle}>{headline}</h2>
+        {description.length > 0 && <p style={dashboardHeaderDescriptionStyle}>{description}</p>}
+        {updatedAt.length > 0 && <div style={dashboardHeaderMetaStyle}>{updatedAt}</div>}
+      </div>
+      {filters.length > 0 && <div aria-label="全局筛选器" style={dashboardHeaderControlsStyle(useInlineHeaderLayout)}>
+        <div aria-label="筛选条件" style={dashboardHeaderFilterFieldsStyle(useInlineHeaderLayout)}>
+          {dateFilter !== undefined && <DatePicker.RangePicker
+            aria-label="全局筛选日期范围"
+            allowClear
+            format="YYYY/MM/DD"
+            locale={zhCN}
+            presets={[
+              { label: "今日", value: [now, now] },
+              { label: "本月", value: [now.startOf("month"), now.endOf("month")] },
+              { label: "本年", value: [now.startOf("year"), now.endOf("year")] },
+            ]}
+            style={{ minWidth: 248 }}
+            value={dateRange}
+            onChange={(nextRange) => {
+              if (nextRange === null) return;
+              const [start, end] = nextRange;
+              if (start !== null && end !== null) setDateRange([start, end]);
+            }}
+          />}
+          {filters.filter((filter) => filter.controlType !== "dateRange").map((filter) => {
+            return <DimensionFilter key={filter.id} filter={filter} rows={rows} options={dashboardFilterOptions?.[filter.id]} value={localFilterValues[filter.id] ?? ""} onChange={(value) => {
+              setLocalFilterValues((current) => ({ ...current, [filter.id]: value }));
+            }} />;
+          })}
+        </div>
+        <div aria-label="筛选操作" style={dashboardHeaderActionsStyle}>
+          <Button aria-label="重置筛选" loading={dashboardFiltersLoading && pendingAction === "reset"} disabled={dashboardFiltersLoading} onClick={resetFilters}>重置</Button>
+          <Button aria-label="应用筛选" type="primary" loading={dashboardFiltersLoading && pendingAction === "apply"} disabled={dashboardFiltersLoading} onClick={applyFilters}>应用</Button>
+        </div>
+      </div>}
+    </section>
+  );
+};
+
+const DimensionFilter = ({ filter, rows, options: suppliedOptions, value, onChange }: { readonly filter: DashboardGlobalFilterConfigValue; readonly rows: readonly Row[]; readonly options?: readonly string[] | undefined; readonly value: string; readonly onChange: (value: string) => void }) => {
+  const fallbackOptions = [...new Set(rows.map((row) => row[filter.fieldKey]).filter((item): item is string | number | boolean => typeof item === "string" || typeof item === "number" || typeof item === "boolean").map(String))].slice(0, 100);
+  const options = suppliedOptions ?? fallbackOptions;
+  if (filter.controlType === "input") return <Input aria-label={`全局筛选${filter.label}`} placeholder={`输入${filter.label}`} style={{ ...dashboardHeaderControlStyle, width: 160 }} value={value} onChange={(event) => onChange(event.target.value)} />;
+  return <Select
+    aria-label={`全局筛选${filter.label}`}
+    options={[{ label: `全部${filter.label}`, value: "" }, ...options.map((option) => ({ label: option, value: option }))]}
+    style={{ minWidth: 160 }}
+    value={value}
+    onChange={(nextValue: string) => onChange(nextValue)}
+  />;
+};
 
 const renderEmptyDataDemo = (content: React.ReactNode) => (
   <div style={emptyDataWrapperStyle}>
@@ -355,13 +525,14 @@ const tableFooterStyle: CSSProperties = {
   alignItems: "center",
   background: "#ffffff",
   borderTop: "1px solid #f1f5f9",
+  boxSizing: "border-box",
   color: "#7b8798",
   display: "flex",
   flex: "0 0 auto",
   fontSize: 11,
   gap: 8,
   justifyContent: "space-between",
-  minHeight: 38,
+  minHeight: 42,
   padding: "8px 14px",
 };
 
@@ -650,6 +821,44 @@ const kpiProgressBarStyle: CSSProperties = {
   height: "100%",
 };
 
+const insightShellStyle: CSSProperties = {
+  ...kpiShellStyle,
+  gap: 7,
+  padding: "16px 18px",
+};
+
+const insightTitleStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 14,
+  fontWeight: 600,
+  lineHeight: 1.4,
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const insightValueStyle: CSSProperties = { ...kpiValueStyle, fontSize: 36, fontWeight: 750, lineHeight: 1.18 };
+
+const insightGridStyle: CSSProperties = {
+  display: "grid",
+  gap: 12,
+  gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+  height: "100%",
+  minHeight: 0,
+  overflow: "auto",
+  width: "100%",
+};
+
+const kpiInsightAggregation = (component: ComponentInstance, measureKey: string): string => {
+  const measure = component.binding?.slots.measure;
+  const measures = measure === undefined ? [] : Array.isArray(measure) ? measure : [measure];
+  const configured = measures.find((item) => item.fieldKey === measureKey)?.aggregation;
+  if (configured === "sum" || configured === "avg" || configured === "count" || configured === "max" || configured === "min") return configured;
+  const legacy = component.props.aggregation;
+  return legacy === "sum" || legacy === "avg" || legacy === "count" || legacy === "max" || legacy === "min" ? legacy : "sum";
+};
+
 const flipNumberShellStyle: CSSProperties = {
   ...kpiShellStyle,
   alignItems: "stretch",
@@ -831,6 +1040,177 @@ const targetProgressPercentStyle: CSSProperties = {
   fontWeight: 700,
   textAlign: "right",
   whiteSpace: "nowrap",
+};
+
+const progressIndicatorShellStyle: CSSProperties = {
+  boxSizing: "border-box",
+  display: "flex",
+  flex: "1 1 auto",
+  flexDirection: "column",
+  gap: 12,
+  minHeight: 0,
+  overflow: "auto",
+  padding: "12px 16px 16px",
+};
+
+const progressIndicatorSummaryStyle: CSSProperties = {
+  alignItems: "baseline",
+  display: "flex",
+  gap: 8,
+  justifyContent: "space-between",
+  minWidth: 0,
+};
+
+const progressIndicatorContentStyle: CSSProperties = {
+  display: "grid",
+  flex: "1 1 auto",
+  gap: 18,
+  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+  minHeight: 0,
+};
+
+const progressIndicatorMetricListStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+  minWidth: 0,
+};
+
+const progressIndicatorMetricStyle: CSSProperties = {
+  borderBottom: "1px solid #edf2f7",
+  display: "grid",
+  gap: 7,
+  paddingBottom: 12,
+};
+
+const progressIndicatorMetricHeaderStyle: CSSProperties = {
+  alignItems: "baseline",
+  color: "#172033",
+  display: "flex",
+  fontSize: 13,
+  gap: 10,
+  justifyContent: "space-between",
+  minWidth: 0,
+};
+
+const progressIndicatorMetricMetaStyle: CSSProperties = {
+  color: "#64748b",
+  display: "flex",
+  flexWrap: "wrap",
+  fontSize: 12,
+  gap: "3px 12px",
+  lineHeight: 1.4,
+};
+
+const progressIndicatorTrackStyle: CSSProperties = {
+  background: "#edf1f5",
+  borderRadius: 999,
+  height: 10,
+  overflow: "hidden",
+  width: "100%",
+};
+
+const progressIndicatorTableStyle: CSSProperties = {
+  alignContent: "start",
+  border: "1px solid #e5ebf3",
+  borderRadius: 6,
+  display: "grid",
+  minWidth: 0,
+  overflow: "hidden",
+};
+
+const progressIndicatorTableHeadingStyle: CSSProperties = {
+  background: "#f8faff",
+  color: "#64748b",
+  display: "grid",
+  fontSize: 11,
+  fontWeight: 600,
+  gap: 10,
+  gridTemplateColumns: "minmax(92px, 1.1fr) 52px repeat(var(--metric-count), minmax(72px, 0.8fr))",
+  padding: "9px 12px",
+};
+
+const progressIndicatorEmployeeRowStyle: CSSProperties = {
+  alignItems: "center",
+  appearance: "none",
+  background: "#fff",
+  border: 0,
+  borderTop: "1px solid #edf2f7",
+  color: "#172033",
+  cursor: "pointer",
+  display: "grid",
+  fontFamily: "inherit",
+  fontSize: 12,
+  gap: 10,
+  gridTemplateColumns: "minmax(92px, 1.1fr) 52px repeat(var(--metric-count), minmax(72px, 0.8fr))",
+  padding: "10px 12px",
+  textAlign: "left",
+  width: "100%",
+};
+
+const ProgressIndicatorSurface = ({ component, rows, fields }: { readonly component: ComponentInstance; readonly rows: readonly Row[]; readonly fields: readonly DatasetField[] }) => {
+  const model = buildProgressIndicatorModel(component, rows, fields);
+  const decimals = Math.max(0, Math.min(4, Math.trunc(numberProp(component, "decimals", 1))));
+  const showEmployeeRanking = component.props.showEmployeeRanking !== false;
+  const maximumEmployees = Math.max(3, Math.min(20, Math.trunc(numberProp(component, "maxEmployees", 8))));
+  const [activeEmployee, setActiveEmployee] = useState<string | null>(null);
+  const selectedEmployee = activeEmployee === null ? undefined : model.employees.find((employee) => employee.key === activeEmployee);
+  const activeMetrics = selectedEmployee?.metrics ?? model.metrics;
+  const activeScore = selectedEmployee?.score ?? model.score;
+  const selectedLabel = selectedEmployee?.label ?? "团队";
+  const metricsCount = Math.max(1, model.metrics.length);
+  const scoreText = activeScore === null ? "—" : `${(activeScore * 100).toFixed(decimals)}分`;
+
+  return <section aria-label={`${component.title ?? "进度与指标"}图表`} data-testid="progress-indicator-surface" style={progressIndicatorShellStyle}>
+    <div style={progressIndicatorSummaryStyle}>
+      <div>
+        <div style={{ color: "#64748b", fontSize: 12, lineHeight: 1.35 }}>{model.periodLabel} · 当前查看：{selectedLabel}</div>
+        <strong style={{ color: "#172033", fontSize: 22, fontVariantNumeric: "tabular-nums", lineHeight: 1.35 }}>综合评分 {scoreText}</strong>
+      </div>
+      <span style={{ color: "#64748b", fontSize: 12 }}>{model.metrics.length} 个目标指标</span>
+    </div>
+    <div style={progressIndicatorContentStyle}>
+      <div style={progressIndicatorMetricListStyle}>
+        {activeMetrics.map((metric) => {
+          const percent = metric.progress === null ? null : metric.progress * 100;
+          const width = percent === null ? 0 : Math.max(0, Math.min(100, percent));
+          const gap = metric.value !== null && metric.target !== null ? Math.max(0, metric.target - metric.value) : null;
+          return <div key={metric.measureKey} style={progressIndicatorMetricStyle}>
+            <div style={progressIndicatorMetricHeaderStyle}>
+              <strong>{metric.label}</strong>
+              <strong style={{ color: percent !== null && percent < 70 ? "#e34d59" : "#172033", fontVariantNumeric: "tabular-nums" }}>{percent === null ? "未设置" : `${percent.toFixed(decimals)}%`}</strong>
+            </div>
+            <span aria-label={`${metric.label}完成进度`} style={progressIndicatorTrackStyle}><span style={{ background: metric.color, borderRadius: 999, display: "block", height: "100%", minWidth: width > 0 ? 6 : 0, width: `${width}%` }} /></span>
+            <div style={progressIndicatorMetricMetaStyle}>
+              <span>已完成 {formatCurrencyMetricNumber(metric.value, metric.isCurrency, metric.isQuantity)}</span>
+              <span>目标 {formatCurrencyMetricNumber(metric.target, metric.targetIsCurrency, metric.targetIsQuantity)}</span>
+              {gap !== null && <span>差额 {formatCurrencyMetricNumber(gap, metric.targetIsCurrency, metric.targetIsQuantity)}</span>}
+              {metric.includeInScore && <span>权重 {metric.weight}%</span>}
+            </div>
+          </div>;
+        })}
+      </div>
+      {showEmployeeRanking && <div style={progressIndicatorTableStyle}>
+        {model.employees.length === 0 ? <div style={{ color: "#94a3b8", fontSize: 12, padding: 18 }}>绑定员工维度后可查看员工达成排行。</div> : <>
+          <div aria-hidden="true" style={{ ...progressIndicatorTableHeadingStyle, "--metric-count": metricsCount } as CSSProperties}>
+            <span>{model.employeeLabel}</span><span>评分</span>{model.metrics.map((metric) => <span key={metric.measureKey} title={metric.label}>{metric.label}</span>)}
+          </div>
+          {model.employees.slice(0, maximumEmployees).map((employee) => <button
+            key={employee.key}
+            type="button"
+            aria-pressed={selectedEmployee?.key === employee.key}
+            onClick={() => setActiveEmployee((current) => current === employee.key ? null : employee.key)}
+            style={{ ...progressIndicatorEmployeeRowStyle, "--metric-count": metricsCount, background: selectedEmployee?.key === employee.key ? "#f0f5ff" : "#fff" } as CSSProperties}
+          >
+            <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{employee.label}</strong>
+            <span style={{ color: employee.score !== null && employee.score < 0.7 ? "#e34d59" : "#2f6bff", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{employee.score === null ? "—" : `${(employee.score * 100).toFixed(0)}`}</span>
+            {employee.metrics.map((metric) => <span key={metric.measureKey} style={{ color: "#475569", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{metric.progress === null ? "—" : `${(metric.progress * 100).toFixed(0)}%`}</span>)}
+          </button>)}
+          {model.weights.length > 0 && <div style={{ borderTop: "1px solid #edf2f7", color: "#64748b", fontSize: 11, lineHeight: 1.5, padding: "9px 12px" }}>评分权重：{model.weights.map((metric) => `${metric.label} ${metric.weight}%`).join(" · ")}</div>}
+        </>}
+      </div>}
+    </div>
+  </section>;
 };
 
 const metricBreakdownShellStyle: CSSProperties = {
@@ -1402,7 +1782,7 @@ const LiquidChart = ({ component, model, groupLabel }: {
   const primaryWave = `M0 ${waterY} C42 ${waterY - 10} 74 ${waterY + 10} 116 ${waterY} S190 ${waterY - 10} 232 ${waterY} S306 ${waterY + 10} 320 ${waterY} V240 H0 Z`;
   const secondaryWave = `M0 ${waterY + 5} C46 ${waterY + 15} 78 ${waterY - 5} 122 ${waterY + 5} S196 ${waterY + 15} 238 ${waterY + 5} S304 ${waterY - 5} 320 ${waterY + 5} V240 H0 Z`;
   const displayPercentage = model.percentage === null ? "—" : `${model.percentage.toFixed(model.decimals)}%`;
-  const summary = `实际 ${formatCurrencyMetricNumber(model.value, model.measureIsCurrency)} / 目标 ${formatCurrencyMetricNumber(model.target, model.targetIsCurrency)}`;
+  const summary = `实际 ${formatCurrencyMetricNumber(model.value, model.measureIsCurrency, model.measureIsQuantity)} / 目标 ${formatCurrencyMetricNumber(model.target, model.targetIsCurrency, model.targetIsQuantity)}`;
 
   return (
     <section data-testid="liquid-chart-surface" role="img" aria-label={`${component.title ?? "水波图"}${groupLabel === undefined ? "" : ` ${groupLabel}`}图表`} style={liquidShellStyle}>
@@ -1524,6 +1904,7 @@ const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
   if (component.type === "flipNumber") return <FlipNumberDemo />;
   if (component.type === "progressBar") return <ProgressDemo />;
   if (component.type === "targetProgress") return <ProgressDemo />;
+  if (component.type === "progressIndicator") return <ProgressDemo />;
   if (component.type === "trend") {
     return <LineDemo area />;
   }
@@ -1541,6 +1922,8 @@ const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
   }
   if (component.type === "stackedBar") return <BarDemo stacked />;
   if (component.type === "ringBar") return <RingBarDemo />;
+  if (component.type === "horizontalBar") return <BarDemo horizontal />;
+  if (component.type === "barLine") return <BarDemo />;
   if (component.type === "donut") return <PieDemo donut />;
   if (component.type === "ranking") return <BarDemo horizontal />;
   if (component.type === "bar") {
@@ -1570,6 +1953,7 @@ const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
     if (titleIncludes(component, "翻牌")) return <FlipNumberDemo />;
     return <MetricDemo />;
   }
+  if (component.type === "kpiInsight") return <MetricDemo />;
   if (component.type === "liquid") return <LiquidDemo />;
   if (component.type === "gauge") return <GaugeDemo />;
   if (component.type === "table") {
@@ -1591,8 +1975,19 @@ const formatCrosstabNumber = (value: number): string => new Intl.NumberFormat("z
   maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
 }).format(value);
 
-const formatCrosstabMetric = (value: number, isCurrency: boolean): string =>
-  `${formatCrosstabNumber(value)}${isCurrency ? " ¥" : ""}`;
+/** Monetary values use 万 consistently once they exceed one thousand. */
+const formatCurrencyInWan = (value: number | null | undefined): string => {
+  if (value === null || value === undefined) return "—";
+  if (Math.abs(value) <= 1_000) return formatCrosstabNumber(value);
+  return `${new Intl.NumberFormat("zh-CN", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    useGrouping: false,
+  }).format(value / 10_000)}万`;
+};
+
+const formatCrosstabMetric = (value: number, isCurrency: boolean, isQuantity = false): string =>
+  `${isCurrency ? formatCurrencyInWan(value) : formatCrosstabNumber(value)}${isCurrency ? " ¥" : isQuantity ? " 件" : ""}`;
 
 const heatmapCellFill = (intensity: number): string => {
   const clamped = Math.max(0, Math.min(1, intensity));
@@ -1623,17 +2018,22 @@ const formatCompactMetricNumber = (value: number | null | undefined): string => 
   }).format(value);
 };
 
-const formatCurrencyMetricNumber = (value: number | null | undefined, isCurrency: boolean): string =>
-  `${formatCompactMetricNumber(value)}${isCurrency ? " ¥" : ""}`;
+const formatCurrencyMetricNumber = (value: number | null | undefined, isCurrency: boolean, isQuantity = false): string =>
+  `${isCurrency ? formatCurrencyInWan(value) : formatCompactMetricNumber(value)}${isCurrency ? " ¥" : isQuantity ? " 件" : ""}`;
 
-const formatCurrencyNumber = (value: number | null | undefined, decimals: number, isCurrency: boolean): string =>
-  `${formatMetricNumber(value, decimals)}${isCurrency ? " ¥" : ""}`;
+const formatCurrencyNumber = (value: number | null | undefined, decimals: number, isCurrency: boolean, isQuantity = false): string =>
+  `${isCurrency && value !== null && value !== undefined && Math.abs(value) > 1_000 ? formatCurrencyInWan(value) : formatMetricNumber(value, decimals)}${isCurrency ? " ¥" : isQuantity ? " 件" : ""}`;
 
-const currencyAffixes = (prefix: string, suffix: string, isCurrency: boolean): { readonly prefix: string; readonly suffix: string } => ({
+const formatKpiValue = (value: number | null | undefined, decimals: number, isCurrency: boolean): string => {
+  if (value === null || value === undefined) return "—";
+  return isCurrency && Math.abs(value) > 1_000 ? formatCurrencyInWan(value) : value.toFixed(decimals);
+};
+
+const currencyAffixes = (prefix: string, suffix: string, isCurrency: boolean, isQuantity = false): { readonly prefix: string; readonly suffix: string } => ({
   // Earlier cards often used a leading ¥ manually. Move that common legacy
   // setting to the shared trailing unit without duplicating the symbol.
   prefix: isCurrency && prefix === "¥" ? "" : prefix,
-  suffix: isCurrency && !suffix.includes("¥") ? `${suffix} ¥` : suffix,
+  suffix: isCurrency && !suffix.includes("¥") ? `${suffix} ¥` : isQuantity && !suffix.includes("件") ? `${suffix} 件` : suffix,
 });
 
 const formatFlipNumber = (
@@ -1641,9 +2041,12 @@ const formatFlipNumber = (
   decimals: number,
   prefix: string,
   suffix: string,
-): string => `${prefix}${Math.abs(value ?? 0) >= 10000
-  ? formatCompactMetricNumber(value)
-  : formatMetricNumber(value, decimals)}${suffix}`;
+  isCurrency: boolean,
+): string => `${prefix}${isCurrency && Math.abs(value ?? 0) > 1_000
+  ? formatCurrencyInWan(value)
+  : Math.abs(value ?? 0) >= 10000
+    ? formatCompactMetricNumber(value)
+    : formatMetricNumber(value, decimals)}${suffix}`;
 
 const formatTrendRate = (rate: number | null | undefined): string => {
   if (rate === null || rate === undefined) return "—";
@@ -1660,8 +2063,9 @@ const formatKpiProgress = (progress: number | null | undefined): string => {
   return `${(progress * 100).toFixed(1)}%`;
 };
 
-const formatKpiBoardNumber = (value: number | null): string => {
+const formatKpiBoardNumber = (value: number | null, isCurrency: boolean): string => {
   if (value === null) return "—";
+  if (isCurrency && Math.abs(value) > 1_000) return formatCurrencyInWan(value);
   if (Math.abs(value) >= 10000) return `${(value / 10000).toFixed(1)}万`;
   return new Intl.NumberFormat("zh-CN", {
     maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
@@ -1795,6 +2199,7 @@ const responsiveBarChartStyle: CSSProperties = {
   alignSelf: "stretch",
   display: "flex",
   flex: "1 1 0",
+  height: "100%",
   minHeight: 0,
   minWidth: 0,
 };
@@ -1827,6 +2232,50 @@ const ResponsiveBarChart = ({ component, fields, rows, rowsAreAggregated, ariaLa
   );
 };
 
+/**
+ * Readers can change the visual lens without changing the saved dashboard.
+ * This remains local renderer state in editor, preview, and published views.
+ */
+const BarLineChart = ({
+  component,
+  fields,
+  rows,
+  rowsAreAggregated,
+}: {
+  readonly component: ComponentInstance;
+  readonly fields: readonly DatasetField[];
+  readonly rows: readonly Row[];
+  readonly rowsAreAggregated: boolean;
+}) => {
+  const [displayMode, setDisplayMode] = useState<BarLineDisplayMode>("combined");
+  return (
+    <div style={{ height: "100%", minHeight: 0, overflow: "hidden", position: "relative" }}>
+      <div
+        aria-label="图表展示方式"
+        style={{ position: "absolute", right: 8, top: 4, zIndex: 2 }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Segmented
+          aria-label="切换图表展示方式"
+          options={[
+            { label: "组合图", value: "combined" },
+            { label: "仅柱形", value: "bar" },
+            { label: "仅曲线", value: "line" },
+          ]}
+          size="small"
+          value={displayMode}
+          onChange={(value) => setDisplayMode(value as BarLineDisplayMode)}
+        />
+      </div>
+      <EChart
+        key={displayMode}
+        option={buildBarLineOption(component, rows, fields, rowsAreAggregated, displayMode)}
+        ariaLabel={`${component.title ?? "柱状折线组合图"}图表`}
+      />
+    </div>
+  );
+};
+
 export const DashboardComponentRenderer = ({
   component,
   fields = [],
@@ -1837,6 +2286,11 @@ export const DashboardComponentRenderer = ({
   onSunburstMeasureChange,
   activeTreemapMeasure: externallySelectedTreemapMeasure,
   onTreemapMeasureChange,
+  dashboardFilterValues,
+  dashboardFilterOptions,
+  onDashboardFilterChange,
+  dashboardFiltersLoading,
+  onDashboardFiltersApply,
 }: Props) => {
   const [tablePage, setTablePage] = useState(1);
   const [activeMetricTrendMeasure, setActiveMetricTrendMeasure] = useState<string | null>(null);
@@ -1847,6 +2301,18 @@ export const DashboardComponentRenderer = ({
   const isSunburst = component.type === "sunburst" || (component.type === "pie" && titleIncludes(component, "旭日"));
   const isRadar = component.type === "radar" || (component.type === "pie" && titleIncludes(component, "雷达"));
   const isTreemap = component.type === "treemap" || (component.type === "pie" && titleIncludes(component, "矩形"));
+  if (component.type === "dashboardHeader") return <DashboardHeaderSurface component={component} rows={rows} dashboardFilterValues={dashboardFilterValues} dashboardFilterOptions={dashboardFilterOptions} onDashboardFilterChange={onDashboardFilterChange} dashboardFiltersLoading={dashboardFiltersLoading} onDashboardFiltersApply={onDashboardFiltersApply} />;
+  if (component.type === "analysisGroup") {
+    const description = stringProp(component, "description", "用于组织同一业务主题下的多个图表与明细。");
+    const showSurface = component.props.showSurface !== false;
+    return <section aria-label={`${component.title ?? "复合分析"}容器`} style={{ ...analysisGroupShellStyle, ...(showSurface ? {} : { borderColor: "transparent", background: "transparent" }) }}>
+      <div>
+        <h3 style={analysisGroupHeadingStyle}>{component.title || "复合分析"}</h3>
+        {description.length > 0 && <p style={analysisGroupDescriptionStyle}>{description}</p>}
+      </div>
+      <div style={analysisGroupEmptyStyle}>双击容器，开始添加并编排图表</div>
+    </section>;
+  }
   const isEmptyData = rows.length === 0;
   if (isEmptyData) {
     const demo = buildEmptyDataDemo(component);
@@ -1867,6 +2333,12 @@ export const DashboardComponentRenderer = ({
         ariaLabel={`${component.title ?? fallbackTitle}图表`}
       />
     );
+  }
+  if (component.type === "horizontalBar") {
+    return <EChart option={buildHorizontalBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "条形图"}图表`} />;
+  }
+  if (component.type === "barLine") {
+    return <BarLineChart component={component} fields={fields} rows={rows} rowsAreAggregated={rowsAreAggregated} />;
   }
   if (component.type === "line" || component.type === "area" || component.type === "stackedArea" || component.type === "percentArea") {
     const fallbackTitle = component.type === "area"
@@ -1900,7 +2372,7 @@ export const DashboardComponentRenderer = ({
             <div style={trendSummaryStyle}>
               <div style={trendLatestSummaryItemStyle}>
                 <span style={trendSummaryLabelStyle}>最新值</span>
-                <span style={trendSummaryValueStyle}>{formatCurrencyMetricNumber(model.latest?.value, model.measureIsCurrency)}</span>
+                <span style={trendSummaryValueStyle}>{formatCurrencyMetricNumber(model.latest?.value, model.measureIsCurrency, model.measureIsQuantity)}</span>
               </div>
               <div style={trendChangeSummaryItemStyle}>
                 <span style={trendSummaryLabelStyle}>较上一期</span>
@@ -1908,7 +2380,7 @@ export const DashboardComponentRenderer = ({
               </div>
               <div style={trendPeakSummaryItemStyle}>
                 <span style={trendSummaryLabelStyle}>峰值</span>
-                <span style={trendSummaryValueStyle}>{formatCurrencyMetricNumber(model.peak?.value, model.measureIsCurrency)}</span>
+                <span style={trendSummaryValueStyle}>{formatCurrencyMetricNumber(model.peak?.value, model.measureIsCurrency, model.measureIsQuantity)}</span>
               </div>
             </div>
           )}
@@ -1932,7 +2404,7 @@ export const DashboardComponentRenderer = ({
             {model.showSummary && activeMeasure && (
               <div style={metricTrendSummaryStyle}>
                 <span style={metricTrendEyebrowStyle}>汇总值 · {activeMeasure.label}</span>
-                <strong style={metricTrendValueStyle}>{formatCurrencyMetricNumber(activeMeasure.total, activeMeasure.isCurrency)}</strong>
+                <strong style={metricTrendValueStyle}>{formatCurrencyMetricNumber(activeMeasure.total, activeMeasure.isCurrency, activeMeasure.isQuantity)}</strong>
               </div>
             )}
             <div aria-label="指标切换" style={metricTrendTabsStyle}>
@@ -1954,7 +2426,7 @@ export const DashboardComponentRenderer = ({
                     }}
                   >
                     <span>{measure.label}</span>
-                    <span style={metricTrendTabValueStyle}>{formatCurrencyMetricNumber(measure.total, measure.isCurrency)}</span>
+                    <span style={metricTrendTabValueStyle}>{formatCurrencyMetricNumber(measure.total, measure.isCurrency, measure.isQuantity)}</span>
                   </button>
                 );
               })}
@@ -1980,7 +2452,7 @@ export const DashboardComponentRenderer = ({
           <div style={metricBreakdownSummaryStyle}>
             <div style={{ minWidth: 0 }}>
               <span style={metricBreakdownSummaryLabelStyle}>{model.measureLabel}合计</span>
-              <strong aria-label={`${model.measureLabel}合计`} style={metricBreakdownSummaryValueStyle}>{formatCurrencyNumber(model.total, model.decimals, model.measureIsCurrency)}</strong>
+              <strong aria-label={`${model.measureLabel}合计`} style={metricBreakdownSummaryValueStyle}>{formatCurrencyNumber(model.total, model.decimals, model.measureIsCurrency, model.measureIsQuantity)}</strong>
             </div>
             <span style={metricBreakdownSummaryMetaStyle}>{model.items.length} 个{model.dimensionLabel}</span>
           </div>
@@ -2000,7 +2472,7 @@ export const DashboardComponentRenderer = ({
                   <span style={{ ...metricBreakdownBarStyle, width: `${Math.min(100, item.barRatio * 100)}%` }} />
                 </div>
                 <span style={metricBreakdownValueStyle}>
-                  <span style={metricBreakdownValueNumberStyle}>{formatCurrencyNumber(item.value, model.decimals, model.measureIsCurrency)}</span>
+                  <span style={metricBreakdownValueNumberStyle}>{formatCurrencyNumber(item.value, model.decimals, model.measureIsCurrency, model.measureIsQuantity)}</span>
                   {item.share !== null && <span style={metricBreakdownShareStyle}>{(item.share * 100).toFixed(1)}%</span>}
                 </span>
               </div>
@@ -2128,7 +2600,7 @@ export const DashboardComponentRenderer = ({
               </span>
               {model.measures.map((measure) => {
                 const value = item.values.find((entry) => entry.key === measure.key)?.value ?? 0;
-                return <span key={measure.key} style={rankingValueStyle}>{formatCurrencyMetricNumber(value, isCurrencyMetric(measure.key, fields))}</span>;
+                return <span key={measure.key} style={rankingValueStyle}>{formatCurrencyMetricNumber(value, isCurrencyMetric(measure.key, fields), isQuantityMetric(measure.key, fields))}</span>;
               })}
             </div>
           );
@@ -2145,12 +2617,12 @@ export const DashboardComponentRenderer = ({
       <section data-testid="flip-number-surface" style={flipNumberShellStyle}>
         <div style={flipNumberGridStyle}>
           {model.items.map((item) => {
-            const affixes = currencyAffixes(configuredPrefix, configuredSuffix, item.isCurrency);
+            const affixes = currencyAffixes(configuredPrefix, configuredSuffix, item.isCurrency, item.isQuantity);
             return <div key={item.key} style={flipNumberCardStyle}>
               <span style={flipNumberTitleStyle}>{item.label}</span>
               <RollingMetricValue
                 ariaLabel={`${item.label}翻牌器数值`}
-                value={formatFlipNumber(item.value, decimals, affixes.prefix, affixes.suffix)}
+                value={formatFlipNumber(item.value, decimals, affixes.prefix, affixes.suffix, item.isCurrency)}
               />
             </div>;
           })}
@@ -2182,7 +2654,7 @@ export const DashboardComponentRenderer = ({
                 </div>
                 {showValue && (
                   <span style={progressBarValueStyle}>
-                    实际 {formatCurrencyMetricNumber(item.value, item.isCurrency)} | 目标 {formatCurrencyMetricNumber(item.target, item.targetIsCurrency)}
+                    实际 {formatCurrencyMetricNumber(item.value, item.isCurrency, item.isQuantity)} | 目标 {formatCurrencyMetricNumber(item.target, item.targetIsCurrency, item.targetIsQuantity)}
                   </span>
                 )}
               </div>
@@ -2210,7 +2682,7 @@ export const DashboardComponentRenderer = ({
                 <span aria-label={`${item.label}完成率进度`} style={targetProgressTrackStyle}>
                   <span style={{ ...targetProgressBarStyle, background: color, width: `${progressWidth}%` }} />
                 </span>
-                {showValue && <span style={targetProgressValueStyle}>{formatCurrencyMetricNumber(item.value, model.measureIsCurrency)} / {formatCurrencyMetricNumber(item.target, model.targetIsCurrency)}{suffix}</span>}
+                {showValue && <span style={targetProgressValueStyle}>{formatCurrencyMetricNumber(item.value, model.measureIsCurrency, model.measureIsQuantity)} / {formatCurrencyMetricNumber(item.target, model.targetIsCurrency, model.targetIsQuantity)}{model.measureIsQuantity && suffix.includes("件") ? "" : suffix}</span>}
                 <strong style={targetProgressPercentStyle}>{progress === null ? "—" : `${progress.toFixed(decimals)}%`}</strong>
               </div>
             );
@@ -2219,6 +2691,7 @@ export const DashboardComponentRenderer = ({
       </section>
     );
   }
+  if (component.type === "progressIndicator") return <ProgressIndicatorSurface component={component} rows={rows} fields={fields} />;
   if (component.type === "gauge" || isLegacyGaugeKpi(component)) {
     const models = buildGaugeModels(component, rows, fields);
     if (models.length === 1 && models[0]?.label === undefined) {
@@ -2254,6 +2727,30 @@ export const DashboardComponentRenderer = ({
       </section>
     );
   }
+  if (component.type === "kpiInsight") {
+    const measureKeys = bindingFieldKeys(component, "measure");
+    const decimals = numberProp(component, "decimals", 0);
+    return (
+      <section data-testid="kpi-insight-surface" style={insightGridStyle}>
+        {measureKeys.map((measureKey, index) => {
+          const model = buildKpiModelForFields(component, rows, measureKey, undefined, undefined, kpiInsightAggregation(component, measureKey));
+          const measureIsCurrency = isCurrencyMetric(measureKey, fields);
+          const affixes = currencyAffixes(
+            stringProp(component, "prefix", ""),
+            stringProp(component, "suffix", ""),
+            measureIsCurrency,
+            isQuantityMetric(measureKey, fields),
+          );
+          const formatted = formatKpiValue(model.value, decimals, measureIsCurrency);
+          const displayName = fields.find((field) => field.key === measureKey)?.label || (measureKeys.length === 1 ? component.title : measureKey) || "指标洞察";
+          return <section key={measureKey} style={insightShellStyle}>
+            <div style={insightTitleStyle} title={displayName}>{displayName}</div>
+            <div aria-label={`${displayName}指标值`} style={insightValueStyle}>{affixes.prefix}{formatted}{affixes.suffix}</div>
+          </section>;
+        })}
+      </section>
+    );
+  }
   if (component.type === "kpi") {
     const board = buildKpiBoardModel(component, rows, fields);
     if (board !== null) {
@@ -2269,14 +2766,15 @@ export const DashboardComponentRenderer = ({
                 <div style={kpiBoardPeriodStyle}>{group.label}</div>
                 <div style={kpiBoardMetricNameStyle}>{board.measureLabel}</div>
                 <div style={kpiBoardValueStyle}>{(() => {
-                  const affixes = currencyAffixes(stringProp(component, "prefix", ""), stringProp(component, "suffix", ""), isCurrencyMetric(board.measureKey, fields));
-                  return <>{affixes.prefix}{formatKpiBoardNumber(group.value)}{affixes.suffix}</>;
+                  const measureIsCurrency = isCurrencyMetric(board.measureKey, fields);
+                  const affixes = currencyAffixes(stringProp(component, "prefix", ""), stringProp(component, "suffix", ""), measureIsCurrency, isQuantityMetric(board.measureKey, fields));
+                  return <>{affixes.prefix}{formatKpiBoardNumber(group.value, measureIsCurrency)}{affixes.suffix}</>;
                 })()}</div>
                 <div style={kpiBoardRowsStyle}>
                   {group.metrics.map((metric) => (
                     <div key={metric.key} style={kpiBoardRowStyle}>
                       <span style={kpiBoardRowLabelStyle}>{metric.label}</span>
-                      <span style={kpiBoardRowValueStyle}>{formatCurrencyMetricNumber(metric.value, metric.isCurrency)}</span>
+                      <span style={kpiBoardRowValueStyle}>{formatCurrencyMetricNumber(metric.value, metric.isCurrency, metric.isQuantity)}</span>
                     </div>
                   ))}
                 </div>
@@ -2292,9 +2790,10 @@ export const DashboardComponentRenderer = ({
       stringProp(component, "prefix", ""),
       stringProp(component, "suffix", ""),
       isCurrencyMetric(measureKey, fields),
+      isQuantityMetric(measureKey, fields),
     );
     const decimals = numberProp(component, "decimals", 0);
-    const formatted = model.value === null ? "—" : model.value.toFixed(decimals);
+    const formatted = formatKpiValue(model.value, decimals, isCurrencyMetric(measureKey, fields));
     const progressWidth = model.target?.progress === null || model.target?.progress === undefined
       ? 0
       : Math.max(0, Math.min(100, model.target.progress * 100));
@@ -2377,8 +2876,8 @@ export const DashboardComponentRenderer = ({
               <tr key={index} style={{ background: "#ffffff" }}>
                 {model.columns.map((column) => {
                   const value = row[column.key];
-                  const display = typeof value === "number" && isCurrencyMetric(column.key, fields)
-                    ? formatCrosstabMetric(value, true)
+                  const display = typeof value === "number" && (isCurrencyMetric(column.key, fields) || isQuantityMetric(column.key, fields))
+                    ? formatCrosstabMetric(value, isCurrencyMetric(column.key, fields), isQuantityMetric(column.key, fields))
                     : String(value ?? "—");
                   return <td key={column.key} style={tableCellStyle}>{display}</td>;
                 })}
@@ -2427,18 +2926,18 @@ export const DashboardComponentRenderer = ({
                 <tr key={row.label}>
                   <th scope="row" style={tableRowHeaderCellStyle}>{row.label}</th>
                   {row.values.map((value, index) => (
-                    <td key={model.columns[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabMetric(value, model.measureIsCurrency)}</td>
+                    <td key={model.columns[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabMetric(value, model.measureIsCurrency, model.measureIsQuantity)}</td>
                   ))}
-                  {model.showTotals && <td style={tableTotalCellStyle}>{formatCrosstabMetric(row.total, model.measureIsCurrency)}</td>}
+                  {model.showTotals && <td style={tableTotalCellStyle}>{formatCrosstabMetric(row.total, model.measureIsCurrency, model.measureIsQuantity)}</td>}
                 </tr>
               ))}
               {model.showTotals && (
                 <tr>
                   <th scope="row" style={tableTotalHeaderCellStyle}>合计</th>
                   {model.columnTotals.map((value, index) => (
-                    <td key={model.columns[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabMetric(value, model.measureIsCurrency)}</td>
+                    <td key={model.columns[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabMetric(value, model.measureIsCurrency, model.measureIsQuantity)}</td>
                   ))}
-                  <td style={tableTotalCellStyle}>{formatCrosstabMetric(model.grandTotal, model.measureIsCurrency)}</td>
+                  <td style={tableTotalCellStyle}>{formatCrosstabMetric(model.grandTotal, model.measureIsCurrency, model.measureIsQuantity)}</td>
                 </tr>
               )}
             </tbody>
@@ -2458,7 +2957,7 @@ export const DashboardComponentRenderer = ({
         title={component.title ?? "热力图"}
         chips={[
           <SurfaceChip key="measure" tone="teal">{model.measureLabel}</SurfaceChip>,
-          <SurfaceChip key="range">{formatCrosstabMetric(model.minValue, model.measureIsCurrency)} - {formatCrosstabMetric(model.maxValue, model.measureIsCurrency)}</SurfaceChip>,
+          <SurfaceChip key="range">{formatCrosstabMetric(model.minValue, model.measureIsCurrency, model.measureIsQuantity)} - {formatCrosstabMetric(model.maxValue, model.measureIsCurrency, model.measureIsQuantity)}</SurfaceChip>,
         ]}
         footer={(
           <>
@@ -2495,14 +2994,14 @@ export const DashboardComponentRenderer = ({
                   {row.cells.map((cell) => (
                     <td
                       key={cell.columnKey}
-                      aria-label={`${row.label} ${cell.columnLabel} ${model.measureLabel} ${formatCrosstabMetric(cell.value, model.measureIsCurrency)}`}
+                      aria-label={`${row.label} ${cell.columnLabel} ${model.measureLabel} ${formatCrosstabMetric(cell.value, model.measureIsCurrency, model.measureIsQuantity)}`}
                       style={{
                         ...heatmapCellBaseStyle,
                         background: heatmapCellFill(cell.intensity),
                         color: cell.intensity > 0.7 ? "#fff" : "#0f172a",
                       }}
                     >
-                      {model.showValues ? formatCrosstabMetric(cell.value, model.measureIsCurrency) : ""}
+                      {model.showValues ? formatCrosstabMetric(cell.value, model.measureIsCurrency, model.measureIsQuantity) : ""}
                     </td>
                   ))}
                 </tr>
@@ -2561,7 +3060,7 @@ export const DashboardComponentRenderer = ({
                     <td key={model.dimensions[index]?.key ?? index} style={tableCellStyle}>{value}</td>
                   ))}
                   {row.values.map((value, index) => (
-                    <td key={model.measures[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false)}</td>
+                    <td key={model.measures[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false, model.measures[index]?.isQuantity ?? false)}</td>
                   ))}
                 </tr>
               ))}
@@ -2572,7 +3071,7 @@ export const DashboardComponentRenderer = ({
                     <td key={dimension.key} style={tableTotalHeaderCellStyle}>—</td>
                   ))}
                   {model.totals.map((value, index) => (
-                    <td key={model.measures[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false)}</td>
+                    <td key={model.measures[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false, model.measures[index]?.isQuantity ?? false)}</td>
                   ))}
                 </tr>
               )}

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBarOption,
+  buildBarLineOption,
   buildKpiValue,
   buildLineOption,
   buildMetricTrendModel,
@@ -24,9 +25,11 @@ import {
   buildLiquidModel,
   buildLiquidModels,
   buildHeatmapModel,
+  buildHorizontalBarOption,
   buildKpiBoardModel,
   buildKpiModel,
   buildProgressBarModel,
+  buildProgressIndicatorModel,
   buildTargetProgressModel,
   buildTableModel,
   buildTrendModel,
@@ -56,6 +59,186 @@ const lineFields: readonly DatasetField[] = [
 ];
 
 describe("component option builders", () => {
+  it("builds a multi-metric employee progress and score model", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "employee", label: "员工", type: "string", nullable: false },
+      { key: "sales", label: "销售额", type: "number", nullable: false },
+      { key: "salesTarget", label: "销售额目标", type: "number", nullable: false },
+      { key: "quantity", label: "销量", type: "number", nullable: false },
+      { key: "quantityTarget", label: "销量目标", type: "number", nullable: false },
+    ];
+    const model = buildProgressIndicatorModel(component({
+      type: "progressIndicator",
+      title: "进度与指标",
+      props: {
+        aggregation: "sum", decimals: 1, periodLabel: "2026年7月", showEmployeeRanking: true, maxEmployees: 8,
+        metricSettings: [
+          { measureKey: "sales", targetKey: "salesTarget", label: "销售额", color: "#2f6bff", weight: 60, includeInScore: true },
+          { measureKey: "quantity", targetKey: "quantityTarget", label: "销量", color: "#ff7a18", weight: 40, includeInScore: true },
+        ],
+      },
+      binding: {
+        datasetId: "sales",
+        slots: {
+          employeeDimension: { fieldKey: "employee" },
+          measure: [{ fieldKey: "sales" }, { fieldKey: "quantity" }],
+          target: [{ fieldKey: "salesTarget" }, { fieldKey: "quantityTarget" }],
+        },
+      },
+    }), [
+      { employee: "王晨晨", sales: 20, salesTarget: 100, quantity: 40, quantityTarget: 100 },
+      { employee: "陈慧慧", sales: 80, salesTarget: 100, quantity: 20, quantityTarget: 100 },
+    ], fields);
+
+    expect(model.periodLabel).toBe("2026年7月");
+    expect(model.metrics).toHaveLength(2);
+    expect(model.employees.map((employee) => employee.label)).toEqual(["陈慧慧", "王晨晨"]);
+    expect(model.employees[0]?.score).toBeCloseTo(0.56);
+    expect(model.employees[1]?.score).toBeCloseTo(0.28);
+    expect(model.weights).toEqual([{ label: "销售额", weight: 60 }, { label: "销量", weight: 40 }]);
+  });
+
+  it("builds a sorted horizontal bar chart and a dual-axis bar-line chart", () => {
+    const chartFields: readonly DatasetField[] = [
+      { key: "product", label: "商品", type: "string", nullable: false },
+      { key: "inventoryAmount", label: "库存金额", type: "number", nullable: false },
+      { key: "inventoryQuantity", label: "库存数量", type: "number", nullable: false },
+    ];
+    const chartRows = [
+      { product: "K80", inventoryAmount: 1420, inventoryQuantity: 80 },
+      { product: "Note 14", inventoryAmount: 1660, inventoryQuantity: 120 },
+      { product: "15 Ultra", inventoryAmount: 1074, inventoryQuantity: 36 },
+    ];
+    const horizontal = buildHorizontalBarOption(component({
+      type: "horizontalBar",
+      props: { aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true },
+      binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, measure: { fieldKey: "inventoryAmount" } } },
+    }), chartRows, chartFields);
+    expect(horizontal.yAxis.data).toEqual(["Note 14", "K80", "15 Ultra"]);
+    expect(horizontal.series[0]).toMatchObject({ type: "bar", data: [1660, 1420, 1074], label: { show: true, position: "right" } });
+    expect(horizontal.title).toMatchObject({ text: "总计 0.42万 ¥", right: 72, top: 4 });
+    expect(horizontal.grid).toMatchObject({ top: 38, right: 72 });
+
+    const combo = buildBarLineOption(component({
+      type: "barLine",
+      props: { aggregation: "sum", barColor: "#2f62dc", lineColor: "#ff7417", showLegend: true, smooth: false },
+      binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "inventoryAmount" }, lineMeasure: { fieldKey: "inventoryQuantity" } } },
+    }), chartRows, chartFields);
+    expect(combo.yAxis).toHaveLength(2);
+    expect(combo.grid).toMatchObject({ top: 68, left: 64, right: 72, containLabel: true });
+    expect(combo.series).toEqual([
+      expect.objectContaining({ type: "bar", name: "库存金额", data: [1660, 1420, 1074] }),
+      expect.objectContaining({ type: "line", name: "库存数量", yAxisIndex: 1, data: [120, 80, 36] }),
+    ]);
+    expect(combo.tooltip.formatter([
+      { axisValueLabel: "K80", marker: "●", seriesName: "库存金额", value: 1423 },
+      { axisValueLabel: "K80", marker: "●", seriesName: "库存数量", value: 81 },
+    ])).toBe("K80<br/>●库存金额：0.14万 ¥<br/>●库存数量：81 件");
+    const primaryAxis = combo.yAxis[0] as { readonly axisLabel?: { readonly formatter?: (value: number) => string } } | undefined;
+    expect(primaryAxis?.axisLabel?.formatter?.(1_423)).toBe("0.14万 ¥");
+
+    const curveOnly = buildBarLineOption(component({
+      type: "barLine",
+      props: { aggregation: "sum", barColor: "#2f62dc", lineColor: "#ff7417", showLegend: true, smooth: true },
+      binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "inventoryAmount" }, lineMeasure: { fieldKey: "inventoryQuantity" } } },
+    }), chartRows, chartFields, false, "line");
+    expect(curveOnly.yAxis).toHaveLength(1);
+    expect(curveOnly.series).toEqual([expect.objectContaining({ type: "line", yAxisIndex: 0, smooth: true, data: [120, 80, 36] })]);
+    expect(curveOnly.grid).toMatchObject({ right: 28 });
+
+    const barOnly = buildBarLineOption(component({
+      type: "barLine",
+      props: { aggregation: "sum", barColor: "#2f62dc", lineColor: "#ff7417", showLegend: true },
+      binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "inventoryAmount" }, lineMeasure: { fieldKey: "inventoryQuantity" } } },
+    }), chartRows, chartFields, false, "bar");
+    expect(barOnly.yAxis).toHaveLength(1);
+    expect(barOnly.series).toEqual([expect.objectContaining({ type: "bar", data: [1660, 1420, 1074] })]);
+  });
+
+  it("makes a bar-line comparison legible by dropping empty categories and zooming its line axis", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "product", label: "商品", type: "string", nullable: false },
+      { key: "profit", label: "销售毛利", type: "number", nullable: false },
+      { key: "price", label: "价格", type: "number", nullable: false },
+    ];
+    const option = buildBarLineOption(component({
+      type: "barLine",
+      props: { aggregation: "sum", barColor: "#2f62dc", hideZeroValues: true, lineColor: "#ff7417", showLegend: true, smartLineScale: true, smooth: false },
+      binding: {
+        datasetId: "sales",
+        limit: 2,
+        slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "profit" }, lineMeasure: { fieldKey: "price" } },
+      },
+    }), [
+      { product: "未分类", profit: 0, price: 0 },
+      { product: "基础款", profit: 120_000, price: 140_000 },
+      { product: "旗舰款", profit: 350_000, price: 370_000 },
+      { product: "入门款", profit: 80_000, price: 100_000 },
+    ], fields);
+
+    expect(option.xAxis.data).toEqual(["旗舰款", "基础款"]);
+    expect(option.series[0]).toMatchObject({ data: [350_000, 120_000] });
+    expect(option.yAxis[0]).toMatchObject({ min: 0 });
+    expect(option.yAxis[1].min).toBeGreaterThan(0);
+  });
+
+  it("tilts long category labels for bar, line, and bar-line charts", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "product", label: "商品", type: "string", nullable: false },
+      { key: "amount", label: "销售额", type: "number", nullable: false },
+      { key: "orders", label: "订单数", type: "number", nullable: false },
+    ];
+    const rows = [
+      { product: "小米电视 A3 32 英寸智能电视", amount: 120, orders: 6 },
+      { product: "小米加湿器 2L 大容量静音款", amount: 80, orders: 4 },
+    ];
+    const bar = buildBarOption(component({
+      props: { color: "#1677ff", showLegend: true },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "product" }, measure: { fieldKey: "amount" } } },
+    }), rows, fields);
+    const line = buildLineOption(component({
+      type: "line",
+      props: { color: "#1677ff", showLegend: true, smooth: false, area: false },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "product" }, measures: [{ fieldKey: "orders" }] } },
+    }), rows, fields);
+    const combo = buildBarLineOption(component({
+      type: "barLine",
+      props: { aggregation: "sum", barColor: "#2f62dc", hideZeroValues: true, lineColor: "#ff7417", showLegend: true, smartLineScale: true, smooth: false },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "amount" }, lineMeasure: { fieldKey: "orders" } } },
+    }), rows, fields);
+
+    expect(bar.xAxis).toMatchObject({ axisLabel: { rotate: 32, interval: 0, hideOverlap: false }, data: [rows[0]!.product, rows[1]!.product] });
+    expect(line.xAxis).toMatchObject({ axisLabel: { rotate: 32, interval: 0, hideOverlap: false } });
+    expect(combo.xAxis).toMatchObject({ axisLabel: { rotate: 32, interval: 0, hideOverlap: false } });
+  });
+
+  it("uses a readable ISO week range everywhere time dimensions are grouped by week", () => {
+    const weekComponent = component({
+      type: "metricTrend",
+      props: { timeGranularity: "week" },
+      binding: { datasetId: "sales", slots: { timeDimension: { fieldKey: "orderDate" }, measure: { fieldKey: "revenue" } } },
+    });
+    const fields: readonly DatasetField[] = [
+      { key: "orderDate", label: "订单时间", type: "date", nullable: false },
+      { key: "revenue", label: "销售额", type: "number", nullable: false },
+    ];
+
+    expect(buildMetricTrendModel(weekComponent, [{ orderDate: "2026-07-21", revenue: 10 }], fields).periods)
+      .toEqual(["2026-第30周(07/20~07/26)"]);
+    expect(buildTrendModel(component({
+      type: "trend",
+      props: { timeGranularity: "week" },
+      binding: { datasetId: "sales", slots: { timeDimension: { fieldKey: "orderDate" }, measure: { fieldKey: "revenue" } } },
+    }), [{ orderDate: "2026-07-21", revenue: 10 }], fields).points)
+      .toEqual([{ label: "2026-第30周(07/20~07/26)", value: 10 }]);
+    expect(buildMultidimensionalModel(component({
+      type: "multidimensional",
+      props: { timeGranularity: "week" },
+      binding: { datasetId: "sales", slots: { dateDimension: { fieldKey: "orderDate" }, measures: { fieldKey: "revenue" } } },
+    }), [{ orderDate: "2026-07-21", revenue: 10 }], fields).rows[0]?.dimensions)
+      .toEqual(["2026-第30周(07/20~07/26)"]);
+  });
+
   it("maps bar, line, and pie bindings into chart options", () => {
     expect(buildBarOption(component({}), rows).series).toEqual([
       expect.objectContaining({ type: "bar", data: [10] }),
@@ -242,13 +425,13 @@ describe("component option builders", () => {
       label: { show: false },
       data: [expect.objectContaining({ name: "华北" }), expect.objectContaining({ value: expect.any(Number) })],
     });
-    expect(ring.series[1].data[1]).not.toHaveProperty("tooltip");
+    expect(ring.series[1]?.data?.[1]).not.toHaveProperty("tooltip");
     expect(ring.tooltip).toMatchObject({
       appendToBody: true,
       renderMode: "html",
       extraCssText: expect.stringContaining("z-index:2147483647"),
     });
-    expect(ring.tooltip.formatter({ seriesIndex: 1 })).toContain("成本金额：33");
+    expect(ring.tooltip.formatter?.({ seriesIndex: 1 })).toContain("成本金额：33");
 
     const aggregatedRing = buildRingBarOption(component({
       type: "ringBar",
@@ -431,6 +614,41 @@ describe("component option builders", () => {
     expect(tallChart.yAxis).toMatchObject({ interval: 2 });
   });
 
+  it("gives short cards more plot area and sparse grouped bars a useful width", () => {
+    const sparseRows = [
+      { month: "华东", revenue: 120, profit: 70, orders: 40 },
+      { month: "华南", revenue: 160, profit: 90, orders: 55 },
+    ];
+    const fields = [
+      lineFields[0]!,
+      lineFields[1]!,
+      lineFields[2]!,
+      { key: "orders", label: "订单数", type: "number" as const, nullable: false },
+    ];
+    const grouped = buildBarOption(component({
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "month" }, measure: [{ fieldKey: "revenue" }, { fieldKey: "profit" }, { fieldKey: "orders" }] } },
+    }), sparseRows, fields, false, 160);
+    const stacked = buildBarOption(component({
+      type: "stackedBar",
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "month" }, measures: [{ fieldKey: "revenue" }, { fieldKey: "profit" }] } },
+    }), sparseRows, fields, false, 160);
+    const percentage = buildBarOption(component({
+      type: "percentBar",
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "month" }, measures: [{ fieldKey: "revenue" }, { fieldKey: "profit" }] } },
+    }), sparseRows, fields, false, 160);
+
+    expect(grouped.grid).toMatchObject({ top: 34, bottom: 32 });
+    expect(grouped.series).toEqual(expect.arrayContaining([
+      expect.objectContaining({ barMaxWidth: 72, barGap: "12%" }),
+    ]));
+    expect(stacked.series).toEqual(expect.arrayContaining([
+      expect.objectContaining({ barMaxWidth: 112, barGap: "0%" }),
+    ]));
+    expect(percentage.series).toEqual(expect.arrayContaining([
+      expect.objectContaining({ barMaxWidth: 112, barGap: "0%" }),
+    ]));
+  });
+
   it("uses an independent scale for each grouped bar metric when their units differ substantially", () => {
     const option = buildBarOption(component({
       binding: {
@@ -531,7 +749,7 @@ describe("component option builders", () => {
     expect(percentage.xAxis).toMatchObject({ boundaryGap: false });
     expect(percentage.legend.data).toEqual(["销售额", "毛利"]);
     expect(percentage.tooltip.trigger).toBe("item");
-    expect(percentage.tooltip.formatter?.({ dataIndex: 0, marker: "●", seriesId: "revenue", seriesName: "销售额", value: 40 })).toBe("●销售额<br/>40（40.00%）");
+    expect(percentage.tooltip.formatter?.({ dataIndex: 0, marker: "●", seriesId: "revenue", seriesName: "销售额", value: 40 })).toBe("●销售额<br/>40 ¥（40.00%）");
     expect(percentage.yAxis).toMatchObject({ min: 0, max: 100, interval: 25 });
     expect(percentage.series[0]?.emphasis).toEqual({ focus: "none" });
     expect(percentage.yAxis.axisLabel.formatter?.(25)).toBe("25.00%");

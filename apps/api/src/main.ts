@@ -1,5 +1,6 @@
 import "reflect-metadata";
 
+import multipart from "@fastify/multipart";
 import { config as loadEnv } from "dotenv";
 import { NestFactory } from "@nestjs/core";
 import { FastifyAdapter, type NestFastifyApplication } from "@nestjs/platform-fastify";
@@ -11,6 +12,7 @@ import {
   dashboardErrorEnvelopeHook,
   safeJsonFastifyOptions,
 } from "./fastify-options.js";
+import { MAX_UPLOADED_DATASET_FILE_SIZE } from "./datasets/dataset-upload.service.js";
 
 // The API command runs with apps/api as its working directory, while local
 // configuration lives at the workspace root. Explicitly load it so `pnpm dev`
@@ -22,6 +24,15 @@ async function bootstrap(): Promise<void> {
     AppModule,
     new FastifyAdapter({ ...safeJsonFastifyOptions, logger: true }),
   );
+  await app.getHttpAdapter().getInstance().register(multipart as never, {
+    limits: {
+      fileSize: MAX_UPLOADED_DATASET_FILE_SIZE,
+      files: 1,
+      fields: 2,
+      parts: 3,
+      fieldSize: 2 * 1024 * 1024,
+    },
+  });
   app.enableCors({
     origin: process.env.WEB_ORIGIN ?? "http://localhost:5173",
     credentials: true,

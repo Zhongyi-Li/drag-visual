@@ -2,8 +2,10 @@ import { CheckOutlined, CloseOutlined, DatabaseOutlined, DeleteOutlined, EditOut
 import type { DatasetField } from "@drag-visual/contracts";
 import { Alert, Button, Card, Empty, Input, Modal, Popconfirm, Select, Space, Table, Tooltip, Typography, type TableColumnsType } from "antd";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DataPreview } from "../datasets/DataPreview.js";
+import { getDataset, listDatasets, queryDataset, uploadDataset } from "../datasets/datasetApi.js";
 import { importDatasetFile } from "../datasets/fileImport.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 
@@ -16,6 +18,7 @@ const fieldTypeOptions: { label: string; value: DatasetField["type"] }[] = [
 
 export const FileDatasetImporter = () => {
   const localDatasets = useLocalDatasets();
+  const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -26,20 +29,47 @@ export const FileDatasetImporter = () => {
   const [datasetNameDrafts, setDatasetNameDrafts] = useState<Record<string, string>>({});
   const [fieldLabelDrafts, setFieldLabelDrafts] = useState<Record<string, string>>({});
 
-  const activeDataset = activeDatasetId === undefined ? undefined : localDatasets.getDataset(activeDatasetId);
-  const activeResult = activeDatasetId === undefined ? undefined : localDatasets.queryDataset(activeDatasetId);
+  const remoteDatasets = useQuery({
+    queryKey: ["datasets"],
+    queryFn: () => listDatasets(),
+    enabled: open,
+  });
+  // Uploaded datasets have an explicit id namespace. Keep platform/interface
+  // datasets out of this file-management modal while making persisted uploads
+  // visible again after a browser refresh.
+  const uploadedRemoteSummaries = (remoteDatasets.data ?? []).filter((dataset) => dataset.id.startsWith("uploaded-"));
+  const summaries = Array.from(new Map([
+    ...uploadedRemoteSummaries,
+    ...localDatasets.summaries,
+  ].map((dataset) => [dataset.id, dataset])).values());
+  const activeLocalDataset = activeDatasetId === undefined ? undefined : localDatasets.getDataset(activeDatasetId);
+  const activeLocalResult = activeDatasetId === undefined ? undefined : localDatasets.queryDataset(activeDatasetId);
+  const activeRemoteSchema = useQuery({
+    queryKey: ["datasets", activeDatasetId, "schema"],
+    queryFn: () => getDataset(activeDatasetId!),
+    enabled: open && activeDatasetId !== undefined && activeLocalDataset === undefined,
+  });
+  const activeRemoteResult = useQuery({
+    queryKey: ["datasets", activeDatasetId, "query", "file-management-preview"],
+    queryFn: () => queryDataset(activeDatasetId!, {}),
+    enabled: open && activeDatasetId !== undefined && activeLocalResult === undefined,
+  });
+  const activeDataset = activeLocalDataset ?? activeRemoteSchema.data;
+  const activeResult = activeLocalResult ?? activeRemoteResult.data;
+  const activeIsLegacyLocalDataset = activeDatasetId !== undefined && localDatasets.isUploadedDataset(activeDatasetId);
 
   useEffect(() => {
     if (activeDatasetId !== undefined && localDatasets.getDataset(activeDatasetId) !== undefined) return;
-    setActiveDatasetId(localDatasets.summaries[0]?.id);
-  }, [activeDatasetId, localDatasets]);
+    if (activeDatasetId !== undefined && summaries.some((dataset) => dataset.id === activeDatasetId)) return;
+    setActiveDatasetId(summaries[0]?.id);
+  }, [activeDatasetId, localDatasets, summaries]);
 
   useEffect(() => {
     setEditingDatasetId(undefined);
   }, [activeDatasetId]);
 
   const beginDatasetNameEdit = () => {
-    if (activeDataset === undefined) return;
+    if (activeDataset === undefined || !activeIsLegacyLocalDataset) return;
     setDatasetNameDrafts((current) => ({ ...current, [activeDataset.id]: activeDataset.name }));
     setEditingDatasetId(activeDataset.id);
     setMessage(null);
@@ -53,7 +83,7 @@ export const FileDatasetImporter = () => {
   };
 
   const saveDatasetName = () => {
-    if (activeDataset === undefined) return;
+    if (activeDataset === undefined || !activeIsLegacyLocalDataset) return;
     const nextName = (datasetNameDrafts[activeDataset.id] ?? activeDataset.name).trim();
     if (nextName.length === 0) return;
     localDatasets.renameDataset(activeDataset.id, nextName);
@@ -70,10 +100,17 @@ export const FileDatasetImporter = () => {
     setError(null);
     setMessage(null);
     void importDatasetFile(file)
-      .then((dataset) => {
-        localDatasets.addDataset(dataset);
-        setActiveDatasetId(dataset.schema.id);
-        setMessage(`已导入 ${dataset.schema.name}，共 ${dataset.result.rows.length} 行数据。`);
+      .then((dataset) => uploadDataset(file, dataset))
+      .then((uploaded) => {
+        // The server response carries the generated persisted id. Retain a
+        // session snapshot for immediate preview while all later reads use the
+        // normal dataset API and therefore survive browser refreshes.
+        localDatasets.upsertRuntimeDataset({ schema: uploaded.dataset, result: uploaded.result });
+        queryClient.setQueryData(["datasets", uploaded.dataset.id, "schema"], uploaded.dataset);
+        queryClient.setQueryData(["datasets", uploaded.dataset.id, "query", "file-management-preview"], uploaded.result);
+        void queryClient.invalidateQueries({ queryKey: ["datasets"] });
+        setActiveDatasetId(uploaded.dataset.id);
+        setMessage(`已上传 ${uploaded.dataset.name}，共 ${uploaded.result.rows.length} 行数据。`);
       })
       .catch((caught: unknown) => {
         setError(caught instanceof Error ? caught.message : "导入数据文件失败");
@@ -90,6 +127,7 @@ export const FileDatasetImporter = () => {
           aria-label={`字段 ${field.key} 显示名`}
           value={fieldLabelDrafts[`${activeDatasetId ?? ""}:${field.key}`] ?? field.label}
           onChange={(event) => {
+            if (!activeIsLegacyLocalDataset) return;
             const nextLabel = event.target.value;
             const draftKey = `${activeDatasetId ?? ""}:${field.key}`;
             setFieldLabelDrafts((current) => ({ ...current, [draftKey]: nextLabel }));
@@ -97,6 +135,7 @@ export const FileDatasetImporter = () => {
               localDatasets.updateField(activeDatasetId, field.key, { label: nextLabel });
             }
           }}
+          disabled={!activeIsLegacyLocalDataset}
         />
       ),
     },
@@ -117,10 +156,11 @@ export const FileDatasetImporter = () => {
           value={field.type}
           style={{ width: "100%" }}
           onChange={(type) => {
-            if (activeDatasetId !== undefined) {
+            if (activeDatasetId !== undefined && activeIsLegacyLocalDataset) {
               localDatasets.updateField(activeDatasetId, field.key, { type });
             }
           }}
+          disabled={!activeIsLegacyLocalDataset}
         />
       ),
     },
@@ -141,7 +181,7 @@ export const FileDatasetImporter = () => {
       <Modal
         className="dataset-management-modal"
         open={open}
-        title="本地数据集管理"
+        title="数据集管理"
         onCancel={() => setOpen(false)}
         footer={null}
         width={960}
@@ -149,7 +189,7 @@ export const FileDatasetImporter = () => {
       >
         <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
           <Typography.Paragraph type="secondary" style={{ margin: 0 }}>
-            上传 CSV 或 Excel 文件后，系统会读取表头并自动推断字段类型。本地数据会保存在当前浏览器，可在图表配置的数据集下拉框中选择。
+            上传 CSV 或 Excel 文件后，系统会读取表头并自动推断字段类型。原始文件和解析后的数据会安全保存至服务端，可在图表配置的数据集下拉框中选择。
           </Typography.Paragraph>
           <input
             ref={inputRef}
@@ -172,20 +212,21 @@ export const FileDatasetImporter = () => {
           </div>
           {message && <Alert type="success" showIcon message={message} />}
           {error && <Alert type="error" showIcon message={error} />}
-          {localDatasets.summaries.length === 0 ? (
-            <Empty description="暂无本地数据集" />
+          {summaries.length === 0 ? (
+            <Empty description="暂无数据集" />
           ) : (
             <>
               <section className="dataset-library" aria-label="已有数据集">
                 <div className="dataset-library__header">
                   <strong>已有数据集</strong>
-                  <Typography.Text type="secondary">共 {localDatasets.summaries.length} 个</Typography.Text>
+                  <Typography.Text type="secondary">共 {summaries.length} 个</Typography.Text>
                 </div>
                 <div className="dataset-library__grid">
-                  {localDatasets.summaries.map((dataset) => {
+                  {summaries.map((dataset) => {
                     const schema = localDatasets.getDataset(dataset.id);
                     const result = localDatasets.queryDataset(dataset.id);
                     const active = dataset.id === activeDatasetId;
+                    const legacyLocal = localDatasets.isUploadedDataset(dataset.id);
                     return (
                       <div key={dataset.id} className={`dataset-library-item${active ? " dataset-library-item--active" : ""}`}>
                         <button
@@ -198,14 +239,14 @@ export const FileDatasetImporter = () => {
                           <strong title={dataset.name}>{dataset.name}</strong>
                           <span>{result?.rows.length ?? 0} 行 · {schema?.fields.length ?? 0} 个字段</span>
                         </button>
-                        <Popconfirm
+                        {legacyLocal && <Popconfirm
                           title={`删除“${dataset.name}”？`}
                           description="删除后，已绑定该数据集的图表将无法继续读取数据。"
                           okText="删除"
                           cancelText="取消"
                           okButtonProps={{ danger: true }}
                           onConfirm={() => {
-                            const nextDatasetId = localDatasets.summaries.find((candidate) => candidate.id !== dataset.id)?.id;
+                            const nextDatasetId = summaries.find((candidate) => candidate.id !== dataset.id)?.id;
                             localDatasets.deleteDataset(dataset.id);
                             if (active) setActiveDatasetId(nextDatasetId);
                             setMessage(`已删除 ${dataset.name}。`);
@@ -218,7 +259,7 @@ export const FileDatasetImporter = () => {
                             icon={<DeleteOutlined />}
                             aria-label={`删除数据集 ${dataset.name}`}
                           />
-                        </Popconfirm>
+                        </Popconfirm>}
                       </div>
                     );
                   })}
@@ -227,9 +268,14 @@ export const FileDatasetImporter = () => {
               {activeDataset && (
                 <Card size="small" title="数据集信息">
                   <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+                    {!activeIsLegacyLocalDataset && (
+                      <Typography.Text type="secondary">
+                        此数据集已保存至服务端；当前仅支持查看字段和预览数据。
+                      </Typography.Text>
+                    )}
                     <div className="dataset-name-field">
                       <span className="dataset-name-field__label">数据集名称</span>
-                      {editingDatasetId === activeDataset.id ? (
+                      {activeIsLegacyLocalDataset && editingDatasetId === activeDataset.id ? (
                         <div className="dataset-name-field__editor">
                           <Input
                             autoFocus
@@ -274,7 +320,7 @@ export const FileDatasetImporter = () => {
                       ) : (
                         <div className="dataset-name-field__readonly">
                           <strong title={activeDataset.name}>{activeDataset.name}</strong>
-                          <Tooltip title="修改名称">
+                          {activeIsLegacyLocalDataset && <Tooltip title="修改名称">
                             <Button
                               type="text"
                               size="small"
@@ -282,7 +328,7 @@ export const FileDatasetImporter = () => {
                               aria-label={`修改数据集名称 ${activeDataset.name}`}
                               onClick={beginDatasetNameEdit}
                             />
-                          </Tooltip>
+                          </Tooltip>}
                         </div>
                       )}
                     </div>

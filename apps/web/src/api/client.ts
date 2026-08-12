@@ -15,7 +15,11 @@ export const createApiClient = (baseUrl: string): ApiClient => {
     async request<T>(path: string, init: RequestInit = {}): Promise<T> {
       const headers = new Headers(init.headers);
       if (!headers.has("Accept")) headers.set("Accept", "application/json");
-      if (init.body != null && !headers.has("Content-Type")) {
+      // Let the browser set the multipart boundary for FormData uploads. Setting
+      // application/json here makes otherwise valid file uploads unreadable by
+      // the API.
+      const isFormData = typeof FormData !== "undefined" && init.body instanceof FormData;
+      if (init.body != null && !isFormData && !headers.has("Content-Type")) {
         headers.set("Content-Type", "application/json");
       }
 

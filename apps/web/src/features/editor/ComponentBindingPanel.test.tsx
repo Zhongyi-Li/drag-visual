@@ -129,6 +129,7 @@ describe("ComponentBindingPanel", () => {
     await userEvent.click(await screen.findByText("升序"));
     const topN = screen.getByRole("spinbutton", { name: "Top N" });
     await userEvent.type(topN, "5");
+    expect(store.getState().history.present.components[0]!.binding?.limit).toBeUndefined();
     fireEvent.blur(topN);
 
     expect(store.getState().history.present.components[0]!.binding).toMatchObject({
@@ -1022,7 +1023,7 @@ describe("ComponentBindingPanel", () => {
     expect(resultLimit).toHaveValue("1000");
     await userEvent.clear(resultLimit);
     await userEvent.type(resultLimit, "500");
-    expect(store.getState().history.present.components[0]!.props).toMatchObject({ resultLimit: 500 });
+    expect(store.getState().history.present.components[0]!.props.resultLimit).toBeUndefined();
     expect(store.getState().history.present.components[0]!.props.appliedResultLimit).toBeUndefined();
 
     await userEvent.click(screen.getByRole("button", { name: "更新" }));

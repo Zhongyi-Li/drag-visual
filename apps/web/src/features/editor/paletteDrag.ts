@@ -3,6 +3,15 @@ import type { ComponentType } from "@drag-visual/contracts";
 import { pointToGrid } from "./canvasLayout.js";
 
 export const PALETTE_DROP_ID = "editor-canvas-drop-zone";
+const ANALYSIS_GROUP_DROP_PREFIX = "analysis-group-drop-zone:";
+
+export const analysisGroupDropId = (componentId: string): string => `${ANALYSIS_GROUP_DROP_PREFIX}${componentId}`;
+
+export const parseAnalysisGroupDropId = (dropId: string): string | null => {
+  if (!dropId.startsWith(ANALYSIS_GROUP_DROP_PREFIX)) return null;
+  const componentId = dropId.slice(ANALYSIS_GROUP_DROP_PREFIX.length);
+  return componentId.length > 0 ? componentId : null;
+};
 
 export interface PaletteDragData {
   readonly type: ComponentType;

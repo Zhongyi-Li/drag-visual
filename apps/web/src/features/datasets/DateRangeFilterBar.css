@@ -1,7 +1,4 @@
-.date-range-filter { min-height: 38px; padding: 2px 14px 8px; display: flex; align-items: center; gap: 8px; overflow-x: auto; color: #595959; white-space: nowrap; }
+.date-range-filter { min-height: 38px; padding: 2px 14px 8px; display: flex; align-items: center; justify-content: flex-end; gap: 8px; overflow-x: auto; color: #595959; white-space: nowrap; }
 .date-range-filter__label { flex: 0 0 auto; color: #434343; font-size: 12px; font-weight: 500; }
-.date-range-filter__preset { width: 108px; flex: 0 0 auto; }
-.date-range-filter__preset .ant-select-selector { min-height: 26px !important; }
-.date-range-filter__input { width: 116px; height: 26px; box-sizing: border-box; padding: 0 7px; border: 1px solid #d9d9d9; border-radius: 4px; color: #262626; background: #fff; font: inherit; font-size: 12px; }
-.date-range-filter__input:focus { border-color: #1677ff; outline: 0; box-shadow: 0 0 0 2px rgba(22, 119, 255, .1); }
-.date-range-filter__separator { color: #8c8c8c; font-size: 12px; }
+.date-range-filter__picker { flex: 0 0 auto; min-width: 248px; }
+.date-range-filter__picker.ant-picker-small { min-height: 32px; padding-inline: 10px; font-size: 14px; }

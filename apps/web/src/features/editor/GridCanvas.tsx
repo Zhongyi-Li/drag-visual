@@ -1,4 +1,5 @@
 import { BarChartOutlined, DragOutlined, LineChartOutlined, PieChartOutlined } from "@ant-design/icons";
+import { Spin } from "antd";
 import { useDroppable } from "@dnd-kit/core";
 import type { ComponentRegistry } from "@drag-visual/component-registry";
 import type { GridItem as DashboardGridItem } from "@drag-visual/contracts";
@@ -12,7 +13,7 @@ import ReactGridLayout, {
   type ReactGridLayoutProps,
 } from "react-grid-layout";
 import type { ComponentType as ReactComponentType, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from "react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -21,6 +22,7 @@ import { clampLayoutItem, createShadowLayout, GRID_COLUMNS, GRID_MARGIN, GRID_PA
 import { ComponentFrame } from "./ComponentFrame.js";
 import { PALETTE_DROP_ID } from "./paletteDrag.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
+import { dashboardGlobalFilters, defaultDashboardGlobalFilterValues, type DashboardGlobalFilterValues } from "../viewer/dashboardGlobalFilters.js";
 
 export type GridRendererProps = ReactGridLayoutProps;
 
@@ -31,6 +33,7 @@ interface GridCanvasProps {
   onStartFromLibrary?: () => void;
   gridWidth?: number;
   GridRenderer?: ReactComponentType<GridRendererProps>;
+  activeAnalysisGroupDropId?: string | null;
 }
 
 const toDashboardItem = (item: LayoutItem): DashboardGridItem =>
@@ -42,7 +45,13 @@ const layoutChanged = (left: DashboardGridItem | undefined, right: DashboardGrid
 const fixedGridCompactor: Compactor = getCompactor(null, false, false);
 const resizeHandles = ["n", "s", "e", "w", "ne", "nw", "se", "sw"] as const;
 const gridGuideColumns = Array.from({ length: GRID_COLUMNS }, (_, index) => index);
+const ROOT_GRID_DRAG_CANCEL = ".analysis-group-canvas, .analysis-group-canvas *, .component-frame__menu-trigger, .component-frame__title-button, .component-frame__title-input, .react-resizable-handle";
 type InteractionMode = "drag" | "resize" | null;
+
+interface GlobalFilterQueryState {
+  readonly version: number;
+  readonly pendingComponentIds: readonly string[];
+}
 
 interface DragStartSnapshot {
   readonly item: DashboardGridItem;
@@ -75,9 +84,27 @@ const buildShadowLayout = (nextLayout: Layout, baseline: readonly DashboardGridI
   return createShadowLayout(baseline, activeItem).map((item) => ({ ...byId.get(item.i), ...item }));
 };
 
-export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibrary, gridWidth, GridRenderer = ReactGridLayout }: GridCanvasProps) => {
+export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibrary, gridWidth, GridRenderer = ReactGridLayout, activeAnalysisGroupDropId }: GridCanvasProps) => {
   const dashboard = useStore(store, editorSelectors.dashboard);
   const [isInteracting, setIsInteracting] = useState(false);
+  const headerComponent = dashboard.components.find((component) => component.type === "dashboardHeader");
+  const globalFilters = dashboardGlobalFilters(headerComponent);
+  const [globalFilterValues, setGlobalFilterValues] = useState<DashboardGlobalFilterValues>(() => defaultDashboardGlobalFilterValues(headerComponent));
+  const [globalFilterQuery, setGlobalFilterQuery] = useState<GlobalFilterQueryState>({ version: 0, pendingComponentIds: [] });
+  useEffect(() => {
+    setGlobalFilterValues(defaultDashboardGlobalFilterValues(headerComponent));
+  }, [headerComponent?.id, JSON.stringify(headerComponent?.props.dateRange), JSON.stringify(headerComponent?.props.globalFilters)]);
+  const applyGlobalFilters = (): boolean => {
+    const pendingComponentIds = [...new Set(globalFilters.flatMap((filter) => filter.targets.map((target) => target.componentId)))];
+    if (pendingComponentIds.length === 0) return false;
+    setGlobalFilterQuery((current) => ({ version: current.version + 1, pendingComponentIds }));
+    return true;
+  };
+  const settleGlobalFilterQuery = (componentId: string, version: number) => {
+    setGlobalFilterQuery((current) => current.version !== version || !current.pendingComponentIds.includes(componentId)
+      ? current
+      : { ...current, pendingComponentIds: current.pendingComponentIds.filter((pendingId) => pendingId !== componentId) });
+  };
   const interactionMode = useRef<InteractionMode>(null);
   const pointerDownPoint = useRef<DragStartSnapshot["point"] | null>(null);
   const dragStartSnapshot = useRef<DragStartSnapshot | null>(null);
@@ -91,7 +118,7 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
   const { setNodeRef, isOver } = useDroppable({ id: PALETTE_DROP_ID });
   const width = gridWidth ?? measuredWidth;
 
-  const layout: Layout = dashboard.layout.map((item) => {
+  const layout: Layout = dashboard.layout.filter((item) => item.parentId === undefined).map((item) => {
     const component = dashboard.components.find((candidate) => candidate.id === item.i);
     return component ? { ...clampLayoutItem(item, RESIZABLE_ITEM_MINIMUM), minW: RESIZABLE_ITEM_MINIMUM.w, minH: RESIZABLE_ITEM_MINIMUM.h } : item;
   });
@@ -183,6 +210,14 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
       aria-label="看板画布"
       data-drop-zone-id={PALETTE_DROP_ID}
     >
+      {globalFilterQuery.pendingComponentIds.length > 0 && (
+        <div className="global-filter-query-overlay" role="status" aria-live="polite" aria-label="正在更新全局筛选结果">
+          <div className="global-filter-query-indicator">
+            <Spin size="small" />
+            <span>正在更新 {globalFilterQuery.pendingComponentIds.length} 个图表</span>
+          </div>
+        </div>
+      )}
       <div
         ref={containerRef}
         className={`editor-canvas__grid-container${isInteracting ? " editor-canvas__grid-container--interacting" : ""}`}
@@ -230,7 +265,7 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
             layout={layout}
             compactor={gridCompactor}
             gridConfig={{ cols: GRID_COLUMNS, rowHeight: GRID_ROW_HEIGHT, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: [GRID_PADDING, GRID_PADDING] }}
-            dragConfig={{ enabled: true, cancel: ".component-frame__menu-trigger, .component-frame__title-button, .component-frame__title-input, .react-resizable-handle", threshold: 3 }}
+            dragConfig={{ enabled: true, cancel: ROOT_GRID_DRAG_CANCEL, threshold: 3 }}
             resizeConfig={{ enabled: true, handles: [...resizeHandles] }}
             onDragStart={startDragInteraction}
             onDrag={startInteraction}
@@ -239,9 +274,23 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
             onResize={startInteraction}
             onResizeStop={stopResizeInteraction}
           >
-            {dashboard.components.map((component) => (
+            {dashboard.components.filter((component) => component.parentId === undefined).map((component) => (
               <div key={component.id}>
-                <ComponentFrame component={component} store={store} createComponentId={createComponentId} isInteracting={isInteracting} />
+                <ComponentFrame
+                  component={component}
+                  store={store}
+                  createComponentId={createComponentId}
+                  isInteracting={isInteracting}
+                  globalFilters={globalFilters}
+                  globalFilterValues={globalFilterValues}
+                  onGlobalFilterChange={(filterId, value) => setGlobalFilterValues((current) => ({ ...current, [filterId]: value }))}
+                  globalFilterApplyVersion={globalFilterQuery.version}
+                  onGlobalFilterQuerySettled={settleGlobalFilterQuery}
+                  onGlobalFiltersApply={applyGlobalFilters}
+                  globalFiltersLoading={globalFilterQuery.pendingComponentIds.length > 0}
+                  registry={registry}
+                  activeAnalysisGroupDropId={activeAnalysisGroupDropId}
+                />
               </div>
             ))}
           </GridRenderer>

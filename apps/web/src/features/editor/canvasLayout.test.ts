@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   clampLayoutItem,
+  compactLayout,
   createShadowLayout,
   findAvailableLayout,
   hasLayoutCollision,
@@ -26,6 +27,18 @@ describe("canvas layout helpers", () => {
       [{ i: "one", x: 0, y: 0, w: 6, h: 5 }],
       { i: "two", x: 0, y: 0, w: 6, h: 5 },
     )).toEqual({ i: "two", x: 0, y: 5, w: 6, h: 5 });
+  });
+
+  it("compacts components in reading order without changing their sizes", () => {
+    expect(compactLayout([
+      { i: "right", x: 6, y: 7, w: 6, h: 3 },
+      { i: "later", x: 0, y: 20, w: 6, h: 4 },
+      { i: "left", x: 0, y: 7, w: 6, h: 3 },
+    ])).toEqual([
+      { i: "right", x: 6, y: 0, w: 6, h: 3 },
+      { i: "later", x: 0, y: 3, w: 6, h: 4 },
+      { i: "left", x: 0, y: 0, w: 6, h: 3 },
+    ]);
   });
 
   it("detects collisions against the existing layout while ignoring the active item", () => {

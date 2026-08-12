@@ -4,7 +4,7 @@ import { DashboardSchema } from "@drag-visual/contracts";
 import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import type { ReactElement } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppProviders } from "../../app/AppProviders.js";
 import { describe, expect, it, vi } from "vitest";
@@ -41,6 +41,7 @@ describe("EditorShell", () => {
     expect(screen.getByText("饼/环形")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "添加交叉表" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "添加指标看板" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "添加指标洞察" })).toBeEnabled();
     expect(screen.queryByRole("button", { name: "添加线图" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "添加柱图" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "添加饼图" })).toBeEnabled();
@@ -161,6 +162,47 @@ describe("EditorShell", () => {
     renderShell(<EditorShell store={createEditorStore(initial)} />);
     await userEvent.click(screen.getByRole("button", { name: "添加图表" }));
     expect(screen.getByRole("searchbox", { name: "搜索图表" })).toHaveFocus();
+  });
+
+  it("places one-click arrangement after the dataset tool", () => {
+    renderShell(<EditorShell store={createEditorStore(initial)} />);
+    const tools = within(screen.getByRole("navigation", { name: "编辑工具" }));
+    const buttonNames = tools.getAllByRole("button").map((button) => button.getAttribute("aria-label"));
+
+    expect(buttonNames.indexOf("数据集")).toBeLessThan(buttonNames.indexOf("一件整理"));
+  });
+
+  it("compacts the top-level canvas in one undoable operation", async () => {
+    const dashboard = DashboardSchema.parse({
+      ...initial,
+      layout: [
+        { i: "right", x: 6, y: 8, w: 6, h: 3 },
+        { i: "nested", parentId: "group", x: 0, y: 12, w: 6, h: 3 },
+        { i: "left", x: 0, y: 8, w: 6, h: 3 },
+        { i: "group", x: 0, y: 20, w: 12, h: 5 },
+      ],
+      components: [
+        { id: "right", type: "text", props: { text: "右侧" } },
+        { id: "group", type: "analysisGroup", props: {} },
+        { id: "nested", parentId: "group", type: "text", props: { text: "组内" } },
+        { id: "left", type: "text", props: { text: "左侧" } },
+      ],
+    });
+    const store = createEditorStore(dashboard);
+    renderShell(<EditorShell store={store} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "一件整理" }));
+
+    expect(store.getState().history.present.layout).toEqual([
+      { i: "right", x: 6, y: 0, w: 6, h: 3 },
+      { i: "nested", parentId: "group", x: 0, y: 12, w: 6, h: 3 },
+      { i: "left", x: 0, y: 0, w: 6, h: 3 },
+      { i: "group", x: 0, y: 3, w: 12, h: 5 },
+    ]);
+    expect(store.getState().history.past).toHaveLength(1);
+
+    await userEvent.click(screen.getByRole("button", { name: "撤销" }));
+    expect(store.getState().history.present.layout).toEqual(dashboard.layout);
   });
 
   it("edits the dashboard name from the title bar", async () => {
@@ -299,6 +341,26 @@ describe("EditorShell", () => {
     await userEvent.click(screen.getByRole("button", { name: "添加排行榜" }));
     expect(store.getState().history.present.components[1]).toMatchObject({
       id: "ranking-1", type: "ranking", title: "排行榜", props: { color: "#1677ff", maxItems: 10, showValue: true },
+    });
+  });
+
+  it("adds horizontal bar and bar-line palette entries as dedicated components", async () => {
+    const store = createEditorStore(initial);
+    let nextId = "horizontal-bar-1";
+    renderShell(<EditorShell store={store} createComponentId={() => nextId} />);
+
+    const comboIcon = screen.getByRole("button", { name: "添加柱状折线组合图" }).querySelector(".palette-combo-icon");
+    expect(comboIcon?.querySelectorAll(".anticon")).toHaveLength(2);
+
+    await userEvent.click(screen.getByRole("button", { name: "添加条形图" }));
+    expect(store.getState().history.present.components[0]).toMatchObject({
+      id: "horizontal-bar-1", type: "horizontalBar", title: "条形图", props: { aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true },
+    });
+
+    nextId = "bar-line-1";
+    await userEvent.click(screen.getByRole("button", { name: "添加柱状折线组合图" }));
+    expect(store.getState().history.present.components[1]).toMatchObject({
+      id: "bar-line-1", type: "barLine", title: "柱状折线组合图", props: { aggregation: "sum", barColor: "#2f62dc", hideZeroValues: true, lineColor: "#ff7417", showLegend: true, smartLineScale: true, smooth: true },
     });
   });
 

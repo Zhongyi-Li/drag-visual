@@ -26,7 +26,7 @@ a:focus-visible { outline: 2px solid #2d6df6; outline-offset: 2px; }
 
 .dashboard-home__brand { display: inline-flex; align-items: baseline; color: #202938; font-size: 24px; font-weight: 800; letter-spacing: -1.3px; line-height: 1; }
 .dashboard-home__brand-bi { margin-left: 1px; color: #3977f5; background: linear-gradient(110deg, #3977f5 0%, #8d68f5 38%, #31a0ef 68%, #3977f5 100%); background-clip: text; background-size: 220% 100%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; animation: dashboard-home-brand-shimmer 4.6s ease-in-out infinite; }
-.dashboard-home__header-actions { display: flex; align-items: center; }
+.dashboard-home__header-actions { display: flex; align-items: center; gap: 10px; }
 .dashboard-home__account-trigger { display: inline-flex; align-items: center; gap: 10px; padding: 5px 6px 5px 12px; color: #52617a; background: rgb(255 255 255 / 42%); border: 0; border-radius: 999px; cursor: pointer; font: inherit; transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease; }
 .dashboard-home__account-trigger:hover { background: rgb(255 255 255 / 84%); box-shadow: 0 6px 16px rgb(71 99 151 / 12%); transform: translateY(-1px); }
 .dashboard-home__account-copy { display: grid; min-width: 0; gap: 2px; text-align: right; }

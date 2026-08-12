@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { safeJsonRecord, safeRecord } from "./safe-record.js";
+import { DatasetFilter } from "./dataset.js";
 
 const nonEmptyString = z.string().min(1);
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
@@ -9,6 +10,8 @@ export const ComponentType = z.enum([
   "bar",
   "stackedBar",
   "percentBar",
+  "horizontalBar",
+  "barLine",
   "ringBar",
   "ranking",
   "crosstab",
@@ -26,21 +29,27 @@ export const ComponentType = z.enum([
   "radar",
   "treemap",
   "kpi",
+  "kpiInsight",
   "metricTrend",
   "metricBreakdown",
   "flipNumber",
   "progressBar",
   "targetProgress",
+  "progressIndicator",
   "gauge",
   "liquid",
   "table",
   "text",
+  "dashboardHeader",
+  "analysisGroup",
 ]);
 
 export type ComponentType = z.infer<typeof ComponentType>;
 
 export const GridItem = z.object({
   i: nonEmptyString,
+  /** When present, this item is positioned in the named analysis group instead of the root canvas. */
+  parentId: nonEmptyString.optional(),
   x: z.number().int().nonnegative(),
   y: z.number().int().nonnegative(),
   w: z.number().int().positive(),
@@ -70,6 +79,7 @@ export const DateFilterPreset = z.enum([
   "last30Days",
   "thisMonth",
   "lastMonth",
+  "thisYear",
 ]);
 
 export type DateFilterPreset = z.infer<typeof DateFilterPreset>;
@@ -78,12 +88,74 @@ export const DateFilterControl = z
   .object({
     fieldKey: nonEmptyString,
     defaultPreset: DateFilterPreset,
+    // A saved absolute default range. When absent, legacy preset behaviour is
+    // retained so existing dashboards do not need a migration.
+    defaultRange: z.object({
+      start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    }).strict().optional(),
     allowCustom: z.boolean(),
     timezone: z.literal("Asia/Shanghai"),
   })
   .strict();
 
 export type DateFilterControl = z.infer<typeof DateFilterControl>;
+
+/** A dashboard-header filter is configured once and may target only selected charts. */
+export const DashboardGlobalFilterControlType = z.enum(["dateRange", "select", "input"]);
+
+export type DashboardGlobalFilterControlType = z.infer<typeof DashboardGlobalFilterControlType>;
+
+export const DashboardGlobalFilterTarget = z.object({
+  componentId: nonEmptyString,
+  fieldKey: nonEmptyString,
+}).strict();
+
+export type DashboardGlobalFilterTarget = z.infer<typeof DashboardGlobalFilterTarget>;
+
+export const DashboardGlobalFilterConfig = z.object({
+  id: nonEmptyString,
+  fieldKey: nonEmptyString,
+  label: nonEmptyString,
+  controlType: DashboardGlobalFilterControlType,
+  targets: z.array(DashboardGlobalFilterTarget).max(99),
+}).strict();
+
+export type DashboardGlobalFilterConfig = z.infer<typeof DashboardGlobalFilterConfig>;
+
+export const ComponentDisplayHintMode = z.enum(["auto", "custom", "hidden"]);
+
+export type ComponentDisplayHintMode = z.infer<typeof ComponentDisplayHintMode>;
+
+export const ComponentDisplayAnnotationPosition = z.enum(["topLeft", "topRight", "bottomRight", "bottomLeft"]);
+
+export type ComponentDisplayAnnotationPosition = z.infer<typeof ComponentDisplayAnnotationPosition>;
+
+export const ComponentDisplayAnnotation = z.object({
+  position: ComponentDisplayAnnotationPosition,
+  text: z.string().max(80),
+}).strict();
+
+export type ComponentDisplayAnnotation = z.infer<typeof ComponentDisplayAnnotation>;
+
+/** Presentation-only helper text rendered above a chart's plotting area. */
+export const ComponentDisplayAnnotations = z.object({
+  annotations: z.array(ComponentDisplayAnnotation).max(4).default([]),
+  /** Optional custom text rendered in the upper-right corner of a chart. */
+  unitText: z.string().max(80).default(""),
+  /** @deprecated Retained only so dashboards saved during the initial rollout remain readable. */
+  series: z.object({
+    mode: ComponentDisplayHintMode,
+    text: z.string().max(180),
+  }).strict().optional(),
+  /** @deprecated Replaced by the explicit `unitText` input. */
+  unit: z.object({
+    mode: ComponentDisplayHintMode,
+    text: z.string().max(80),
+  }).strict().optional(),
+}).strict();
+
+export type ComponentDisplayAnnotations = z.infer<typeof ComponentDisplayAnnotations>;
 
 export const DataBinding = z.object({
   datasetId: nonEmptyString,
@@ -104,8 +176,13 @@ export type DataBinding = z.infer<typeof DataBinding>;
 
 export const ComponentInstance = z.object({
   id: nonEmptyString,
+  /** Optional owning analysis group. Root components omit this field. */
+  parentId: nonEmptyString.optional(),
   type: ComponentType,
   title: z.string().optional(),
+  /** Optional helper text rendered directly below a chart title. */
+  subtitle: z.string().max(180).optional(),
+  displayAnnotations: ComponentDisplayAnnotations.optional(),
   props: safeJsonRecord,
   binding: DataBinding.optional(),
 }).strict();
@@ -171,6 +248,17 @@ export const DashboardSchema = z
       }
     });
 
+    dashboard.components.forEach((component, index) => {
+      if (component.parentId === undefined) return;
+      const parent = dashboard.components.find((candidate) => candidate.id === component.parentId);
+      if (parent?.type !== "analysisGroup") {
+        context.addIssue({ code: "custom", message: `Component parent must be an analysis group: ${component.parentId}`, path: ["components", index, "parentId"] });
+      }
+      if (component.parentId === component.id) {
+        context.addIssue({ code: "custom", message: "Component cannot parent itself", path: ["components", index, "parentId"] });
+      }
+    });
+
     const layoutIds = new Set<string>();
     dashboard.layout.forEach((item, index) => {
       if (layoutIds.has(item.i)) {
@@ -188,6 +276,10 @@ export const DashboardSchema = z
           message: `Layout item references missing component: ${item.i}`,
           path: ["layout", index, "i"],
         });
+      }
+      const component = dashboard.components.find((candidate) => candidate.id === item.i);
+      if (component?.parentId !== item.parentId) {
+        context.addIssue({ code: "custom", message: `Layout parent does not match component parent: ${item.i}`, path: ["layout", index, "parentId"] });
       }
     });
 

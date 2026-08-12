@@ -25,6 +25,7 @@ export const clampLayoutItem = (item: GridItem, minimum: MinimumSize): GridItem 
   const h = Math.max(minimum.h, item.h);
   return {
     i: item.i,
+    ...(item.parentId === undefined ? {} : { parentId: item.parentId }),
     x: Math.max(0, Math.min(GRID_COLUMNS - w, item.x)),
     y: Math.max(0, item.y),
     w,
@@ -40,6 +41,37 @@ const overlaps = (left: GridItem, right: GridItem): boolean =>
 
 export const hasLayoutCollision = (layout: readonly GridItem[], candidate: GridItem, ignoreId?: string): boolean =>
   layout.some((item) => item.i !== ignoreId && overlaps(item, candidate));
+
+/**
+ * Removes gaps from one grid while preserving each component's current size.
+ *
+ * Items are processed in their current reading order (top-to-bottom, then
+ * left-to-right) and placed into the first available grid cell. Callers pass
+ * only the layout scope they want to arrange, so an analysis group's children
+ * are never mixed with the dashboard canvas.
+ */
+export const compactLayout = (layout: readonly GridItem[]): GridItem[] => {
+  const ordered = layout
+    .map((item) => clampLayoutItem(item, { w: 1, h: 1 }))
+    .sort((left, right) => left.y - right.y || left.x - right.x || left.i.localeCompare(right.i));
+  const placed: GridItem[] = [];
+  const maximumRows = ordered.reduce((rows, item) => rows + item.h, 0);
+
+  ordered.forEach((item) => {
+    for (let y = 0; y <= maximumRows; y += 1) {
+      for (let x = 0; x <= GRID_COLUMNS - item.w; x += 1) {
+        const candidate = { ...item, x, y };
+        if (!hasLayoutCollision(placed, candidate)) {
+          placed.push(candidate);
+          return;
+        }
+      }
+    }
+  });
+
+  const byId = new Map(placed.map((item) => [item.i, item]));
+  return layout.map((item) => byId.get(item.i) ?? item);
+};
 
 export const findAvailableLayout = (layout: readonly GridItem[], candidate: GridItem): GridItem => {
   let next = candidate;

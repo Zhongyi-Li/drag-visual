@@ -12,6 +12,12 @@ vi.mock("./EChart.js", () => {
   };
 });
 
+vi.stubGlobal("ResizeObserver", class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+});
+
 afterEach(cleanup);
 
 const dataComponents = [
@@ -324,6 +330,32 @@ it("renders a ring bar and a ranked table with top-three star badges", () => {
   expect(screen.queryByText("区域")).toBeNull();
 });
 
+it("renders horizontal bar and bar-line components", () => {
+  render(<>
+    <DashboardComponentRenderer component={{
+      id: "horizontal-bar-1", type: "horizontalBar", title: "商品库存排行", props: { aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true },
+      binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, measure: { fieldKey: "inventoryAmount" } } },
+    }} fields={[
+      { key: "product", label: "商品", type: "string", nullable: false },
+      { key: "inventoryAmount", label: "库存金额", type: "number", nullable: false },
+    ]} rows={[{ product: "K80", inventoryAmount: 1420 }]} />
+    <DashboardComponentRenderer component={{
+      id: "bar-line-1", type: "barLine", title: "库存金额与数量", props: { aggregation: "sum", barColor: "#2f62dc", lineColor: "#ff7417", showLegend: true, smooth: false },
+      binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "inventoryAmount" }, lineMeasure: { fieldKey: "inventoryQuantity" } } },
+    }} fields={[
+      { key: "product", label: "商品", type: "string", nullable: false },
+      { key: "inventoryAmount", label: "库存金额", type: "number", nullable: false },
+      { key: "inventoryQuantity", label: "库存数量", type: "number", nullable: false },
+    ]} rows={[{ product: "K80", inventoryAmount: 1420, inventoryQuantity: 80 }]} />
+  </>);
+
+  expect(screen.getByRole("img", { name: "商品库存排行图表" })).toBeTruthy();
+  expect(screen.getByRole("img", { name: "库存金额与数量图表" })).toBeTruthy();
+  expect(screen.getByRole("radiogroup", { name: "切换图表展示方式" })).toBeTruthy();
+  fireEvent.click(screen.getByText("仅曲线"));
+  expect(screen.getByRole("img", { name: "库存金额与数量图表" })).toBeTruthy();
+});
+
 it("places long ranking dimension labels above their progress bars", () => {
   const longLabel = "小米电视 A32 电视智能高清全面屏超长商品名称";
   render(<DashboardComponentRenderer component={{
@@ -531,6 +563,170 @@ it("renders KPI target progress and comparison change when optional slots are bo
   expect(screen.getByText("目标达成 60.0%")).toBeTruthy();
 });
 
+it("keeps the original KPI presentation when a dashboard contains experimental insight rows", () => {
+  const component: ComponentInstance = {
+    id: "kpi-insight-1",
+    type: "kpi",
+    title: "GMV",
+    props: {
+      aggregation: "sum",
+      prefix: "¥",
+      suffix: "",
+      decimals: 0,
+      insightRows: [
+        { type: "comparison", prefix: "环比", tone: "auto" },
+        { type: "target", prefix: "目标完成", tone: "positive" },
+        { type: "notice", prefix: "不应展示", tone: "warning", text: "不应展示" },
+      ],
+    },
+    binding: {
+      datasetId: "sales",
+      slots: {
+        measure: { fieldKey: "revenue" },
+        target: { fieldKey: "revenueTarget" },
+        comparison: { fieldKey: "priorRevenue" },
+      },
+    },
+  };
+
+  render(<DashboardComponentRenderer component={component} rows={[{ revenue: 120, revenueTarget: 200, priorRevenue: 100 }]} />);
+
+  expect(screen.getByLabelText("GMV指标值").textContent).toContain("120 ¥");
+  expect(screen.getByText("较对比 +20.0%")).toBeTruthy();
+  expect(screen.getByText("目标达成 60.0%")).toBeTruthy();
+  expect(screen.queryByTestId("kpi-insight-surface")).toBeNull();
+  expect(screen.queryByText("不应展示")).toBeNull();
+});
+
+it("renders a standalone KPI insight card without manual comparison configuration", () => {
+  const component: ComponentInstance = {
+    id: "kpi-insight-1",
+    type: "kpiInsight",
+    title: "GMV 洞察",
+    props: {
+      aggregation: "sum",
+      prefix: "¥",
+      suffix: "",
+      decimals: 0,
+      insightRows: [
+        { type: "comparison", prefix: "环比", tone: "auto" },
+        { type: "target", prefix: "目标完成", tone: "positive" },
+      ],
+    },
+    binding: {
+      datasetId: "sales",
+      slots: {
+        measure: { fieldKey: "revenue", aggregation: "sum" },
+        target: { fieldKey: "revenueTarget" },
+        comparison: { fieldKey: "priorRevenue" },
+      },
+    },
+  };
+
+  render(<DashboardComponentRenderer component={component} rows={[{ revenue: 120, revenueTarget: 200, priorRevenue: 100 }]} />);
+
+  expect(screen.getByTestId("kpi-insight-surface")).toBeTruthy();
+  expect(screen.getByLabelText("GMV 洞察指标值").textContent).toContain("120 ¥");
+  expect(screen.getByText("GMV 洞察")).toBeTruthy();
+  expect(screen.queryByText("环比 +20.0%")).toBeNull();
+  expect(screen.queryByText("目标完成 60.0%")).toBeNull();
+});
+
+it("adds the item unit to quantity and qty metrics across KPI insight cards", () => {
+  const component: ComponentInstance = {
+    id: "kpi-insight-quantity",
+    type: "kpiInsight",
+    title: "发货洞察",
+    props: { aggregation: "sum", prefix: "", suffix: "", decimals: 0 },
+    binding: { datasetId: "sales", slots: { measure: [{ fieldKey: "quantity" }, { fieldKey: "order_qty" }] } },
+  };
+
+  render(
+    <DashboardComponentRenderer
+      component={component}
+      fields={[
+        { key: "quantity", label: "数量", type: "number", nullable: false },
+        { key: "order_qty", label: "下单数量", type: "number", nullable: false },
+      ]}
+      rows={[{ quantity: 2517, order_qty: 20 }]}
+    />,
+  );
+
+  expect(screen.getByLabelText("数量指标值").textContent).toContain("2517 件");
+  expect(screen.getByLabelText("下单数量指标值").textContent).toContain("20 件");
+});
+
+it("aggregates each KPI insight metric using its own aggregation setting", () => {
+  const component: ComponentInstance = {
+    id: "kpi-insight-multiple",
+    type: "kpiInsight",
+    title: "经营洞察",
+    props: {
+      aggregation: "sum",
+      prefix: "",
+      suffix: "",
+      decimals: 0,
+    },
+    binding: {
+      datasetId: "sales",
+      slots: {
+        measure: [{ fieldKey: "revenue", aggregation: "avg" }, { fieldKey: "orders", aggregation: "max" }],
+      },
+    },
+  };
+
+  render(<DashboardComponentRenderer component={component} rows={[
+    { revenue: 120, orders: 36 },
+    { revenue: 80, orders: 54 },
+  ]} />);
+
+  expect(screen.getByLabelText("revenue指标值").textContent).toContain("100 ¥");
+  expect(screen.getByLabelText("orders指标值").textContent).toContain("54");
+  expect(screen.queryByText(/环比/)).toBeNull();
+  expect(screen.queryByText(/目标完成/)).toBeNull();
+});
+
+it("does not render experimental KPI secondary or notice content", () => {
+  const component: ComponentInstance = {
+    id: "kpi-insight-2",
+    type: "kpi",
+    title: "库存周转",
+    props: {
+      aggregation: "sum",
+      prefix: "",
+      suffix: "天",
+      decimals: 1,
+      insightRows: [
+        { type: "secondary", prefix: "缺货 SKU", tone: "warning", secondaryIndex: 1 },
+        { type: "notice", prefix: "", tone: "negative", text: "存在缺货风险" },
+      ],
+    },
+    binding: {
+      datasetId: "inventory",
+      slots: {
+        measure: { fieldKey: "turnoverDays" },
+        secondaryMeasures: [{ fieldKey: "availableSkuCount" }, { fieldKey: "stockoutSkuCount" }],
+      },
+    },
+  };
+
+  render(
+    <DashboardComponentRenderer
+      component={component}
+      fields={[
+        { key: "turnoverDays", label: "库存周转", type: "number", nullable: false },
+        { key: "availableSkuCount", label: "可售 SKU", type: "number", nullable: false },
+        { key: "stockoutSkuCount", label: "缺货 SKU", type: "number", nullable: false },
+      ]}
+      rows={[{ turnoverDays: 24.5, availableSkuCount: 30, stockoutSkuCount: 3 }]}
+    />,
+  );
+
+  expect(screen.getByLabelText("库存周转指标值").textContent).toContain("24.5天");
+  expect(screen.queryByText("缺货 SKU 3")).toBeNull();
+  expect(screen.queryByText("存在缺货风险")).toBeNull();
+});
+
 it("renders flip number as rolling cards for multiple selected metrics", async () => {
   const component: ComponentInstance = {
     id: "flip-1",
@@ -680,7 +876,7 @@ it("renders a grouped KPI board when a dimension and secondary measures are boun
 
   expect(screen.getByTestId("kpi-board-surface")).toBeTruthy();
   expect(screen.getByText("2026-01")).toBeTruthy();
-  expect(screen.getByText("15.0万 ¥")).toBeTruthy();
+  expect(screen.getByText("15万 ¥")).toBeTruthy();
   expect(screen.getAllByText("revenueTarget")).toHaveLength(2);
   expect(screen.getAllByText("18万 ¥")).toHaveLength(2);
   expect(screen.getAllByText("orders")).toHaveLength(2);
@@ -727,6 +923,9 @@ it("renders table headers from dataset field labels and paginates rows", () => {
   expect(screen.queryByRole("columnheader", { name: "field3" })).toBeNull();
   expect(screen.getByText("第 1 / 2 页")).toBeTruthy();
   expect(screen.queryByText("510G")).toBeNull();
+  const footer = screen.getByLabelText("表格分页").closest("footer") as HTMLElement;
+  expect(footer.style.flex).toBe("0 0 auto");
+  expect(footer.style.boxSizing).toBe("border-box");
 
   fireEvent.click(screen.getByRole("button", { name: "下一页" }));
 
@@ -809,9 +1008,9 @@ it("renders a two-dimensional crosstab matrix with totals", () => {
   expect(screen.getByRole("columnheader", { name: "合计" })).toBeTruthy();
   expect(screen.getByRole("rowheader", { name: "华东" })).toBeTruthy();
   expect(screen.getByText("1,000 ¥")).toBeTruthy();
-  expect(screen.getByText("2,300 ¥")).toBeTruthy();
+  expect(screen.getByText("0.23万 ¥")).toBeTruthy();
   expect(screen.getByRole("rowheader", { name: "合计" })).toBeTruthy();
-  expect(screen.getByText("5,300 ¥")).toBeTruthy();
+  expect(screen.getByText("0.53万 ¥")).toBeTruthy();
 });
 
 it("renders crosstabs with modern matrix chrome and binding context", () => {
@@ -1201,8 +1400,8 @@ it("renders a multidimensional analysis table with selected dimensions and measu
   expect(screen.getByRole("rowheader", { name: "合计" })).toBeTruthy();
   expect(screen.getByText("2026-01")).toBeTruthy();
   expect(screen.getByText("2026-02")).toBeTruthy();
-  expect(screen.getByText("1,500 ¥")).toBeTruthy();
-  expect(screen.getByText("2,700 ¥")).toBeTruthy();
+  expect(screen.getByText("0.15万 ¥")).toBeTruthy();
+  expect(screen.getByText("0.27万 ¥")).toBeTruthy();
   expect(screen.getByText("10")).toBeTruthy();
 });
 
@@ -1274,4 +1473,69 @@ it("hides renderer-owned multidimensional headers inside an editor frame", () =>
   expect(screen.queryByText("3 个维度")).toBeNull();
   expect(screen.getByText("维度")).toBeTruthy();
   expect(screen.getByText("度量")).toBeTruthy();
+});
+
+it("applies and resets dashboard header filters only through explicit actions", async () => {
+  const component = {
+    id: "header-1",
+    type: "dashboardHeader",
+    title: "",
+    props: {
+      headline: "小米官方旗舰店经营看板",
+      description: "用于快速掌握经营表现与关键指标。",
+      updatedAt: "更新时间：2026-08-05 10:00",
+      date: "2026-08-05",
+      dateRange: { start: "2026-08-05", end: "2026-08-05" },
+      globalFilters: [
+        { id: "filter-orderDate", fieldKey: "orderDate", label: "订单时间", controlType: "dateRange", targets: [] },
+        { id: "filter-store", fieldKey: "store", label: "店铺", controlType: "select", targets: [] },
+      ],
+    },
+  } as ComponentInstance;
+
+  const onDashboardFilterChange = vi.fn();
+  const onDashboardFiltersApply = vi.fn();
+  render(<DashboardComponentRenderer component={component} rows={[{ store: "小米官方旗舰店" }]} onDashboardFilterChange={onDashboardFilterChange} onDashboardFiltersApply={onDashboardFiltersApply} />);
+
+  expect(screen.getByRole("region", { name: "看板信息栏与全局筛选" }).getAttribute("data-layout")).toBe("inline");
+  expect(screen.getByText("小米官方旗舰店经营看板")).toBeTruthy();
+  expect(screen.getAllByLabelText("全局筛选日期范围")).toHaveLength(2);
+  expect(screen.queryByRole("button", { name: "月度" })).toBeNull();
+  const storeFilter = screen.getByRole("combobox", { name: "全局筛选店铺" });
+  expect(storeFilter.closest(".ant-select")).toBeTruthy();
+  fireEvent.mouseDown(storeFilter);
+  const storeOption = (await screen.findAllByText("小米官方旗舰店")).find((element) => element.classList.contains("ant-select-item-option-content"));
+  expect(storeOption).toBeTruthy();
+  fireEvent.click(storeOption!);
+  await waitFor(() => expect(storeFilter.closest(".ant-select")?.textContent).toContain("小米官方旗舰店"));
+  expect(onDashboardFilterChange).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "应用筛选" }));
+  expect(onDashboardFilterChange).toHaveBeenCalledWith("filter-orderDate", { start: "2026-08-05", end: "2026-08-05" });
+  expect(onDashboardFilterChange).toHaveBeenCalledWith("filter-store", "小米官方旗舰店");
+  expect(onDashboardFiltersApply).toHaveBeenCalledTimes(1);
+  fireEvent.click(screen.getByRole("button", { name: "重置筛选" }));
+  expect(onDashboardFilterChange).toHaveBeenCalledWith("filter-store", "");
+  expect(onDashboardFiltersApply).toHaveBeenCalledTimes(2);
+});
+
+it("hides dashboard header filter actions until a filter is configured", () => {
+  const component = {
+    id: "header-1",
+    type: "dashboardHeader",
+    title: "",
+    props: {
+      headline: "经营数据看板",
+      description: "用于快速掌握经营表现与关键指标。",
+      updatedAt: "更新时间：2026-08-05 10:00",
+      date: "2026-08-05",
+      dateRange: { start: "2026-08-05", end: "2026-08-05" },
+      globalFilters: [],
+    },
+  } as ComponentInstance;
+
+  render(<DashboardComponentRenderer component={component} />);
+
+  expect(screen.queryByLabelText("全局筛选器")).toBeNull();
+  expect(screen.queryByRole("button", { name: "重置筛选" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "应用筛选" })).toBeNull();
 });

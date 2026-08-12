@@ -131,6 +131,20 @@ describe("ComponentFrame", () => {
     expect(store.getState().history.present.components[0]!.title).toBe("月度销售额");
   });
 
+  it("persists a cleared title and reduces the editor title bar", async () => {
+    const store = createEditorStore(dashboard);
+    renderFrame(<ComponentFrame component={dashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    await userEvent.click(screen.getByRole("button", { name: "销售额" }));
+    await userEvent.clear(screen.getByRole("textbox", { name: "图表名称" }));
+    await userEvent.keyboard("{Enter}");
+
+    expect(store.getState().history.present.components[0]!.title).toBe("");
+    const frame = screen.getByRole("group", { name: "bar" });
+    expect(frame).toHaveClass("component-frame--untitled", "component-frame--selected");
+    expect(frame.querySelector(".component-frame__title-button")).toHaveTextContent("添加标题");
+  });
+
   it("keeps the title unchanged when escaping an edit", async () => {
     const store = createEditorStore(dashboard);
     renderFrame(<ComponentFrame component={dashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
@@ -219,12 +233,55 @@ describe("ComponentFrame", () => {
     const store = createEditorStore(filtered);
     renderFrame(<ComponentFrame component={filtered.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
 
-    expect(await screen.findByRole("combobox", { name: "业务日期日期范围" })).toBeInTheDocument();
+    expect((await screen.findAllByRole("textbox", { name: "业务日期日期范围" }))).toHaveLength(2);
     await waitFor(() => expect(requests).toHaveLength(1));
     expect(requests[0]).toMatchObject({
-      filters: [expect.objectContaining({ kind: "dateRange", fieldKey: "businessDate", timezone: "Asia/Shanghai" })],
+      componentFilters: [expect.objectContaining({ kind: "dateRange", fieldKey: "businessDate", timezone: "Asia/Shanghai" })],
     });
     expect(store.getState().history.present.components[0]!.binding?.dateFilter).toEqual(filtered.components[0]!.binding?.dateFilter);
+  });
+
+  it("re-queries a chart with the global date field mapped to that chart", async () => {
+    const requests: unknown[] = [];
+    server.use(
+      http.post("http://localhost/datasets/sales/query", async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json({
+          columns: [
+            { key: "month", label: "月份", type: "string", nullable: false },
+            { key: "businessDate", label: "业务日期", type: "date", nullable: false },
+            { key: "revenue", label: "销售额", type: "number", nullable: false },
+          ],
+          rows: [{ month: "8月", businessDate: "2026-08-05", revenue: 100 }], total: 1, sampledAt: "2026-08-05T00:00:00.000Z",
+        });
+      }),
+    );
+    const globalFilters = [{
+      id: "period",
+      fieldKey: "orderTime",
+      label: "统计周期",
+      controlType: "dateRange" as const,
+      targets: [{ componentId: "bar-1", fieldKey: "businessDate" }],
+    }];
+    const store = createEditorStore(remoteDashboard);
+    const onGlobalFilterQuerySettled = vi.fn();
+
+    renderFrame(<ComponentFrame
+      component={remoteDashboard.components[0]!}
+      store={store}
+      createComponentId={() => "bar-2"}
+      isInteracting={false}
+      globalFilters={globalFilters}
+      globalFilterValues={{ period: { start: "2026-08-01", end: "2026-08-05" } }}
+      globalFilterApplyVersion={1}
+      onGlobalFilterQuerySettled={onGlobalFilterQuerySettled}
+    />);
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    expect(requests[0]).toMatchObject({
+      globalFilters: [{ kind: "dateRange", fieldKey: "businessDate", start: "2026-08-01", end: "2026-08-05", timezone: "Asia/Shanghai" }],
+    });
+    expect(onGlobalFilterQuerySettled).toHaveBeenCalledWith("bar-1", 1);
   });
 
   it("queries an edited aggregation only after the inspector applies its update", async () => {

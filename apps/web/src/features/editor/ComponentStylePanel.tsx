@@ -1,4 +1,5 @@
 import type { ComponentDefinition } from "@drag-visual/component-registry";
+import type { ComponentInstance } from "@drag-visual/contracts";
 import { Button, Input, InputNumber, Select, Space, Switch, Typography } from "antd";
 
 import type { EditorStore } from "./store/editorStore.js";
@@ -14,22 +15,29 @@ interface ComponentStylePanelProps {
 
 const propertyLabels: Readonly<Record<string, string>> = {
   aggregation: "聚合方式",
+  barColor: "柱状颜色",
   color: "主题颜色",
   content: "文本内容",
   decimals: "小数位数",
   fontSize: "字号",
   fontWeight: "字重",
+  hideZeroValues: "隐藏全零类目",
   maxItems: "最大显示条数",
+  lineColor: "折线颜色",
+  maxEmployees: "最多展示员工数",
   pageSize: "每页行数",
   prefix: "数值前缀",
   showLegend: "显示图例",
+  showEmployeeRanking: "显示员工排行",
   showSummary: "显示汇总",
   showTotals: "显示合计",
   showValue: "显示数值",
   showValues: "显示数值",
+  smartLineScale: "折线轴智能缩放",
   smooth: "平滑曲线",
   striped: "斑马纹",
   suffix: "数值后缀",
+  periodLabel: "周期标签",
   textAlign: "文本对齐",
 };
 
@@ -67,19 +75,30 @@ const isEditable = (key: string): boolean =>
   && key !== "showLegend"
   && key !== "timeGranularity"
   && key !== "metricWeights"
+  && key !== "metricSettings"
   && key !== "rankingMode";
 
+const schemaProps = (
+  defaults: Readonly<Record<string, unknown>>,
+  props: Readonly<Record<string, unknown>>,
+): Record<string, unknown> => Object.fromEntries(
+  Object.keys(defaults).map((key) => [key, props[key] ?? defaults[key]]),
+);
+
 export const ComponentStylePanel = ({ store, component, definition }: ComponentStylePanelProps) => {
-  const props = { ...definition.createDefaults(), ...component.props } as Record<string, unknown>;
+  const defaults = definition.createDefaults() as Readonly<Record<string, unknown>>;
+  // Runtime-only values such as resultLimit and dataRefreshVersion share the
+  // component props record, but are not visual style controls.
+  const props = schemaProps(defaults, component.props);
   const update = (key: string, value: string | number | boolean) => {
     const latestComponent = store.getState().history.present.components.find((candidate) => candidate.id === component.id);
-    const latestProps = { ...definition.createDefaults(), ...latestComponent?.props };
-    const parsed = definition.propsSchema.safeParse({ ...latestProps, [key]: value });
+    const latestProps = latestComponent?.props ?? {};
+    const parsed = definition.propsSchema.safeParse({ ...schemaProps(defaults, latestProps), [key]: value });
     if (!parsed.success) return;
     store.getState().dispatch({
       type: "component.props.update",
       componentId: component.id,
-      nextProps: parsed.data,
+      nextProps: { ...latestProps, ...parsed.data } as ComponentInstance["props"],
     });
   };
 
@@ -113,7 +132,7 @@ export const ComponentStylePanel = ({ store, component, definition }: ComponentS
               </div>
             );
           }
-          if (key === "color") {
+          if (key === "color" || key.endsWith("Color")) {
             return (
               <div className="binding-field" key={key}>
                 <div className="binding-field__label"><Typography.Text strong>{label}</Typography.Text></div>

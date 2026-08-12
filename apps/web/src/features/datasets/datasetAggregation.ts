@@ -2,7 +2,7 @@ import type { ComponentInstance, DatasetAggregation, DatasetQueryRequest, FieldB
 
 const aggregationValues = new Set<DatasetAggregation>(["sum", "avg", "count", "max", "min"]);
 const groupSlotKeys = new Set(["dimension", "dimensions", "timeDimension", "dateDimension", "rowDimension", "columnDimension"]);
-const metricSlotKeys = new Set(["measure", "measures", "target", "comparison", "secondaryMeasures", "tooltipMeasures"]);
+const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasure", "target", "comparison", "secondaryMeasures", "tooltipMeasures"]);
 
 const asBindings = (value: FieldBinding | readonly FieldBinding[] | undefined): readonly FieldBinding[] =>
   value === undefined ? [] : Array.isArray(value) ? value as readonly FieldBinding[] : [value as FieldBinding];
@@ -32,10 +32,14 @@ export const buildDatasetAggregation = (
     .filter(([slotKey]) => metricSlotKeys.has(slotKey))
     .flatMap(([, value]) => asBindings(value));
   if (metricBindings.length === 0) return undefined;
-  const measures = metricBindings.map((binding) => ({
-    fieldKey: binding.fieldKey,
-    aggregation: binding.aggregation ?? defaultAggregation,
-  }));
+  // The query contract identifies an aggregated value by its field key, so a
+  // metric bound to more than one visual role (for example both column and
+  // line) must only be requested once.
+  const measures = metricBindings.reduce<Array<{ fieldKey: string; aggregation: DatasetAggregation | undefined }>>((result, binding) => {
+    if (result.some((measure) => measure.fieldKey === binding.fieldKey)) return result;
+    result.push({ fieldKey: binding.fieldKey, aggregation: binding.aggregation ?? defaultAggregation });
+    return result;
+  }, []);
   if (measures.some((measure) => measure.aggregation === undefined)) return undefined;
   return {
     groupBy,

@@ -52,6 +52,12 @@ class TestDatasetRepository implements DatasetRepository {
       sampledAt: "2026-07-02T08:00:00.000Z",
     });
   }
+
+  async getFieldOptions(id: string, fieldKey: string, search: string | undefined, limit: number) {
+    if (id !== salesDataset.id || fieldKey !== "month") return null;
+    const options = ["1月", "2月"].filter((value) => search === undefined || value.includes(search)).slice(0, limit);
+    return { options };
+  }
 }
 
 describe("DatasetController", () => {
@@ -70,7 +76,20 @@ describe("DatasetController", () => {
       providers: [
         DatasetService,
         { provide: DATASET_REPOSITORY, useValue: repository },
-        { provide: SessionAuthGuard, useValue: { canActivate: () => true } },
+        {
+          provide: SessionAuthGuard,
+          useValue: {
+            canActivate: (context: { switchToHttp: () => { getRequest: () => { authUser?: unknown } } }) => {
+              context.switchToHttp().getRequest().authUser = {
+                id: "test-user",
+                username: "test",
+                displayName: null,
+                avatarUrl: null,
+              };
+              return true;
+            },
+          },
+        },
         { provide: AuthService, useValue: { authenticate: async () => ({ id: "test-user", username: "test", displayName: null, avatarUrl: null }) } },
       ],
     }).compile();
@@ -90,6 +109,13 @@ describe("DatasetController", () => {
     expect(response.json()).toEqual([
       { id: "sales", name: "销售数据", schemaVersion: "v1" },
     ]);
+  });
+
+  it("returns deduplicated options for a dimension field", async () => {
+    await bootstrap();
+    const response = await app!.inject({ method: "GET", url: "/datasets/sales/fields/month/options?search=1" });
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ options: ["1月"] });
   });
 
   it("returns a dataset schema", async () => {
@@ -206,6 +232,23 @@ describe("DatasetController", () => {
       url: "/datasets/sales/query",
       payload: { parameters: { year: 2026, fromDate: "2026-01-01" } },
     });
+
+    expect(response.statusCode).toBe(502);
+    expect(response.json()).toEqual({
+      code: "DATASET_UPSTREAM_ERROR",
+      message: "Dataset upstream request failed",
+    });
+  });
+
+  it("maps upstream dataset-list failures to a stable bad gateway response", async () => {
+    class UpstreamFailureRepository extends TestDatasetRepository {
+      override async list() {
+        throw new DatasetUpstreamError();
+      }
+    }
+    await bootstrap(new UpstreamFailureRepository());
+
+    const response = await app!.inject({ method: "GET", url: "/datasets" });
 
     expect(response.statusCode).toBe(502);
     expect(response.json()).toEqual({

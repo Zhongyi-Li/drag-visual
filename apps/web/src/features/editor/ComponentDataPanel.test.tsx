@@ -106,6 +106,39 @@ describe("ComponentDataPanel", () => {
     await waitFor(() => expect(store.getState().history.present.components[0]!.binding?.dateFilter?.fieldKey).toBe("paymentTime"));
   });
 
+  it("adds header filter controls by double-click and removes them by single click", async () => {
+    server.use(
+      http.get("http://localhost/datasets", () => HttpResponse.json([{ id: "sales", name: "销售数据", schemaVersion: "v1" }])),
+      http.get("http://localhost/datasets/sales/schema", () => HttpResponse.json({ id: "sales", name: "销售数据", fields, parameters: [], schemaVersion: "v1" })),
+    );
+    const headerDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "header-1", x: 0, y: 0, w: 12, h: 3 }],
+      components: [{
+        id: "header-1", type: "dashboardHeader", title: "",
+        props: { headline: "经营数据看板", description: "", updatedAt: "", date: "2026-08-05", dateRange: { start: "2026-08-05", end: "2026-08-05" }, globalFilters: [] },
+        binding: { datasetId: "sales", slots: {} },
+      }],
+    });
+    const store = createEditorStore(headerDashboard);
+    store.getState().select("header-1");
+    render(<AppProviders><ComponentDataPanel store={store} registry={createDefaultRegistry()} /></AppProviders>);
+
+    expect(await screen.findByText("双击或拖拽添加维度筛选")).toBeInTheDocument();
+    fireEvent.doubleClick(screen.getByRole("button", { name: "订单时间" }));
+    fireEvent.doubleClick(screen.getByRole("button", { name: "商品名称" }));
+    await waitFor(() => expect(store.getState().history.present.components[0]!.props).toMatchObject({
+      globalFilters: [
+        { id: "filter-orderTime", fieldKey: "orderTime", label: "订单时间", controlType: "dateRange", targets: [] },
+        { id: "filter-productName", fieldKey: "productName", label: "商品名称", controlType: "select", targets: [] },
+      ],
+    }));
+    fireEvent.click(screen.getByRole("button", { name: "商品名称" }));
+    await waitFor(() => expect(store.getState().history.present.components[0]!.props).toMatchObject({
+      globalFilters: [{ id: "filter-orderTime", fieldKey: "orderTime", controlType: "dateRange" }],
+    }));
+  });
+
   it("adds a second ring-bar metric to tooltip measures instead of replacing its main metric", async () => {
     const ringFields = [
       { key: "productName", label: "商品名称", type: "string", nullable: true },

@@ -21,6 +21,7 @@ export {
   buildRankingOption,
   buildRingBarOption,
   buildProgressBarModel,
+  buildProgressIndicatorModel,
   buildTargetProgressModel,
   buildTableModel,
 } from "./options.js";

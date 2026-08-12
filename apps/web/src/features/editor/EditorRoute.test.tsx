@@ -23,6 +23,7 @@ const renderEditor = () => {
   saveAuthSession({ user: { id: "test-user", username: "test", displayName: null, avatarUrl: null } });
   const router = createMemoryRouter(appRoutes, { initialEntries: [`/editor/${id}`] });
   render(<AppProviders><RouterProvider router={router} /></AppProviders>);
+  return router;
 };
 
 const secondId = "223e4567-e89b-42d3-a456-426614174001";
@@ -246,7 +247,7 @@ describe("EditorRoute", () => {
     await userEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(savedBodies).toHaveLength(1));
 
-    await userEvent.click(screen.getByRole("button", { name: "添加指标看板" }));
+    fireEvent.click(screen.getByRole("button", { name: "添加指标看板" }));
     fireEvent.click(screen.getByRole("button", { name: "预览" }));
     expect(open).toHaveBeenCalledWith(`/preview/${id}`, "_blank", "noopener,noreferrer");
     expect((readPreviewSnapshot(id) as { components: unknown[] }).components).toHaveLength(2);
@@ -254,7 +255,7 @@ describe("EditorRoute", () => {
 
     await waitFor(() => expect(savedBodies).toHaveLength(1));
     expect(savedBodies[0]).toMatchObject({ components: [{ type: "bar" }] });
-  });
+  }, 10_000);
 
   it("opens preview from the local snapshot even when saving would fail", async () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);

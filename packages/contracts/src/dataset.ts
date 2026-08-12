@@ -117,13 +117,72 @@ export const DateRangeFilter = z
 
 export type DateRangeFilter = z.infer<typeof DateRangeFilter>;
 
+export const FieldValueFilter = z.object({
+  kind: z.literal("fieldValue"),
+  fieldKey: nonEmptyString,
+  values: z.array(z.union([z.string(), z.boolean()])).min(1).max(100),
+}).strict();
+
+export type FieldValueFilter = z.infer<typeof FieldValueFilter>;
+
+export const FieldTextFilter = z.object({
+  kind: z.literal("fieldText"),
+  fieldKey: nonEmptyString,
+  value: z.string().min(1).max(200),
+}).strict();
+
+export type FieldTextFilter = z.infer<typeof FieldTextFilter>;
+
+export const NumericComparisonFilter = z.object({
+  kind: z.literal("numberComparison"),
+  fieldKey: nonEmptyString,
+  operator: z.enum(["eq", "neq", "gt", "gte", "lt", "lte"]),
+  value: z.number().finite(),
+}).strict();
+
+export type NumericComparisonFilter = z.infer<typeof NumericComparisonFilter>;
+
+export const DatasetFilter = z.union([DateRangeFilter, FieldValueFilter, FieldTextFilter, NumericComparisonFilter]);
+
+export type DatasetFilter = z.infer<typeof DatasetFilter>;
+
+/** A saved chart-filter control. Text controls may be empty until a viewer fills them in. */
+export const QueryFilterControl = z.union([
+  DateRangeFilter,
+  FieldValueFilter,
+  z.object({ kind: z.literal("fieldText"), fieldKey: nonEmptyString, value: z.string().max(200) }).strict(),
+  NumericComparisonFilter,
+]);
+
+export type QueryFilterControl = z.infer<typeof QueryFilterControl>;
+
+export const DatasetFieldOptions = z.object({
+  options: z.array(z.string()).max(200),
+}).strict();
+
+export type DatasetFieldOptions = z.infer<typeof DatasetFieldOptions>;
+
 export const DatasetQueryRequest = z
   .object({
     parameters: safeJsonRecord,
-    filters: z.array(DateRangeFilter).max(1).optional(),
+    /** @deprecated Use globalFilters and componentFilters for new requests. */
+    filters: z.array(DatasetFilter).max(10).optional(),
+    /** Conditions resolved from the dashboard header and mapped to this chart. */
+    globalFilters: z.array(DatasetFilter).max(10).optional(),
+    /** Conditions configured on the chart itself, such as its independent date range. */
+    componentFilters: z.array(DatasetFilter).max(10).optional(),
     aggregation: DatasetAggregationRequest.optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((request, context) => {
+    if (request.filters !== undefined && (request.globalFilters !== undefined || request.componentFilters !== undefined)) {
+      context.addIssue({ code: "custom", message: "Legacy filters cannot be combined with named filters", path: ["filters"] });
+    }
+    const namedFilterCount = (request.globalFilters?.length ?? 0) + (request.componentFilters?.length ?? 0);
+    if (namedFilterCount > 20) {
+      context.addIssue({ code: "custom", message: "Too many combined filters", path: ["globalFilters"] });
+    }
+  });
 
 export type DatasetQueryRequest = z.infer<typeof DatasetQueryRequest>;
 

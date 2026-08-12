@@ -1,10 +1,11 @@
-import { FilterOutlined, SearchOutlined } from "@ant-design/icons";
+import { ApartmentOutlined, BarChartOutlined, FilterOutlined, NodeIndexOutlined, StockOutlined, SearchOutlined } from "@ant-design/icons";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { createDefaultRegistry, type ComponentRegistry } from "@drag-visual/component-registry";
 import type { ComponentType } from "@drag-visual/contracts";
 import { Button, Input, Tooltip } from "antd";
-import { useState, type KeyboardEvent } from "react";
+import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useStore } from "zustand";
 
 import type { EditorStore } from "./store/editorStore.js";
 import { addRegistryComponent } from "./componentActions.js";
@@ -24,10 +25,18 @@ interface PaletteItem {
   readonly type: ComponentType;
   readonly title: string;
   readonly category: string;
-  readonly icon: string;
+  readonly icon: string | ReactNode;
+  readonly instanceTitle?: string;
 }
 
 const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly items: readonly Omit<PaletteItem, "category">[] }> = [
+  {
+    category: "内容",
+    items: [
+      { id: "dashboard-header", type: "dashboardHeader", title: "看板信息栏", instanceTitle: "", icon: "metric-board" },
+      { id: "analysis-group", type: "analysisGroup", title: "复合分析", icon: <ApartmentOutlined /> },
+    ],
+  },
   {
     category: "表格",
     items: [
@@ -44,10 +53,12 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
     category: "指标",
     items: [
       { id: "metric-board", type: "kpi", title: "指标看板", icon: "metric-board" },
+      { id: "kpi-insight", type: "kpiInsight", title: "指标洞察", icon: "metric-board" },
       { id: "metric-trend", type: "metricTrend", title: "指标趋势", icon: "metric-trend" },
       // TODO(chart-palette): 翻牌器待后续开发完成后再恢复展示。
       // { id: "flip-number", type: "flipNumber", title: "翻牌器", icon: "flip-number" },
       { id: "progress", type: "progressBar", title: "进度条", icon: "progress" },
+      { id: "progress-indicator", type: "progressIndicator", title: "进度与指标", icon: <NodeIndexOutlined /> },
       { id: "target-progress", type: "targetProgress", title: "目标完成率", icon: "target-progress" },
       { id: "gauge", type: "gauge", title: "仪表盘", icon: "gauge" },
       // TODO(chart-palette): 水波图、指标拆解待后续开发完成后再恢复展示。
@@ -69,12 +80,18 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
     category: "柱/条图",
     items: [
       { id: "bar", type: "bar", title: "柱图", icon: "bar" },
+      { id: "horizontal-bar", type: "horizontalBar", title: "条形图", icon: "strip" },
+      {
+        id: "bar-line",
+        type: "barLine",
+        title: "柱状折线组合图",
+        icon: <span className="palette-combo-icon"><BarChartOutlined /><StockOutlined /></span>,
+      },
       { id: "stacked-bar", type: "stackedBar", title: "堆积", icon: "stacked-bar" },
       { id: "percent-bar", type: "percentBar", title: "百分比", icon: "percent-bar" },
       { id: "ring-bar", type: "ringBar", title: "环形柱图", icon: "ring-bar" },
       { id: "ranking", type: "ranking", title: "排行榜", icon: "ranking" },
-      // 暂不在组件面板展示：条形、堆积条形、百分比条形、动态条形、瀑布、子弹、箱形、直方图。
-      // { id: "strip", type: "bar", title: "条形图", icon: "strip" },
+      // 暂不在组件面板展示：堆积条形、百分比条形、动态条形、瀑布、子弹、箱形、直方图。
       // { id: "stacked-strip", type: "bar", title: "堆积", icon: "stacked-strip" },
       // { id: "percent-strip", type: "bar", title: "百分比", icon: "percent-strip" },
       // { id: "dynamic-strip", type: "bar", title: "动态条形", icon: "dynamic-strip" },
@@ -98,12 +115,14 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
   },
 ];
 
-const DraggablePaletteCard = ({ id, type, title, icon, onAdd }: PaletteItem & { onAdd: () => void }) => {
+const DraggablePaletteCard = ({ id, type, title, icon, onAdd, disabled = false }: PaletteItem & { onAdd: () => void; disabled?: boolean }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `palette:${id}`,
     data: getPaletteDragData(type, title),
+    disabled,
   });
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    if (disabled) return;
     if (event.key === "Enter") {
       event.preventDefault();
       event.stopPropagation();
@@ -113,26 +132,23 @@ const DraggablePaletteCard = ({ id, type, title, icon, onAdd }: PaletteItem & { 
     listeners?.onKeyDown?.(event);
   };
   return (
-    <Tooltip title={title} placement="top">
+    <Tooltip title={disabled ? "每个看板仅可添加一个看板信息栏" : title} placement="top">
       <button
         ref={setNodeRef}
-        className={`palette-card${isDragging ? " palette-card--dragging" : ""}`}
+        className={`palette-card${isDragging ? " palette-card--dragging" : ""}${disabled ? " palette-card--disabled" : ""}`}
         type="button"
-        aria-label={`添加${title}`}
+        aria-label={disabled ? `已添加${title}` : `添加${title}`}
+        disabled={disabled}
         style={transform ? { transform: CSS.Translate.toString(transform) } : undefined}
         // A pointer click can briefly activate dnd-kit before this handler runs.
         // Adding must remain reliable for the primary click-to-add interaction.
-        onClick={onAdd}
+        onClick={disabled ? undefined : onAdd}
         {...listeners}
         {...attributes}
         onKeyDown={onKeyDown}
       >
-        <span className={`palette-card__icon palette-card__icon--${icon}`} aria-hidden="true">
-          <span />
-          <span />
-          <span />
-          <span />
-        </span>
+        {typeof icon === "string" ? <span className={`palette-card__icon palette-card__icon--${icon}`} aria-hidden="true"><span /><span /><span /><span /></span>
+          : <span className="palette-card__icon palette-card__icon--library" aria-hidden="true">{icon}</span>}
         <span>{title}</span>
       </button>
     </Tooltip>
@@ -141,6 +157,7 @@ const DraggablePaletteCard = ({ id, type, title, icon, onAdd }: PaletteItem & { 
 
 export const ComponentPalette = ({ store, createComponentId, registry = defaultRegistry, highlighted = false }: ComponentPaletteProps) => {
   const [search, setSearch] = useState("");
+  const hasDashboardHeader = useStore(store, (state) => state.history.present.components.some((component) => component.type === "dashboardHeader"));
   const registeredTypes = new Set(registry.list().map((definition) => definition.type));
   const query = search.trim().toLocaleLowerCase("zh-CN");
   const visibleGroups = officialPaletteGroups
@@ -173,7 +190,7 @@ export const ComponentPalette = ({ store, createComponentId, registry = defaultR
               <h2 id={headingId}>{category}</h2>
               <div className="palette-grid">
                 {items.map((item) => (
-                  <DraggablePaletteCard key={item.id} {...item} onAdd={() => addRegistryComponent(store, registry, createComponentId, item.type, undefined, item.title)} />
+                  <DraggablePaletteCard key={item.id} {...item} disabled={item.type === "dashboardHeader" && hasDashboardHeader} onAdd={() => addRegistryComponent(store, registry, createComponentId, item.type, undefined, item.instanceTitle ?? item.title)} />
                 ))}
               </div>
             </section>

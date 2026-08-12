@@ -1,11 +1,14 @@
 import { DataBinding, type DateFilterControl, type Dataset } from "@drag-visual/contracts";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarOutlined } from "@ant-design/icons";
-import { Alert, Select, Spin, Switch, Typography } from "antd";
+import { Alert, DatePicker, Spin, Switch, Typography } from "antd";
+import zhCN from "antd/es/date-picker/locale/zh_CN";
+import dayjs from "dayjs";
 import { type DragEvent, useState } from "react";
 import { useStore } from "zustand";
 
 import { getDataset } from "../datasets/datasetApi.js";
+import { defaultDateFilterSelection } from "../datasets/dateFilter.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 import { FIELD_DRAG_TYPE } from "./fieldDrag.js";
 import type { EditorStore } from "./store/editorStore.js";
@@ -58,6 +61,7 @@ export const DateFilterConfigurationPanel = ({ store, component }: DateFilterCon
     });
   };
   const selectedField = dateFields.find((field) => field.key === control?.fieldKey);
+  const configuredDefaultRange = control === undefined ? undefined : defaultDateFilterSelection(control);
   const acceptsDateField = (event: DragEvent<HTMLDivElement>) => event.dataTransfer.types.includes(FIELD_DRAG_TYPE);
   const dropDateField = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
@@ -103,19 +107,27 @@ export const DateFilterConfigurationPanel = ({ store, component }: DateFilterCon
             </div>
           </label>
           <label className="date-filter-configuration__field">范围
-            <Select
+            <DatePicker.RangePicker
+              allowClear
               aria-label="日期筛选范围"
-              size="small"
-              value={control.defaultPreset}
-              options={[
-                { label: "全部数据", value: "all" }, { label: "今日", value: "today" }, { label: "昨日", value: "yesterday" },
-                { label: "近 7 天", value: "last7Days" }, { label: "近 30 天", value: "last30Days" }, { label: "本月", value: "thisMonth" }, { label: "上月", value: "lastMonth" },
-              ]}
-              onChange={(defaultPreset: NonNullable<DataBinding["dateFilter"]>["defaultPreset"]) => update({ ...control, defaultPreset })}
+              format="YYYY/MM/DD"
+              locale={zhCN}
+              placeholder={["开始日期", "结束日期"]}
+              value={configuredDefaultRange === undefined ? null : [dayjs(configuredDefaultRange.start), dayjs(configuredDefaultRange.end)]}
+              onChange={(range) => {
+                if (range === null || range[0] === null || range[1] === null) {
+                  const { defaultRange: _defaultRange, ...withoutDefaultRange } = control;
+                  update({ ...withoutDefaultRange, defaultPreset: "all" });
+                  return;
+                }
+                update({
+                  ...control,
+                  defaultPreset: "all",
+                  defaultRange: { start: range[0].format("YYYY-MM-DD"), end: range[1].format("YYYY-MM-DD") },
+                });
+              }}
             />
-          </label>
-          <label className="date-filter-configuration__switch date-filter-configuration__custom-switch">允许自定义范围
-            <Switch aria-label="允许自定义范围" size="small" checked={control.allowCustom} onChange={(allowCustom) => update({ ...control, allowCustom })} />
+            <Typography.Text type="secondary">留空时默认展示全部数据。</Typography.Text>
           </label>
         </div>}
     {control !== undefined && !dateFields.some((field) => field.key === control.fieldKey) && <Alert type="warning" showIcon title="原日期字段已不存在，请重新选择。" />}

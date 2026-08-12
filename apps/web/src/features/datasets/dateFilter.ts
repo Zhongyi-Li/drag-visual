@@ -36,6 +36,7 @@ export const dateFilterPresetLabel = (preset: DateFilterPreset): string => ({
   last30Days: "近 30 天",
   thisMonth: "本月",
   lastMonth: "上月",
+  thisYear: "本年",
 })[preset];
 
 export const resolveDateFilterPreset = (
@@ -54,13 +55,18 @@ export const resolveDateFilterPreset = (
     if (preset === "last7Days") return { start: shiftDays(today, -6), end: today };
     if (preset === "last30Days") return { start: shiftDays(today, -29), end: today };
     if (preset === "thisMonth") return { start: monthStart(today, 0), end: today };
+    if (preset === "thisYear") return { start: `${today.slice(0, 4)}-01-01`, end: today };
     return { start: monthStart(today, -1), end: monthEnd(today, -1) };
   })();
   return { kind: "dateRange", fieldKey: control.fieldKey, timezone: control.timezone, ...range };
 };
 
 export const defaultDateFilterSelection = (control: DateFilterControl | undefined): RuntimeDateSelection =>
-  control === undefined ? undefined : resolveDateFilterPreset(control, control.defaultPreset);
+  control === undefined
+    ? undefined
+    : control.defaultRange === undefined
+      ? resolveDateFilterPreset(control, control.defaultPreset)
+      : { kind: "dateRange", fieldKey: control.fieldKey, timezone: control.timezone, ...control.defaultRange };
 
 const dayFromValue = (value: unknown): string | undefined => {
   if (typeof value !== "string") return undefined;

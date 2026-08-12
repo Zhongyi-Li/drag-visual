@@ -1,6 +1,7 @@
 import { MoreOutlined } from "@ant-design/icons";
 import { DashboardComponentRenderer, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
-import type { ComponentInstance, DatasetQueryRequest, DatasetQueryResult } from "@drag-visual/contracts";
+import type { ComponentRegistry } from "@drag-visual/component-registry";
+import { DashboardGlobalFilterConfig, type ComponentInstance, type DatasetFilter, type DatasetQueryRequest, type DatasetQueryResult } from "@drag-visual/contracts";
 import { applyTransforms } from "@drag-visual/data-engine";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Drawer, Empty, Dropdown, Space, Spin, Typography, type MenuProps } from "antd";
@@ -9,7 +10,7 @@ import { useStore } from "zustand";
 
 import { DataPreview } from "../datasets/DataPreview.js";
 import { DateRangeFilterBar } from "../datasets/DateRangeFilterBar.js";
-import { defaultDateFilterSelection, filterRowsByDateRange, type RuntimeDateSelection } from "../datasets/dateFilter.js";
+import { defaultDateFilterSelection, type RuntimeDateSelection } from "../datasets/dateFilter.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 import {
   RuntimeDatasetRequestBar,
@@ -20,19 +21,34 @@ import {
 import { buildDatasetAggregation } from "../datasets/datasetAggregation.js";
 import { getDataset, queryDatasetRequest } from "../datasets/datasetApi.js";
 import { findAvailableLayout } from "./canvasLayout.js";
+import { AnalysisGroupCanvas } from "./AnalysisGroupCanvas.js";
+import { chartTopLeftHint, ChartDisplayHints } from "./ChartDisplayHints.js";
 import type { EditorStore } from "./store/editorStore.js";
+import { analysisGroupQueryFilters, componentQueryFilters, filterRowsByDashboardFilters, filtersForComponent, type DashboardGlobalFilters, type DashboardGlobalFilterValues } from "../viewer/dashboardGlobalFilters.js";
 
 interface ComponentFrameProps {
   component: {
     readonly id: ComponentInstance["id"];
     readonly type: ComponentInstance["type"];
     readonly title?: ComponentInstance["title"];
+    readonly subtitle?: ComponentInstance["subtitle"];
     readonly props: Readonly<Record<string, unknown>>;
     readonly binding?: unknown;
   };
   store: EditorStore;
   createComponentId: () => string;
   isInteracting: boolean;
+  globalFilters?: DashboardGlobalFilters;
+  globalFilterValues?: DashboardGlobalFilterValues;
+  onGlobalFilterChange?: ((filterId: string, value: unknown) => void) | undefined;
+  globalFilterApplyVersion?: number | undefined;
+  onGlobalFilterQuerySettled?: ((componentId: string, version: number) => void) | undefined;
+  globalFiltersLoading?: boolean | undefined;
+  onGlobalFiltersApply?: (() => boolean) | undefined;
+  /** Static conditions inherited from the owning analysis group. */
+  analysisGroupFilters?: readonly DatasetFilter[] | undefined;
+  registry?: ComponentRegistry | undefined;
+  activeAnalysisGroupDropId?: string | null | undefined;
 }
 
 // Keep the acknowledgement visible long enough to register, even when the
@@ -40,7 +56,16 @@ interface ComponentFrameProps {
 const REFRESH_INDICATOR_DURATION = 650;
 const DEFAULT_CHART_RESULT_LIMIT = 1_000;
 
-export const ComponentFrame = ({ component: suppliedComponent, store, createComponentId, isInteracting }: ComponentFrameProps) => {
+const isDateBoundByDashboardHeader = (
+  componentId: string,
+  components: readonly Readonly<{ type: ComponentInstance["type"]; props: Readonly<Record<string, unknown>>; }>[],
+): boolean => components.some((candidate) => {
+  if (candidate.type !== "dashboardHeader") return false;
+  const parsed = DashboardGlobalFilterConfig.array().safeParse(candidate.props.globalFilters);
+  return parsed.success && parsed.data.some((filter) => filter.controlType === "dateRange" && filter.targets.some((target) => target.componentId === componentId));
+});
+
+export const ComponentFrame = ({ component: suppliedComponent, store, createComponentId, isInteracting, globalFilters = [], globalFilterValues = {}, onGlobalFilterChange, globalFilterApplyVersion = 0, onGlobalFilterQuerySettled, globalFiltersLoading = false, onGlobalFiltersApply, analysisGroupFilters = [], registry, activeAnalysisGroupDropId }: ComponentFrameProps) => {
   const localDatasets = useLocalDatasets();
   const [dataPreviewOpen, setDataPreviewOpen] = useState(false);
   const [renderVersion, setRenderVersion] = useState(0);
@@ -65,7 +90,18 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     state.history.present.components.find((candidate) => candidate.id === suppliedComponent.id) ?? suppliedComponent,
   );
   const selected = useStore(store, (state) => state.selectedComponentId === component.id);
+  const isDateBoundByGlobalFilter = useStore(store, (state) => isDateBoundByDashboardHeader(component.id, state.history.present.components));
+  // An empty string is an intentional, saved title state. Do not fall back to
+  // the component type in that case, otherwise authors can never remove a
+  // chart title after it has been created.
   const title = component.title ?? component.type;
+  const hasTitle = title.trim().length > 0;
+  const isDashboardHeader = component.type === "dashboardHeader";
+  const topLeftHint = isDashboardHeader || component.type === "analysisGroup" ? undefined : chartTopLeftHint(component as ComponentInstance);
+  const analysisGroupDescription = component.type === "analysisGroup" && typeof component.props.description === "string"
+    ? component.props.description.trim()
+    : "";
+  const hasHeaderHint = topLeftHint !== undefined || analysisGroupDescription.length > 0;
   const datasetId = typeof component.binding === "object" && component.binding !== null && "datasetId" in component.binding
     ? String(component.binding.datasetId)
     : undefined;
@@ -111,8 +147,18 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const dateFilterControl = chartComponent.binding?.dateFilter;
   useEffect(() => {
     setActiveDateFilter(defaultDateFilterSelection(dateFilterControl));
-  }, [dateFilterControl?.fieldKey, dateFilterControl?.defaultPreset, dateFilterControl?.timezone]);
+  }, [dateFilterControl?.defaultPreset, dateFilterControl?.defaultRange?.end, dateFilterControl?.defaultRange?.start, dateFilterControl?.fieldKey, dateFilterControl?.timezone]);
   const aggregation = buildDatasetAggregation(chartComponent);
+  const activeGlobalFilters = filtersForComponent(chartComponent, globalFilters, globalFilterValues);
+  const activeComponentQueryFilters = componentQueryFilters(chartComponent);
+  const queryableFields = localDataset?.fields ?? cachedDataset?.fields ?? remoteSchema.data?.fields;
+  const compatibleAnalysisGroupFilters = queryableFields === undefined
+    ? []
+    : analysisGroupFilters.filter((filter) => queryableFields.some((field) => field.key === filter.fieldKey));
+  const hasGlobalFilterTarget = globalFilters.some((filter) => filter.targets.some((target) => target.componentId === component.id));
+  const effectiveDateFilter = isDateBoundByGlobalFilter ? undefined : activeDateFilter;
+  const activeComponentFilters = [...compatibleAnalysisGroupFilters, ...activeComponentQueryFilters, ...(effectiveDateFilter === undefined ? [] : [effectiveDateFilter])];
+  const activeFilters = [...activeGlobalFilters, ...activeComponentFilters];
   const [initialAggregationEnabled] = useState(() => buildDatasetAggregation(component as ComponentInstance) !== undefined);
   const hasAppliedRuntimeParameters = Object.keys(appliedRuntimeParameters).length > 0;
   const dataRefreshVersion = typeof component.props.dataRefreshVersion === "number" && Number.isSafeInteger(component.props.dataRefreshVersion)
@@ -122,35 +168,53 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     // Data bindings are edited freely in the inspector. The explicit “更新”
     // action increments dataRefreshVersion, so changing an aggregation does
     // not issue a database query until the author is ready.
-    queryKey: ["dataset-query", component.id, datasetId, queryParameters, activeDateFilter, dataRefreshVersion],
-    queryFn: () => queryDatasetRequest(datasetId!, {
-      parameters: queryParameters!,
-      ...(activeDateFilter === undefined ? {} : { filters: [activeDateFilter] }),
-      ...(aggregation === undefined ? {} : { aggregation }),
-    }),
+    queryKey: ["dataset-query", component.id, datasetId, queryParameters, activeFilters, dataRefreshVersion, globalFilterApplyVersion],
+    queryFn: async () => {
+      try {
+        return await queryDatasetRequest(datasetId!, {
+          parameters: queryParameters!,
+          ...(activeGlobalFilters.length === 0 ? {} : { globalFilters: activeGlobalFilters }),
+          ...(activeComponentFilters.length === 0 ? {} : { componentFilters: activeComponentFilters }),
+          ...(aggregation === undefined ? {} : { aggregation }),
+        });
+      } finally {
+        if (globalFilterApplyVersion > 0 && hasGlobalFilterTarget) onGlobalFilterQuerySettled?.(component.id, globalFilterApplyVersion);
+      }
+    },
     // Interface data is fetched once by InterfaceDatasetBootstrap when the
     // editor opens. Individual charts wait for that shared snapshot instead
     // of sending one identical request per component.
     // Wait for schema discovery so interface requests include their runtime
     // parameters instead of emitting an early `{ parameters: {} }` request.
     enabled: datasetId !== undefined && localDataset === undefined && hasDatasetSchema && (
-      !isBootstrappedInterface || initialAggregationEnabled || dataRefreshVersion > 0 || hasAppliedRuntimeParameters || activeDateFilter !== undefined
+      !isBootstrappedInterface || initialAggregationEnabled || dataRefreshVersion > 0 || globalFilterApplyVersion > 0 || hasAppliedRuntimeParameters || activeFilters.length > 0
     ),
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
+  useEffect(() => {
+    if (globalFilterApplyVersion > 0 && hasGlobalFilterTarget && (datasetId === undefined || isUploadedDataset)) {
+      onGlobalFilterQuerySettled?.(component.id, globalFilterApplyVersion);
+    }
+  }, [component.id, datasetId, globalFilterApplyVersion, hasGlobalFilterTarget, isUploadedDataset, onGlobalFilterQuerySettled]);
   // Interface data is materialized once when the editor opens. A component
   // only keeps a private override after its own runtime pagination changes.
   const rawDataResult = runtimeDataResult ?? localResult ?? remoteQuery.data ?? runtimeSnapshot;
-  const dataResult = isUploadedDataset && localResult !== undefined && activeDateFilter !== undefined
-    ? { ...localResult, rows: filterRowsByDateRange(localResult.rows, activeDateFilter), total: filterRowsByDateRange(localResult.rows, activeDateFilter).length }
+  const dataResult = isUploadedDataset && localResult !== undefined && activeFilters.length > 0
+    ? { ...localResult, rows: filterRowsByDashboardFilters(localResult.rows, activeFilters), total: filterRowsByDashboardFilters(localResult.rows, activeFilters).length }
     : rawDataResult;
   const fields = localDataset?.fields ?? dataResult?.columns;
   const rows = dataResult?.rows ?? [];
   const rowsAreAggregated = aggregation !== undefined && remoteQuery.data === dataResult;
   const bindingForRender = chartComponent.type === "ranking" && chartComponent.binding !== undefined
     ? { datasetId: chartComponent.binding.datasetId, slots: chartComponent.binding.slots }
-    : chartComponent.binding;
+    : chartComponent.type === "barLine" && chartComponent.binding !== undefined
+      ? {
+        datasetId: chartComponent.binding.datasetId,
+        slots: chartComponent.binding.slots,
+        ...(chartComponent.binding.sort === undefined ? {} : { sort: chartComponent.binding.sort }),
+      }
+      : chartComponent.binding;
   const transformedRows = applyTransforms(rows, bindingForRender, fields ?? []);
   const isLoadingRemoteData = remoteQuery.isLoading && dataResult === undefined;
   const remoteDataError = remoteQuery.isError
@@ -200,7 +264,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     titleEditSettled.current = true;
     setIsEditingTitle(false);
     const nextTitle = draftTitle.trim();
-    if (nextTitle && nextTitle !== title) {
+    if (nextTitle !== title) {
       store.getState().dispatch({ type: "component.title.update", componentId: component.id, nextTitle });
     }
   };
@@ -267,35 +331,39 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
 
   return (
     <section
-      aria-label={title}
-      className={`component-frame${selected ? " component-frame--selected" : ""}`}
+      aria-label={hasTitle ? title : topLeftHint ?? component.type}
+      className={`component-frame${selected ? " component-frame--selected" : ""}${hasTitle ? "" : " component-frame--untitled"}${hasHeaderHint ? " component-frame--has-header-hint" : ""}${isDashboardHeader ? " component-frame--dashboard-header" : ""}${chartComponent.type === "analysisGroup" ? " component-frame--analysis-group" : ""}`}
       role="group"
       tabIndex={0}
       onClick={select}
       onFocus={(event) => { if (event.target === event.currentTarget) select(); }}
     >
       <header className="component-frame__header">
-        {isEditingTitle ? (
-          <input
-            ref={titleInput}
-            className="component-frame__title-input"
-            aria-label="图表名称"
-            maxLength={100}
-            value={draftTitle}
-            onBlur={commitTitleEdit}
-            onChange={(event) => setDraftTitle(event.target.value)}
-            onClick={stopControlEvent}
-            onKeyDown={(event) => {
-              event.stopPropagation();
-              if (event.key === "Enter") commitTitleEdit();
-              if (event.key === "Escape") cancelTitleEdit();
-            }}
-          />
-        ) : (
-          <button className="component-frame__title-button" type="button" onClick={beginTitleEdit}>
-            {title}
-          </button>
-        )}
+        <div className="component-frame__heading">
+          {isEditingTitle ? (
+            <input
+              ref={titleInput}
+              className="component-frame__title-input"
+              aria-label="图表名称"
+              maxLength={100}
+              value={draftTitle}
+              onBlur={commitTitleEdit}
+              onChange={(event) => setDraftTitle(event.target.value)}
+              onClick={stopControlEvent}
+              onKeyDown={(event) => {
+                event.stopPropagation();
+                if (event.key === "Enter") commitTitleEdit();
+                if (event.key === "Escape") cancelTitleEdit();
+              }}
+            />
+          ) : (
+            <button className={`component-frame__title-button${hasTitle ? "" : " component-frame__title-button--empty"}`} type="button" onClick={beginTitleEdit}>
+              {hasTitle ? title : "添加标题"}
+            </button>
+          )}
+          {topLeftHint !== undefined && <span className="component-frame__header-hint" title={topLeftHint}>{topLeftHint}</span>}
+          {analysisGroupDescription.length > 0 && <span className="component-frame__analysis-group-description" title={analysisGroupDescription}>{analysisGroupDescription}</span>}
+        </div>
         <div className="component-frame__header-controls">
           {isSunburst && sunburstMeasures.length > 1 && (
             <select
@@ -330,7 +398,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
         </div>
       </header>
       <div className="component-frame__renderer" data-testid="component-renderer" data-interacting={String(isInteracting)}>
-        {dateFilterControl !== undefined && dateFilterFieldLabel !== undefined && (
+        {dateFilterControl !== undefined && !isDateBoundByGlobalFilter && dateFilterFieldLabel !== undefined && (
           <DateRangeFilterBar
             control={dateFilterControl}
             fieldLabel={dateFilterFieldLabel}
@@ -347,7 +415,25 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
             loading={remoteQuery.isFetching}
         />
         <div className="component-frame__chart-content">
-          {remoteDataError !== undefined ? (
+          {chartComponent.type !== "analysisGroup" && chartComponent.type !== "dashboardHeader" && <ChartDisplayHints component={chartComponent} />}
+          {chartComponent.type === "analysisGroup" && registry !== undefined ? (
+            <AnalysisGroupCanvas
+              component={chartComponent}
+              store={store}
+              registry={registry}
+              createComponentId={createComponentId}
+              globalFilters={globalFilters}
+              globalFilterValues={globalFilterValues}
+              onGlobalFilterChange={onGlobalFilterChange}
+              globalFilterApplyVersion={globalFilterApplyVersion}
+              onGlobalFilterQuerySettled={onGlobalFilterQuerySettled}
+              globalFiltersLoading={globalFiltersLoading}
+              onGlobalFiltersApply={onGlobalFiltersApply}
+              analysisGroupFilters={analysisGroupQueryFilters(chartComponent)}
+              activePaletteDrop={activeAnalysisGroupDropId === chartComponent.id}
+              outerIsInteracting={isInteracting}
+            />
+          ) : remoteDataError !== undefined ? (
             <Alert type="error" showIcon title="加载图表数据失败" description={remoteDataError} />
           ) : (
             <ResponsiveChartContainer>
@@ -362,11 +448,15 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
                 onSunburstMeasureChange={isSunburst ? setSelectedSunburstMeasure : undefined}
                 activeTreemapMeasure={isTreemap ? activeTreemapMeasure : undefined}
                 onTreemapMeasureChange={isTreemap ? setSelectedTreemapMeasure : undefined}
+                dashboardFilterValues={globalFilterValues}
+                onDashboardFilterChange={onGlobalFilterChange}
+                dashboardFiltersLoading={globalFiltersLoading}
+                onDashboardFiltersApply={onGlobalFiltersApply}
               />
             </ResponsiveChartContainer>
           )}
         </div>
-        {isLoadingRemoteData && (
+        {isLoadingRemoteData && !isDashboardHeader && (
           <div className="component-frame__refresh-mask" role="status" aria-live="polite">
             <Spin size="small" />
             <span>正在加载图表数据</span>

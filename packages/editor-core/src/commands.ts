@@ -1,5 +1,6 @@
 import type {
   ComponentInstance,
+  ComponentDisplayAnnotations,
   Dashboard,
   DataBinding,
   GridItem,
@@ -9,6 +10,8 @@ export interface ComponentAddCommand {
   readonly type: "component.add";
   readonly component: ComponentInstance;
   readonly layout: GridItem;
+  /** Optional simultaneous layout updates for existing components. */
+  readonly layoutUpdates?: readonly GridItem[];
 }
 
 export interface ComponentRemoveCommand {
@@ -41,6 +44,18 @@ export interface ComponentTitleUpdateCommand {
   readonly nextTitle: string;
 }
 
+export interface ComponentSubtitleUpdateCommand {
+  readonly type: "component.subtitle.update";
+  readonly componentId: string;
+  readonly nextSubtitle: string;
+}
+
+export interface ComponentDisplayAnnotationsUpdateCommand {
+  readonly type: "component.display-annotations.update";
+  readonly componentId: string;
+  readonly nextDisplayAnnotations: ComponentDisplayAnnotations | undefined;
+}
+
 export interface ComponentBindingUpdateCommand {
   readonly type: "component.binding.update";
   readonly componentId: string;
@@ -70,6 +85,8 @@ export type EditorCommand =
   | LayoutChangeCommand
   | ComponentPropsUpdateCommand
   | ComponentTitleUpdateCommand
+  | ComponentSubtitleUpdateCommand
+  | ComponentDisplayAnnotationsUpdateCommand
   | ComponentBindingUpdateCommand
   | DashboardThemeUpdateCommand
   | DashboardNameUpdateCommand
