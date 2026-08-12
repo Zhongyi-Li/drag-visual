@@ -103,9 +103,8 @@ export const ComponentStylePanel = ({ store, component, definition }: ComponentS
   };
 
   return (
-    <section aria-label="组件属性">
-      <Typography.Text strong>组件属性</Typography.Text>
-      <Space orientation="vertical" size="middle" style={{ width: "100%", marginTop: 12 }}>
+    <section className="component-style-panel" aria-label="图表样式">
+      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
         {Object.entries(props).filter(([key]) => isEditable(key)).map(([key, value]) => {
           const label = propertyLabels[key] ?? key;
           const textValue = typeof value === "string" ? value : "";

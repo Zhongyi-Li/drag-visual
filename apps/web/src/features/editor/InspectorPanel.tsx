@@ -6,7 +6,7 @@ import { useStore } from "zustand";
 
 import { ComponentBindingPanel } from "./ComponentBindingPanel.js";
 import { ComponentDataPanel } from "./ComponentDataPanel.js";
-import { ComponentInfoPanel } from "./ComponentInfoPanel.js";
+import { ComponentTitlePanel } from "./ComponentTitlePanel.js";
 import { ComponentStylePanel } from "./ComponentStylePanel.js";
 import { DisplayHintsPanel } from "./DisplayHintsPanel.js";
 import { DateFilterConfigurationPanel } from "./DateFilterConfigurationPanel.js";
@@ -123,13 +123,47 @@ export const InspectorPanel = ({
     ? <Typography.Text type="secondary">选择图表后配置展示方式。</Typography.Text>
     : selected.type === "analysisGroup"
       ? <div className="display-configuration">
-          <ComponentInfoPanel component={selected} store={store} />
-          <AnalysisGroupDisplayPanel component={selected} definition={registry.get(selected.type)} store={store} />
+          <Collapse
+            className="display-configuration__collapse"
+            defaultActiveKey={["title", "container"]}
+            ghost
+          items={[
+            {
+              key: "title",
+              label: "标题与卡片",
+              children: <div className="display-configuration__body"><ComponentTitlePanel component={selected} store={store} /></div>,
+            },
+            {
+              key: "container",
+              label: "容器展示",
+              children: <div className="display-configuration__body"><AnalysisGroupDisplayPanel component={selected} definition={registry.get(selected.type)} store={store} /></div>,
+            },
+          ]}
+          />
         </div>
     : <div className="display-configuration">
-        <ComponentInfoPanel component={selected} store={store} />
-        <ComponentStylePanel component={selected} definition={registry.get(selected.type)} store={store} />
-        <DisplayHintsPanel component={selected} store={store} />
+        <Collapse
+          className="display-configuration__collapse"
+          defaultActiveKey={["title", "style"]}
+          ghost
+          items={[
+            {
+              key: "title",
+              label: "标题与卡片",
+              children: <div className="display-configuration__body"><ComponentTitlePanel component={selected} store={store} /></div>,
+            },
+            {
+              key: "style",
+              label: "图表样式",
+              children: <div className="display-configuration__body"><ComponentStylePanel component={selected} definition={registry.get(selected.type)} store={store} /></div>,
+            },
+            {
+              key: "hints",
+              label: "辅助展示",
+              children: <div className="display-configuration__body"><DisplayHintsPanel component={selected} store={store} /></div>,
+            },
+          ]}
+        />
       </div>;
 
   if (collapsed) {

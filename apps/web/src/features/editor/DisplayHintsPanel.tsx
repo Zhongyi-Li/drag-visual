@@ -103,9 +103,8 @@ export const DisplayHintsPanel = ({ component, store }: Props) => {
     </Popover>
   </div>;
 
-  return <section className="display-hints-panel" aria-label="辅助说明">
+  return <section className="display-hints-panel" aria-label="辅助展示">
     <div className="display-hints-panel__heading">
-      <Typography.Text strong>辅助说明</Typography.Text>
       <Typography.Text type="secondary">填写说明后显示在图表对应角落，最多 4 条。</Typography.Text>
     </div>
     <div className="display-hints-panel__entries">

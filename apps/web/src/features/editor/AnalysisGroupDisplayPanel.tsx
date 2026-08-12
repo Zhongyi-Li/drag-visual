@@ -1,4 +1,4 @@
-import { Input, InputNumber, Switch, Typography } from "antd";
+import { Input, InputNumber, Switch } from "antd";
 import type { ComponentDefinition } from "@drag-visual/component-registry";
 import { useStore } from "zustand";
 
@@ -20,10 +20,6 @@ export const AnalysisGroupDisplayPanel = ({ component, definition, store }: Prop
   };
 
   return <section className="analysis-group-display-panel" aria-label="复合分析显示配置">
-    <Typography.Text strong>容器展示</Typography.Text>
-    <Typography.Paragraph type="secondary" style={{ margin: "4px 0 12px" }}>
-      配置复合分析在预览与发布页中的说明、内部布局和容器外观。
-    </Typography.Paragraph>
     <div className="analysis-group-panel">
       <label>说明<Input aria-label="复合分析说明" value={props.description} maxLength={180} onChange={(event) => update({ description: event.target.value })} /></label>
       <label>内部栅格列数<InputNumber aria-label="内部栅格列数" min={2} max={12} value={props.columns} onChange={(value) => update({ columns: typeof value === "number" ? value : 12 })} /></label>
