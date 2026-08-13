@@ -9,25 +9,25 @@ import { ChartQueryFilterBar } from "./ChartQueryFilterBar.js";
 describe("ChartQueryFilterBar", () => {
   it("keeps edits local until apply, then clears non-date conditions on reset", () => {
     const onApply = vi.fn();
-    const filters = [{ kind: "fieldText" as const, fieldKey: "product", value: "小米" }];
+    const filters = [{ kind: "fieldText" as const, fieldKey: "product", operator: "contains" as const, value: "小米" }];
     render(<AppProviders><ChartQueryFilterBar filters={filters} fields={[{ key: "product", label: "商品", type: "string", nullable: false }]} onApply={onApply} /></AppProviders>);
 
     fireEvent.change(screen.getByRole("textbox", { name: "图表查询值1" }), { target: { value: "Redmi" } });
     expect(onApply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "查询" }));
     expect(onApply).toHaveBeenLastCalledWith(
-      [{ kind: "fieldText", fieldKey: "product", value: "Redmi" }],
-      [{ kind: "fieldText", fieldKey: "product", value: "Redmi" }],
+      [{ kind: "fieldText", fieldKey: "product", operator: "contains", value: "Redmi" }],
+      [{ kind: "fieldText", fieldKey: "product", operator: "contains", value: "Redmi" }],
     );
     fireEvent.click(screen.getByRole("button", { name: /重\s*置/ }));
     expect(screen.getByRole("textbox", { name: "图表查询值1" })).toHaveValue("");
-    expect(onApply).toHaveBeenLastCalledWith([], [{ kind: "fieldText", fieldKey: "product", value: "" }]);
+    expect(onApply).toHaveBeenLastCalledWith([], [{ kind: "fieldText", fieldKey: "product", operator: "contains", value: "" }]);
   });
 
   it("renders a control for every configured chart condition", () => {
     const filters = [
-      { kind: "fieldText" as const, fieldKey: "product", value: "创维" },
-      { kind: "fieldText" as const, fieldKey: "store", value: "华东" },
+      { kind: "fieldText" as const, fieldKey: "product", operator: "contains" as const, value: "创维" },
+      { kind: "fieldText" as const, fieldKey: "store", operator: "contains" as const, value: "华东" },
     ];
     render(<AppProviders><ChartQueryFilterBar filters={filters} fields={[
       { key: "product", label: "商品名称", type: "string", nullable: false },

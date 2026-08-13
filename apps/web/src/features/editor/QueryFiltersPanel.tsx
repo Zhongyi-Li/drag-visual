@@ -25,20 +25,22 @@ const filterForField = (field: DatasetField): DraftFilter => field.type === "num
     ? { kind: "numberComparison", fieldKey: field.key, operator: "gte", value: 0 }
   : field.type === "boolean"
     ? { kind: "fieldValue", fieldKey: field.key, values: ["true"] }
-    : { kind: "fieldText", fieldKey: field.key, value: "" };
+    : { kind: "fieldText", fieldKey: field.key, operator: "contains", value: "" };
 
 const fieldLabel = (field: DatasetField): string => `${field.label}（${field.key}）`;
 
 const operatorLabel = (filter: DraftFilter): string => {
   if (filter.kind === "numberComparison") return ({ eq: "等于", neq: "不等于", gt: "大于", gte: "大于等于", lt: "小于", lte: "小于等于" })[filter.operator];
   if (filter.kind === "dateRange") return "范围";
-  return filter.kind === "fieldValue" ? "等于" : "包含";
+  if (filter.kind === "fieldNull") return filter.operator === "isEmpty" ? "为空" : "不为空";
+  return filter.kind === "fieldValue" ? "等于" : filter.kind === "fieldText" && filter.operator === "notContains" ? "不包含" : "包含";
 };
 
 const valueLabel = (filter: DraftFilter): string => {
   if (filter.kind === "numberComparison") return String(filter.value);
   if (filter.kind === "dateRange") return `${filter.start} 至 ${filter.end}`;
   if (filter.kind === "fieldValue") return String(filter.values[0] ?? "未填写");
+  if (filter.kind === "fieldNull") return "无需填写值";
   return filter.value || "未填写";
 };
 
@@ -174,14 +176,18 @@ export const QueryFiltersPanel = ({ component, definition, scope, store }: Props
                 const nextField = queryFields.find((candidate) => candidate.key === fieldKey);
                 if (nextField !== undefined) setDraft((items) => replaceAt(items, index, filterForField(nextField)));
               }} />
-              <Select aria-label={`查询运算符${index + 1}`} className="query-filters-drawer__operator" value={field.type === "number" ? filter.kind === "numberComparison" ? filter.operator : "gte" : filter.kind === "fieldValue" ? "equals" : "contains"} options={field.type === "number" ? [{ value: "eq", label: "等于" }, { value: "neq", label: "不等于" }, { value: "gt", label: "大于" }, { value: "gte", label: "大于等于" }, { value: "lt", label: "小于" }, { value: "lte", label: "小于等于" }] : field.type === "boolean" ? [{ value: "equals", label: "等于" }] : [{ value: "contains", label: "包含" }, { value: "equals", label: "等于" }]} onChange={(operator: string) => {
+              <Select aria-label={`查询运算符${index + 1}`} className="query-filters-drawer__operator" value={filter.kind === "fieldNull" ? filter.operator : field.type === "number" ? filter.kind === "numberComparison" ? filter.operator : "gte" : filter.kind === "fieldValue" ? "equals" : filter.kind === "fieldText" ? filter.operator ?? "contains" : "contains"} options={field.type === "number" ? [{ value: "eq", label: "等于" }, { value: "neq", label: "不等于" }, { value: "gt", label: "大于" }, { value: "gte", label: "大于等于" }, { value: "lt", label: "小于" }, { value: "lte", label: "小于等于" }, { value: "isEmpty", label: "为空" }, { value: "isNotEmpty", label: "不为空" }] : field.type === "boolean" ? [{ value: "equals", label: "等于" }, { value: "isEmpty", label: "为空" }, { value: "isNotEmpty", label: "不为空" }] : [{ value: "contains", label: "包含" }, { value: "notContains", label: "不包含" }, { value: "equals", label: "等于" }, { value: "isEmpty", label: "为空" }, { value: "isNotEmpty", label: "不为空" }]} onChange={(operator: string) => {
+                if (operator === "isEmpty" || operator === "isNotEmpty") {
+                  setDraft((items) => replaceAt(items, index, { kind: "fieldNull", fieldKey: field.key, operator }));
+                  return;
+                }
                 if (field.type === "number") {
                   setDraft((items) => replaceAt(items, index, { kind: "numberComparison", fieldKey: field.key, operator: operator as "eq" | "neq" | "gt" | "gte" | "lt" | "lte", value: filter.kind === "numberComparison" ? filter.value : 0 }));
                   return;
                 }
-                setDraft((items) => replaceAt(items, index, operator === "equals" ? { kind: "fieldValue", fieldKey: field.key, values: [textValue] } : { kind: "fieldText", fieldKey: field.key, value: textValue }));
+                setDraft((items) => replaceAt(items, index, operator === "equals" ? { kind: "fieldValue", fieldKey: field.key, values: [textValue] } : { kind: "fieldText", fieldKey: field.key, operator: operator === "notContains" ? "notContains" : "contains", value: textValue }));
               }} />
-              {field.type === "number" ? <InputNumber aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "numberComparison" ? filter.value : 0} onChange={(value) => setDraft((items) => replaceAt(items, index, { kind: "numberComparison", fieldKey: field.key, operator: filter.kind === "numberComparison" ? filter.operator : "gte", value: typeof value === "number" ? value : 0 }))} /> : field.type === "boolean" ? <Select aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "fieldValue" ? String(filter.values[0] ?? "true") : "true"} options={[{ value: "true", label: "是" }, { value: "false", label: "否" }]} onChange={(value: string) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value] }))} /> : filter.kind === "fieldValue" && scope === "component" ? <Select allowClear aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" showSearch optionFilterProp="label" placeholder="选择或搜索精确值" value={textValue || null} options={matchingOptions.map((value) => ({ value, label: value }))} onChange={(value: string | undefined) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value ?? ""] }))} /> : <Input aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" placeholder={filter.kind === "fieldValue" ? "输入精确值" : "输入关键字"} value={textValue} onChange={(event) => setDraft((items) => replaceAt(items, index, filter.kind === "fieldValue" ? { ...filter, values: [event.target.value] } : { kind: "fieldText", fieldKey: field.key, value: event.target.value }))} />}
+              {filter.kind === "fieldNull" ? <span className="query-filters-drawer__value query-filters-drawer__empty-value">无需填写值</span> : field.type === "number" ? <InputNumber aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "numberComparison" ? filter.value : 0} onChange={(value) => setDraft((items) => replaceAt(items, index, { kind: "numberComparison", fieldKey: field.key, operator: filter.kind === "numberComparison" ? filter.operator : "gte", value: typeof value === "number" ? value : 0 }))} /> : field.type === "boolean" ? <Select aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "fieldValue" ? String(filter.values[0] ?? "true") : "true"} options={[{ value: "true", label: "是" }, { value: "false", label: "否" }]} onChange={(value: string) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value] }))} /> : filter.kind === "fieldValue" && scope === "component" ? <Select allowClear aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" showSearch optionFilterProp="label" placeholder="选择或搜索精确值" value={textValue || null} options={matchingOptions.map((value) => ({ value, label: value }))} onChange={(value: string | undefined) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value ?? ""] }))} /> : <Input aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" placeholder={filter.kind === "fieldValue" ? "输入精确值" : "输入关键字"} value={textValue} onChange={(event) => setDraft((items) => replaceAt(items, index, filter.kind === "fieldValue" ? { ...filter, values: [event.target.value] } : { kind: "fieldText", fieldKey: field.key, operator: filter.kind === "fieldText" ? filter.operator ?? "contains" : "contains", value: event.target.value }))} />}
               <Button aria-label={`删除配置条件${index + 1}`} className="query-filters-drawer__remove" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
             </div>;
           })}

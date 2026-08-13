@@ -7,6 +7,7 @@
 ## 1. 更新原则
 
 - 生产运行目录是 `C:\zhbi`，生产配置是 `C:\zhbi\.env`。
+- 待更新制品统一存放在 `C:\zhbi-update`；每次发布前，目录中只能保留本次下载并完整解压的一个制品。
 - **绝不删除** `C:\zhbi\apps`、`C:\zhbi\apps\web` 或 `C:\zhbi\apps\web\dist`。
 - 不要在资源管理器中使用“授予访问权限 → 删除访问/停止共享”。这会变更 IIS 所需的 NTFS 权限，可能导致 `500.19` 或 `401`。
 - 使用 `robocopy /MIR` 将新制品镜像到既有目录；它会删除过期文件，但保留目标目录本身及其 IIS 权限。
@@ -46,17 +47,17 @@ pnpm --dir apps/web exec vite -- --port 5173
 
 工作流已按 `/ZHBI/` 子路径构建前端，因此预览、发布页、分享链接和继续编辑等浏览器地址都会使用 `/ZHBI/...`。
 
-## 4. Windows：准备临时解压目录
+## 4. Windows：准备待更新文件夹
 
-不要直接在 `C:\zhbi` 解压下载文件。先创建临时目录：
+不要直接在 `C:\zhbi` 解压下载文件。待更新制品固定解压到：
 
 ```text
 C:\zhbi-update
 ```
 
-解压 GitHub 下载文件。如果其中还有内层 `zhbi-windows-x64.zip`，继续将它解压到 `C:\zhbi-update`。
+发布前先确认 `C:\zhbi-update` 中没有上一次制品的残留文件，再解压 GitHub 下载的 Artifact。如果其中还有内层 `zhbi-windows-x64.zip`，继续将它解压到 `C:\zhbi-update`。
 
-继续前，确认临时目录直接包含：
+继续前，确认 `C:\zhbi-update` 直接包含：
 
 ```text
 apps
@@ -76,6 +77,9 @@ prisma.config.ts
 
 ```powershell
 robocopy "C:\zhbi-update\apps\web\dist" "C:\zhbi\apps\web\dist" /MIR /COPY:DAT /DCOPY:DAT /R:2 /W:2
+if ($LASTEXITCODE -ge 8) {
+  throw "前端文件同步失败，停止发布。"
+}
 ```
 
 `robocopy` 返回码 `0` 到 `7` 均表示成功或正常完成文件同步；只有 `8` 或更大才是失败。
@@ -93,11 +97,10 @@ robocopy "C:\zhbi-update\apps\web\dist" "C:\zhbi\apps\web\dist" /MIR /COPY:DAT /
 
 ### 6.1 更新前检查与停止后端
 
-在管理员 PowerShell 中检查后端健康并备份生产配置：
+在管理员 PowerShell 中检查后端健康：
 
 ```powershell
 Invoke-WebRequest http://127.0.0.1:3000/health
-Copy-Item C:\zhbi\.env C:\zhbi\.env.backup -Force
 ```
 
 若 Node 以前台 PowerShell 启动，在它所在窗口按 `Ctrl + C` 停止。若使用任务计划程序或其他守护服务，则停止对应任务/服务。
@@ -108,14 +111,23 @@ Copy-Item C:\zhbi\.env C:\zhbi\.env.backup -Force
 
 ```powershell
 robocopy "C:\zhbi-update\apps\api" "C:\zhbi\apps\api" /MIR /COPY:DAT /DCOPY:DAT /R:2 /W:2
+if ($LASTEXITCODE -ge 8) {
+  throw "后端文件同步失败，停止发布。"
+}
 ```
 
 ```powershell
 robocopy "C:\zhbi-update\apps\web\dist" "C:\zhbi\apps\web\dist" /MIR /COPY:DAT /DCOPY:DAT /R:2 /W:2
+if ($LASTEXITCODE -ge 8) {
+  throw "前端文件同步失败，停止发布。"
+}
 ```
 
 ```powershell
 robocopy "C:\zhbi-update\prisma" "C:\zhbi\prisma" /MIR /COPY:DAT /DCOPY:DAT /R:2 /W:2
+if ($LASTEXITCODE -ge 8) {
+  throw "迁移文件同步失败，停止发布。"
+}
 ```
 
 再更新制品中的根目录元数据，但不要碰 `.env`：
@@ -163,7 +175,7 @@ Invoke-WebRequest http://127.0.0.1:3000/health
 http://<服务器IP>/ZHBI/
 ```
 
-确认稳定后，根据服务器备份策略清理 `C:\zhbi\.env.backup` 和 `C:\zhbi-update`。临时目录中不应长期存放制品或敏感配置。
+确认发布完成后，清理 `C:\zhbi-update` 中本次已使用的制品，避免下次发布混入旧文件。不要删除 `C:\zhbi` 或其中的 `.env`。
 
 ## 7. 变更类型与操作对照
 

@@ -174,6 +174,12 @@ const sqlFilter = (
       values.push(...filter.values.map(String));
       continue;
     }
+    if (filter.kind === "fieldNull") {
+      predicates.push(filter.operator === "isEmpty"
+        ? `(${source} IS NULL OR TRIM(${source}) = '')`
+        : `(${source} IS NOT NULL AND TRIM(${source}) <> '')`);
+      continue;
+    }
     if (filter.kind === "numberComparison") {
       if (column.field.type !== "number") throw new DatasetUpstreamError();
       const operator = { eq: "=", neq: "!=", gt: ">", gte: ">=", lt: "<", lte: "<=" }[filter.operator];
@@ -182,7 +188,7 @@ const sqlFilter = (
       continue;
     }
     if (column.field.type !== "string") throw new DatasetUpstreamError();
-    predicates.push(`${source} LIKE ?`);
+    predicates.push(`${source} ${filter.operator === "notContains" ? "NOT LIKE" : "LIKE"} ?`);
     values.push(`%${filter.value}%`);
   }
   return { whereSql: ` WHERE ${predicates.join(" AND ")}`, values };

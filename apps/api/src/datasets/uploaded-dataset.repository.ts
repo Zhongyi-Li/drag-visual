@@ -73,6 +73,11 @@ const filterRows = (
       return value !== undefined && value >= filter.start && value <= filter.end;
     }
     if (filter.kind === "fieldValue") return filter.values.some((value) => String(row[filter.fieldKey]) === String(value));
+    if (filter.kind === "fieldNull") {
+      const value = row[filter.fieldKey];
+      const empty = value === null || value === undefined || (typeof value === "string" && value.trim().length === 0);
+      return filter.operator === "isEmpty" ? empty : !empty;
+    }
     if (filter.kind === "numberComparison") {
       const value = row[filter.fieldKey];
       if (typeof value !== "number") return false;
@@ -84,7 +89,9 @@ const filterRows = (
       return value <= filter.value;
     }
     const value = row[filter.fieldKey];
-    return typeof value === "string" && value.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase());
+    if (typeof value !== "string") return false;
+    const contains = value.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase());
+    return filter.operator === "notContains" ? !contains : contains;
   };
   return rows.filter((row) => filters.every((filter) => matches(row, filter))).map(clone);
 };

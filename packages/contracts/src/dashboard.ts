@@ -106,6 +106,11 @@ export const DashboardGlobalFilterControlType = z.enum(["dateRange", "select", "
 
 export type DashboardGlobalFilterControlType = z.infer<typeof DashboardGlobalFilterControlType>;
 
+/** The condition used by a non-date global filter. Empty checks are static and need no viewer value. */
+export const DashboardGlobalFilterOperator = z.enum(["contains", "notContains", "equals", "isEmpty", "isNotEmpty"]);
+
+export type DashboardGlobalFilterOperator = z.infer<typeof DashboardGlobalFilterOperator>;
+
 export const DashboardGlobalFilterTarget = z.object({
   componentId: nonEmptyString,
   fieldKey: nonEmptyString,
@@ -118,6 +123,9 @@ export const DashboardGlobalFilterConfig = z.object({
   fieldKey: nonEmptyString,
   label: nonEmptyString,
   controlType: DashboardGlobalFilterControlType,
+  // `null` keeps existing saved filters backward-compatible: their behavior is
+  // derived from the control type (select = equals, input = contains).
+  operator: DashboardGlobalFilterOperator.optional().transform((operator) => operator ?? null),
   targets: z.array(DashboardGlobalFilterTarget).max(99),
 }).strict();
 

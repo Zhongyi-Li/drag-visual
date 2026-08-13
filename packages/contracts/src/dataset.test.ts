@@ -119,6 +119,28 @@ describe("Dataset contracts", () => {
     }).componentFilters).toEqual([{ kind: "numberComparison", fieldKey: "saleAmount", operator: "gt", value: 1000 }]);
   });
 
+  it("accepts text exclusion and null-check query conditions", () => {
+    expect(DatasetQueryRequest.parse({
+      parameters: {},
+      componentFilters: [
+        { kind: "fieldText", fieldKey: "product", operator: "notContains", value: "小米" },
+        { kind: "fieldNull", fieldKey: "warehouse", operator: "isNotEmpty" },
+      ],
+    }).componentFilters).toEqual([
+      { kind: "fieldText", fieldKey: "product", operator: "notContains", value: "小米" },
+      { kind: "fieldNull", fieldKey: "warehouse", operator: "isNotEmpty" },
+    ]);
+  });
+
+  it("defaults legacy text filters to contains", () => {
+    expect(DatasetQueryRequest.parse({
+      parameters: {},
+      componentFilters: [{ kind: "fieldText", fieldKey: "product", value: "小米" }],
+    }).componentFilters).toEqual([
+      { kind: "fieldText", fieldKey: "product", operator: "contains", value: "小米" },
+    ]);
+  });
+
   it.each([
     ["dataset", Dataset, { ...validDataset(), extra: true }],
     [

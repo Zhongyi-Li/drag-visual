@@ -13,7 +13,7 @@ import { ChartQueryFilterBar, type ChartQueryFilterControl } from "../datasets/C
 import { ChartDisplayHints } from "../editor/ChartDisplayHints.js";
 import { defaultDateFilterSelection, type RuntimeDateSelection } from "../datasets/dateFilter.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
-import { componentQueryFilterControls, componentQueryFilters, dashboardGlobalFilters, filterRowsByDashboardFilters, filtersForComponent, hasDashboardGlobalDateTarget, type DashboardGlobalFilterValues } from "./dashboardGlobalFilters.js";
+import { componentQueryFilterControls, componentQueryFilters, dashboardGlobalFilters, filterRowsByDashboardFilters, filtersForComponent, hasDashboardGlobalDateTarget, type DashboardGlobalFilterValues, type DashboardGlobalFilters } from "./dashboardGlobalFilters.js";
 import {
   RuntimeDatasetRequestBar,
   buildRuntimeParameters,
@@ -26,7 +26,7 @@ interface ViewerComponentProps {
   readonly savedDataset?: Dashboard["datasets"][number] | undefined;
   readonly currentDataset?: Dataset | undefined;
   readonly globalFilterValues?: DashboardGlobalFilterValues | undefined;
-  readonly globalFilters?: ReturnType<typeof dashboardGlobalFilters> | undefined;
+  readonly globalFilters?: DashboardGlobalFilters | undefined;
   readonly globalFilterOptions?: Readonly<Record<string, readonly string[]>> | undefined;
   readonly onGlobalFilterChange?: ((filterId: string, value: unknown) => void) | undefined;
   readonly globalFilterApplyVersion?: number | undefined;

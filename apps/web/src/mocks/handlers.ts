@@ -190,6 +190,7 @@ const validQueryParameters = (dataset: Dataset, value: unknown): boolean => {
     const field = dataset.fields.find((candidate) => candidate.key === filter.fieldKey);
     if (filter.kind === "dateRange") return field?.type === "date" && calendarDate(filter.start) && calendarDate(filter.end) && filter.start <= filter.end;
     if (filter.kind === "fieldValue") return field?.type === "string" || field?.type === "boolean";
+    if (filter.kind === "fieldNull") return field !== undefined;
     if (filter.kind === "numberComparison") return field?.type === "number";
     return field?.type === "string";
   });
@@ -207,6 +208,10 @@ const applyDateFilters = (
       return calendarDate(day) && day >= filter.start && day <= filter.end;
     }
     if (filter.kind === "fieldValue") return filter.values.some((candidate) => String(value) === String(candidate));
+    if (filter.kind === "fieldNull") {
+      const empty = value === null || value === undefined || (typeof value === "string" && value.trim().length === 0);
+      return filter.operator === "isEmpty" ? empty : !empty;
+    }
     if (filter.kind === "numberComparison") {
       if (typeof value !== "number") return false;
       if (filter.operator === "eq") return value === filter.value;
@@ -216,7 +221,9 @@ const applyDateFilters = (
       if (filter.operator === "lt") return value < filter.value;
       return value <= filter.value;
     }
-    return typeof value === "string" && value.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase());
+    if (typeof value !== "string") return false;
+    const contains = value.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase());
+    return filter.operator === "notContains" ? !contains : contains;
   })).map((row) => ({ ...row }));
 };
 

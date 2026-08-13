@@ -180,7 +180,7 @@ const DashboardHeaderSurface = ({ component, rows, dashboardFilterValues, dashbo
   const filters = dashboardHeaderFilters(component);
   const dateFilter = filters.find((filter) => filter.controlType === "dateRange");
   const useInlineHeaderLayout = filters.length <= 3;
-  const configuredFiltersKey = JSON.stringify(filters.map((filter) => ({ id: filter.id, controlType: filter.controlType })));
+  const configuredFiltersKey = JSON.stringify(filters.map((filter) => ({ id: filter.id, controlType: filter.controlType, operator: filter.operator })));
   const appliedValuesKey = JSON.stringify(dashboardFilterValues ?? {});
   useEffect(() => {
     const appliedDateRange = dateFilter === undefined ? undefined : dashboardFilterValues?.[dateFilter.id];
@@ -189,7 +189,7 @@ const DashboardHeaderSurface = ({ component, rows, dashboardFilterValues, dashbo
       if (typeof record.start === "string" && typeof record.end === "string") setDateRange(toDateRange(record.start, record.end));
       else setDateRange(toDateRange(configuredDateRange.start, configuredDateRange.end));
     } else setDateRange(toDateRange(configuredDateRange.start, configuredDateRange.end));
-    setLocalFilterValues(Object.fromEntries(filters.filter((filter) => filter.controlType !== "dateRange").map((filter): [string, string] => {
+    setLocalFilterValues(Object.fromEntries(filters.filter((filter) => filter.controlType !== "dateRange" && filter.operator !== "isEmpty" && filter.operator !== "isNotEmpty").map((filter): [string, string] => {
       const appliedValue = dashboardFilterValues?.[filter.id];
       return [filter.id, typeof appliedValue === "string" ? appliedValue : ""];
     })));
@@ -199,16 +199,16 @@ const DashboardHeaderSurface = ({ component, rows, dashboardFilterValues, dashbo
   }, [dashboardFiltersLoading]);
   const applyFilters = () => {
     if (dateFilter !== undefined) onDashboardFilterChange?.(dateFilter.id, { start: dateRange[0].format("YYYY-MM-DD"), end: dateRange[1].format("YYYY-MM-DD") });
-    filters.filter((filter) => filter.controlType !== "dateRange").forEach((filter) => onDashboardFilterChange?.(filter.id, localFilterValues[filter.id] ?? ""));
+    filters.filter((filter) => filter.controlType !== "dateRange" && filter.operator !== "isEmpty" && filter.operator !== "isNotEmpty").forEach((filter) => onDashboardFilterChange?.(filter.id, localFilterValues[filter.id] ?? ""));
     if (onDashboardFiltersApply?.() === true) setPendingAction("apply");
   };
   const resetFilters = () => {
     const nextRange = toDateRange(configuredDateRange.start, configuredDateRange.end);
-    const clearedValues = Object.fromEntries(filters.filter((filter) => filter.controlType !== "dateRange").map((filter) => [filter.id, ""]));
+    const clearedValues = Object.fromEntries(filters.filter((filter) => filter.controlType !== "dateRange" && filter.operator !== "isEmpty" && filter.operator !== "isNotEmpty").map((filter) => [filter.id, ""]));
     setDateRange(nextRange);
     setLocalFilterValues(clearedValues);
     if (dateFilter !== undefined) onDashboardFilterChange?.(dateFilter.id, { start: nextRange[0].format("YYYY-MM-DD"), end: nextRange[1].format("YYYY-MM-DD") });
-    filters.filter((filter) => filter.controlType !== "dateRange").forEach((filter) => onDashboardFilterChange?.(filter.id, ""));
+    filters.filter((filter) => filter.controlType !== "dateRange" && filter.operator !== "isEmpty" && filter.operator !== "isNotEmpty").forEach((filter) => onDashboardFilterChange?.(filter.id, ""));
     if (onDashboardFiltersApply?.() === true) setPendingAction("reset");
   };
   const now = dayjs();
@@ -239,7 +239,7 @@ const DashboardHeaderSurface = ({ component, rows, dashboardFilterValues, dashbo
               if (start !== null && end !== null) setDateRange([start, end]);
             }}
           />}
-          {filters.filter((filter) => filter.controlType !== "dateRange").map((filter) => {
+          {filters.filter((filter) => filter.controlType !== "dateRange" && filter.operator !== "isEmpty" && filter.operator !== "isNotEmpty").map((filter) => {
             return <DimensionFilter key={filter.id} filter={filter} rows={rows} options={dashboardFilterOptions?.[filter.id]} value={localFilterValues[filter.id] ?? ""} onChange={(value) => {
               setLocalFilterValues((current) => ({ ...current, [filter.id]: value }));
             }} />;
@@ -257,7 +257,7 @@ const DashboardHeaderSurface = ({ component, rows, dashboardFilterValues, dashbo
 const DimensionFilter = ({ filter, rows, options: suppliedOptions, value, onChange }: { readonly filter: DashboardGlobalFilterConfigValue; readonly rows: readonly Row[]; readonly options?: readonly string[] | undefined; readonly value: string; readonly onChange: (value: string) => void }) => {
   const fallbackOptions = [...new Set(rows.map((row) => row[filter.fieldKey]).filter((item): item is string | number | boolean => typeof item === "string" || typeof item === "number" || typeof item === "boolean").map(String))].slice(0, 100);
   const options = suppliedOptions ?? fallbackOptions;
-  if (filter.controlType === "input") return <Input aria-label={`全局筛选${filter.label}`} placeholder={`输入${filter.label}`} style={{ ...dashboardHeaderControlStyle, width: 160 }} value={value} onChange={(event) => onChange(event.target.value)} />;
+  if (filter.controlType === "input" || filter.operator === "contains" || filter.operator === "notContains") return <Input aria-label={`全局筛选${filter.label}`} placeholder={`输入${filter.label}`} style={{ ...dashboardHeaderControlStyle, width: 160 }} value={value} onChange={(event) => onChange(event.target.value)} />;
   return <Select
     aria-label={`全局筛选${filter.label}`}
     options={[{ label: `全部${filter.label}`, value: "" }, ...options.map((option) => ({ label: option, value: option }))]}

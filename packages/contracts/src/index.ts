@@ -12,6 +12,7 @@ export {
   DatasetQueryResult,
   DateRangeFilter,
   FieldTextFilter,
+  FieldNullFilter,
   FieldValueFilter,
   NumericComparisonFilter,
   DatasetSummary,

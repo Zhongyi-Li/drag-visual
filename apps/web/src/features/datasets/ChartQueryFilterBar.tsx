@@ -41,6 +41,7 @@ const clearedFilters = (filters: readonly ChartQueryFilterControl[]): ChartQuery
   if (filter.kind === "dateRange") return filter;
   if (filter.kind === "fieldText") return { ...filter, value: "" };
   if (filter.kind === "fieldValue") return { ...filter, values: [""] };
+  if (filter.kind === "fieldNull") return filter;
   return { ...filter, value: null };
 });
 
@@ -73,14 +74,14 @@ export const ChartQueryFilterBar = ({ filters, fields, datasetId, localFieldOpti
             if (range === null || range[0] === null || range[1] === null) return;
             setDraft((items) => items.map((item, current) => current !== index ? item : { ...filter, start: range[0]!.format("YYYY-MM-DD"), end: range[1]!.format("YYYY-MM-DD") }));
           }}
-        /> : filter.kind === "numberComparison" ? <>
+        /> : filter.kind === "fieldNull" ? <span className="chart-query-filter-bar__operator">{filter.operator === "isEmpty" ? "为空" : "不为空"}</span> : filter.kind === "numberComparison" ? <>
           <span className="chart-query-filter-bar__operator">{operatorLabel(filter.operator)}</span>
           <InputNumber aria-label={`${controlLabelPrefix}值${index + 1}`} value={filter.value} onChange={(value) => setDraft((items) => items.map((item, current) => current !== index ? item : { ...filter, value: typeof value === "number" ? value : null }))} />
         </> : filter.kind === "fieldValue" ? <>
           <span className="chart-query-filter-bar__operator">等于</span>
           <Select aria-label={`${controlLabelPrefix}值${index + 1}`} showSearch optionFilterProp="label" placeholder="选择或搜索" value={String(filter.values[0] ?? "") || null} options={(localFieldOptions?.[filter.fieldKey] ?? optionQueries[index]?.data ?? []).map((value) => ({ value, label: value }))} onChange={(value: string) => setDraft((items) => items.map((item, current) => current !== index ? item : { ...filter, values: [value] }))} />
         </> : <>
-          <span className="chart-query-filter-bar__operator">包含</span>
+          <span className="chart-query-filter-bar__operator">{filter.operator === "notContains" ? "不包含" : "包含"}</span>
           <Input aria-label={`${controlLabelPrefix}值${index + 1}`} value={filter.value} onChange={(event) => setDraft((items) => items.map((item, current) => current !== index ? item : { ...filter, value: event.target.value }))} />
         </>}
       </div>)}

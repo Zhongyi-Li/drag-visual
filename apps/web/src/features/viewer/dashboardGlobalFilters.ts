@@ -1,7 +1,8 @@
 import { DashboardGlobalFilterConfig, DatasetFilter, QueryFilterControl, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetFilter as DatasetFilterValue, type QueryFilterControl as QueryFilterControlValue } from "@drag-visual/contracts";
 
 export type DashboardGlobalFilterValues = Readonly<Record<string, unknown>>;
-export type DashboardGlobalFilters = readonly DashboardGlobalFilterConfigValue[];
+/** Accept legacy saved filters that predate the explicit operator field. */
+export type DashboardGlobalFilters = readonly (Omit<DashboardGlobalFilterConfigValue, "operator"> & { readonly operator?: DashboardGlobalFilterConfigValue["operator"] })[];
 
 type HeaderComponent = { readonly props: Readonly<Record<string, unknown>> };
 type TargetComponent = { readonly id: string };
@@ -29,6 +30,8 @@ export const activeQueryFilters = (controls: readonly QueryFilterControlValue[])
   const parsed = DatasetFilter.safeParse(control);
   return parsed.success ? [parsed.data] : [];
 });
+
+const isEmptyValue = (value: unknown): boolean => value === null || value === undefined || (typeof value === "string" && value.trim().length === 0);
 
 /** Saved filters configured directly on a chart. */
 export const componentQueryFilters = (component: QueryFilterOwner): DatasetFilterValue[] =>
@@ -70,14 +73,19 @@ export const filtersForComponent = (
   const target = filter.targets.find((candidate) => candidate.componentId === component.id);
   if (target === undefined) continue;
   const value = values[filter.id];
+  const operator = filter.operator ?? (filter.controlType === "select" ? "equals" : "contains");
+  if (operator === "isEmpty" || operator === "isNotEmpty") {
+    result.push({ kind: "fieldNull", fieldKey: target.fieldKey, operator });
+    continue;
+  }
   if (filter.controlType === "dateRange") {
     const range = dateRangeValue(value);
     if (range !== undefined) result.push({ kind: "dateRange", fieldKey: target.fieldKey, start: range.start, end: range.end, timezone: "Asia/Shanghai" });
     continue;
   }
   if (typeof value !== "string" || value.trim().length === 0) continue;
-  if (filter.controlType === "select") result.push({ kind: "fieldValue", fieldKey: target.fieldKey, values: [value] });
-  else result.push({ kind: "fieldText", fieldKey: target.fieldKey, value: value.trim() });
+  if (operator === "equals") result.push({ kind: "fieldValue", fieldKey: target.fieldKey, values: [value] });
+  else result.push({ kind: "fieldText", fieldKey: target.fieldKey, operator: operator === "notContains" ? "notContains" : "contains", value: value.trim() });
   }
   return result;
 };
@@ -95,6 +103,10 @@ export const filterRowsByDashboardFilters = <Row extends Readonly<Record<string,
     return date !== undefined && date >= filter.start && date <= filter.end;
   }
   if (filter.kind === "fieldValue") return filter.values.some((value) => String(row[filter.fieldKey]) === String(value));
+  if (filter.kind === "fieldNull") {
+    const empty = isEmptyValue(row[filter.fieldKey]);
+    return filter.operator === "isEmpty" ? empty : !empty;
+  }
   if (filter.kind === "numberComparison") {
     const value = row[filter.fieldKey];
     if (typeof value !== "number") return false;
@@ -106,5 +118,7 @@ export const filterRowsByDashboardFilters = <Row extends Readonly<Record<string,
     return value <= filter.value;
   }
   const value = row[filter.fieldKey];
-  return typeof value === "string" && value.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase());
+  if (typeof value !== "string") return false;
+  const contains = value.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase());
+  return filter.operator === "notContains" ? !contains : contains;
 }));

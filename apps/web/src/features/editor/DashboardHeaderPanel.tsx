@@ -135,17 +135,20 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
         <div className="dashboard-filter-drawer__layout">
           <aside className="dashboard-filter-drawer__list">
             <Typography.Text type="secondary">筛选器</Typography.Text>
-            {globalFilters.length === 0 ? <Typography.Text type="secondary">请先从右侧数据面板添加字段。</Typography.Text> : globalFilters.map((filter) => <button className={activeFilter?.id === filter.id ? "is-active" : ""} key={filter.id} type="button" onClick={() => setActiveFilterId(filter.id)}>{filter.label}<small>{filter.controlType === "dateRange" ? "日期范围" : filter.controlType === "select" ? "下拉选择" : "输入框"}</small></button>)}
+            {globalFilters.length === 0 ? <Typography.Text type="secondary">请先从右侧数据面板添加字段。</Typography.Text> : globalFilters.map((filter) => <button className={activeFilter?.id === filter.id ? "is-active" : ""} key={filter.id} type="button" onClick={() => setActiveFilterId(filter.id)}>{filter.label}<small>{filter.operator === "isEmpty" ? "为空" : filter.operator === "isNotEmpty" ? "不为空" : filter.controlType === "dateRange" ? "日期范围" : filter.controlType === "select" ? "下拉选择" : "输入框"}</small></button>)}
           </aside>
           {activeFilter && <section className="dashboard-filter-drawer__config">
             <div><Typography.Title level={5}>{activeFilter.label}</Typography.Title><Typography.Text type="secondary">字段：{activeFilter.fieldKey}</Typography.Text></div>
             {activeFilter.controlType === "dateRange"
               ? <div className="dashboard-filter-drawer__locked-control"><Typography.Text>控件类型</Typography.Text><strong>日期范围</strong><Typography.Text type="secondary">日期字段固定使用时间选择器。</Typography.Text></div>
-              : <label>控件类型<Select aria-label={`${activeFilter.label}控件类型`} value={activeFilter.controlType} options={[
+              : <><label>匹配方式<Select aria-label={`${activeFilter.label}匹配方式`} value={activeFilter.operator ?? (activeFilter.controlType === "select" ? "equals" : "contains")} options={[
+                { label: "包含", value: "contains" }, { label: "不包含", value: "notContains" }, { label: "等于", value: "equals" }, { label: "为空", value: "isEmpty" }, { label: "不为空", value: "isNotEmpty" },
+              ]} onChange={(operator) => updateFilter(activeFilter.id, { operator, ...(operator === "contains" || operator === "notContains" ? { controlType: "input" } : {}) })} /></label>{activeFilter.operator !== "isEmpty" && activeFilter.operator !== "isNotEmpty" && <label>控件类型<Select aria-label={`${activeFilter.label}控件类型`} value={activeFilter.controlType} options={[
                 { label: "下拉选择", value: "select" }, { label: "输入框", value: "input" },
-              ]} onChange={(controlType) => updateFilter(activeFilter.id, { controlType })} /></label>}
+              ]} onChange={(controlType) => updateFilter(activeFilter.id, { controlType })} /></label>}</>}
+            {(activeFilter.operator === "isEmpty" || activeFilter.operator === "isNotEmpty") && <Typography.Text type="secondary">该条件为固定条件，预览页不显示值输入，应用时直接筛选{activeFilter.operator === "isEmpty" ? "为空" : "不为空"}的数据。</Typography.Text>}
             {activeFilter.controlType === "select" && <Typography.Text type="secondary">下拉项由数据源字段去重生成，默认最多展示 200 项；输入关键字时按服务端搜索。</Typography.Text>}
-            {activeFilter.controlType === "input" && <Typography.Text type="secondary">输入框使用包含匹配，适合订单号、客户名称等高基数字段。</Typography.Text>}
+            {activeFilter.controlType === "input" && <Typography.Text type="secondary">输入框支持包含、不包含与精确匹配，适合订单号、客户名称等高基数字段。</Typography.Text>}
           </section>}
           {activeFilter && <section className="dashboard-filter-drawer__targets">
             <Typography.Title level={5}>联动图表</Typography.Title>

@@ -48,7 +48,7 @@ describe("QueryFiltersPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "查询" }));
 
     await waitFor(() => expect(store.getState().history.present.components[0]!.props.queryFilters).toEqual([
-      { kind: "fieldText", fieldKey: "product", value: "小米" },
+      { kind: "fieldText", fieldKey: "product", operator: "contains", value: "小米" },
     ]));
   });
 
@@ -76,8 +76,8 @@ describe("QueryFiltersPanel", () => {
     expect(screen.queryByRole("button", { name: "删除已选条件2" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "删除已选条件1" })).toBeInTheDocument();
     expect(store.getState().history.present.components[0]!.props.queryFilters).toEqual([
-      { kind: "fieldText", fieldKey: "product", value: "" },
-      { kind: "fieldText", fieldKey: "product", value: "" },
+      { kind: "fieldText", fieldKey: "product", operator: "contains", value: "" },
+      { kind: "fieldText", fieldKey: "product", operator: "contains", value: "" },
     ]);
   });
 
@@ -97,7 +97,7 @@ describe("QueryFiltersPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "查询" }));
 
     await waitFor(() => expect(store.getState().history.present.components[0]!.props.queryFilters).toEqual([
-      { kind: "fieldText", fieldKey: "product", value: "" },
+      { kind: "fieldText", fieldKey: "product", operator: "contains", value: "" },
     ]));
   });
 });

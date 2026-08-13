@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "vite",
     "prebuild": "pnpm --filter @drag-visual/component-registry build && pnpm --filter @drag-visual/data-engine build && pnpm --filter @drag-visual/editor-core build && pnpm --filter @drag-visual/chart-renderer build",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "lint": "tsc -p tsconfig.json --noEmit",

@@ -137,8 +137,8 @@ it("renders every configured analysis-group query control, including empty value
           gap: 12,
           showSurface: true,
           queryFilters: [
-            { kind: "fieldText", fieldKey: "orderNo", value: "" },
-            { kind: "fieldText", fieldKey: "currency", value: "" },
+            { kind: "fieldText", fieldKey: "orderNo", operator: "contains", value: "" },
+            { kind: "fieldText", fieldKey: "currency", operator: "contains", value: "" },
           ],
         },
       },
@@ -279,7 +279,7 @@ it("queries saved dataset parameters and renders a real KPI value", async () => 
 
   render(<AppProviders><DashboardViewer dashboard={bound} mode="preview" /></AppProviders>);
 
-  expect(await screen.findByLabelText("总收入指标值")).toHaveTextContent("120000 ¥");
+  expect(await screen.findByLabelText("总收入指标值")).toHaveTextContent("12万 ¥");
   expect(screen.queryByText("组件类型：kpi")).not.toBeInTheDocument();
 });
 

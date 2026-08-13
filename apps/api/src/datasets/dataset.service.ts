@@ -158,6 +158,7 @@ export class DatasetService {
       if (filter.kind === "dateRange" && field?.type === "date" && calendarDay(filter.start) && calendarDay(filter.end) && filter.start <= filter.end) continue;
       if (filter.kind === "fieldValue" && (field?.type === "string" || field?.type === "boolean")) continue;
       if (filter.kind === "fieldText" && field?.type === "string") continue;
+      if (filter.kind === "fieldNull" && field !== undefined) continue;
       if (filter.kind === "numberComparison" && field?.type === "number") continue;
       throw new DatasetQueryInvalidError();
     }

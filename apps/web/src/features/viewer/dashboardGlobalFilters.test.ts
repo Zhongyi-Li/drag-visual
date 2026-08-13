@@ -20,7 +20,7 @@ describe("dashboardGlobalFilters", () => {
     ], [
       { kind: "dateRange", fieldKey: "orderDate", start: "2026-08-05", end: "2026-08-05", timezone: "Asia/Shanghai" },
       { kind: "fieldValue", fieldKey: "store", values: ["旗舰店"] },
-      { kind: "fieldText", fieldKey: "orderNo", value: "001" },
+      { kind: "fieldText", fieldKey: "orderNo", operator: "contains", value: "001" },
     ])).toEqual([{ orderDate: "2026-08-05", store: "旗舰店", orderNo: "A-001" }]);
   });
 
@@ -31,6 +31,23 @@ describe("dashboardGlobalFilters", () => {
       { product: "C", amount: 101 },
     ], [{ kind: "numberComparison", fieldKey: "amount", operator: "gte", value: 100 }]))
       .toEqual([{ product: "B", amount: 100 }, { product: "C", amount: 101 }]);
+  });
+
+  it("maps and applies a non-containing text condition", () => {
+    const filters = [{
+      id: "product-exclude",
+      fieldKey: "product",
+      label: "商品名称",
+      controlType: "input" as const,
+      operator: "notContains" as const,
+      targets: [{ componentId: "chart-1", fieldKey: "product" }],
+    }];
+    expect(filtersForComponent(chart, filters, { "product-exclude": "小米" })).toEqual([
+      { kind: "fieldText", fieldKey: "product", operator: "notContains", value: "小米" },
+    ]);
+    expect(filterRowsByDashboardFilters([
+      { product: "小米电视" }, { product: "创维电视" }, { product: null },
+    ], [{ kind: "fieldText", fieldKey: "product", operator: "notContains", value: "小米" }])).toEqual([{ product: "创维电视" }]);
   });
 
   it("maps one global date range to the date field selected for each chart", () => {
@@ -61,11 +78,31 @@ describe("dashboardGlobalFilters", () => {
   });
 
   it("reads saved single-chart and analysis-group query conditions", () => {
-    const queryFilters = [{ kind: "fieldText" as const, fieldKey: "product", value: "小米" }];
+    const queryFilters = [{ kind: "fieldText" as const, fieldKey: "product", operator: "contains" as const, value: "小米" }];
     expect(componentQueryFilters({ props: { queryFilters } })).toEqual(queryFilters);
     expect(analysisGroupQueryFilters({ props: { queryFilters } })).toEqual(queryFilters);
-    const emptyControl = { kind: "fieldText", fieldKey: "product", value: "" };
+    const emptyControl = { kind: "fieldText", fieldKey: "product", operator: "contains", value: "" };
     expect(componentQueryFilterControls({ props: { queryFilters: [emptyControl] } })).toEqual([emptyControl]);
     expect(componentQueryFilters({ props: { queryFilters: [emptyControl] } })).toEqual([]);
+  });
+
+  it("applies empty and non-empty conditions without a viewer value", () => {
+    const filters = [{
+      id: "warehouse-empty",
+      fieldKey: "warehouse",
+      label: "仓库",
+      controlType: "select" as const,
+      operator: "isEmpty" as const,
+      targets: [{ componentId: "chart-1", fieldKey: "warehouse" }],
+    }];
+    expect(filtersForComponent({ id: "chart-1" }, filters, {})).toEqual([
+      { kind: "fieldNull", fieldKey: "warehouse", operator: "isEmpty" },
+    ]);
+    expect(filterRowsByDashboardFilters([
+      { warehouse: "" }, { warehouse: null }, { warehouse: "华东仓" }, {},
+    ], [{ kind: "fieldNull", fieldKey: "warehouse", operator: "isEmpty" }])).toHaveLength(3);
+    expect(filterRowsByDashboardFilters([
+      { warehouse: "" }, { warehouse: null }, { warehouse: "华东仓" }, {},
+    ], [{ kind: "fieldNull", fieldKey: "warehouse", operator: "isNotEmpty" }])).toEqual([{ warehouse: "华东仓" }]);
   });
 });

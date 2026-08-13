@@ -128,10 +128,21 @@ export type FieldValueFilter = z.infer<typeof FieldValueFilter>;
 export const FieldTextFilter = z.object({
   kind: z.literal("fieldText"),
   fieldKey: nonEmptyString,
+  // Old saved conditions omitted this field; retain their original contains behavior.
+  operator: z.enum(["contains", "notContains"]).default("contains"),
   value: z.string().min(1).max(200),
 }).strict();
 
 export type FieldTextFilter = z.infer<typeof FieldTextFilter>;
+
+/** Matches database NULL, missing values, and blank text without requiring a comparison value. */
+export const FieldNullFilter = z.object({
+  kind: z.literal("fieldNull"),
+  fieldKey: nonEmptyString,
+  operator: z.enum(["isEmpty", "isNotEmpty"]),
+}).strict();
+
+export type FieldNullFilter = z.infer<typeof FieldNullFilter>;
 
 export const NumericComparisonFilter = z.object({
   kind: z.literal("numberComparison"),
@@ -142,7 +153,7 @@ export const NumericComparisonFilter = z.object({
 
 export type NumericComparisonFilter = z.infer<typeof NumericComparisonFilter>;
 
-export const DatasetFilter = z.union([DateRangeFilter, FieldValueFilter, FieldTextFilter, NumericComparisonFilter]);
+export const DatasetFilter = z.union([DateRangeFilter, FieldValueFilter, FieldTextFilter, FieldNullFilter, NumericComparisonFilter]);
 
 export type DatasetFilter = z.infer<typeof DatasetFilter>;
 
@@ -150,7 +161,8 @@ export type DatasetFilter = z.infer<typeof DatasetFilter>;
 export const QueryFilterControl = z.union([
   DateRangeFilter,
   FieldValueFilter,
-  z.object({ kind: z.literal("fieldText"), fieldKey: nonEmptyString, value: z.string().max(200) }).strict(),
+  z.object({ kind: z.literal("fieldText"), fieldKey: nonEmptyString, operator: z.enum(["contains", "notContains"]).default("contains"), value: z.string().max(200) }).strict(),
+  FieldNullFilter,
   NumericComparisonFilter,
 ]);
 
