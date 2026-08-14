@@ -98,6 +98,7 @@ export const InspectorPanel = ({
     <Collapse
       ghost
       className="inspector-analysis"
+      defaultActiveKey={["interaction"]}
       items={[
         {
           key: "interaction",
@@ -107,14 +108,14 @@ export const InspectorPanel = ({
             : selected.type === "analysisGroup" || selected.type === "dashboardHeader"
               ? <Typography.Text type="secondary">该组件不支持独立数据交互。</Typography.Text>
               : <>
-                  <DateFilterConfigurationPanel store={store} component={selected} />
-                  <QueryFiltersPanel component={selected} definition={registry.get(selected.type)} scope="component" store={store} />
+                  <div className="inspector-analysis__card inspector-analysis__date-card">
+                    <div className="inspector-analysis__card-heading">日期筛选</div>
+                    <DateFilterConfigurationPanel store={store} component={selected} />
+                  </div>
+                  <div className="inspector-analysis__card inspector-analysis__query-card">
+                    <QueryFiltersPanel component={selected} definition={registry.get(selected.type)} scope="component" store={store} />
+                  </div>
                 </>,
-        },
-        {
-          key: "advanced",
-          label: "高级设置",
-          children: <Typography.Text type="secondary">高级设置功能开发中。</Typography.Text>,
         },
       ]}
     />

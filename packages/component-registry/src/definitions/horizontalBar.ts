@@ -13,7 +13,7 @@ const HorizontalBarPropsSchema = z.object({
 
 const dataSlots = Object.freeze([
   Object.freeze({ key: "dimension", title: "分类维度", acceptedTypes: Object.freeze(["string", "date", "boolean"] as const), required: true, multiple: false }),
-  Object.freeze({ key: "measure", title: "条形指标", acceptedTypes: Object.freeze(["number"] as const), required: true, multiple: false }),
+  Object.freeze({ key: "measure", title: "条形指标", acceptedTypes: Object.freeze(["number"] as const), required: true, multiple: true }),
 ]);
 
 export const horizontalBarDefinition: ComponentDefinition<z.infer<typeof HorizontalBarPropsSchema>> = Object.freeze({
@@ -27,7 +27,7 @@ export const horizontalBarDefinition: ComponentDefinition<z.infer<typeof Horizon
   validateBinding: (binding: DataBinding | undefined) => {
     const checks = [
       requireSlot(binding, "dimension", "请选择一个分类维度字段"),
-      requireSlot(binding, "measure", "请选择一个条形指标字段"),
+      requireSlot(binding, "measure", "请选择至少一个条形指标字段"),
     ];
     const messages = checks.flatMap((check) => check.messages);
     return Object.freeze({ valid: messages.length === 0, messages: Object.freeze(messages) });

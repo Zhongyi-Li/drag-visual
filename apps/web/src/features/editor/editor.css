@@ -142,20 +142,21 @@
 .analysis-group-canvas__grid .component-frame.component-frame--selected, .analysis-group-canvas__grid .component-frame.component-frame--selected:hover { border-color: #1677ff; box-shadow: 0 0 0 1px rgba(22, 119, 255, .15), 0 4px 12px rgba(22, 119, 255, .10); }
 .analysis-group-canvas__loading { position: absolute; z-index: 4; inset: 0; display: flex; align-items: center; justify-content: center; color: #1677ff; font-size: 13px; background: rgba(255, 255, 255, .4); pointer-events: none; }
 .editor-canvas__grid-container > .react-grid-layout { position: relative; z-index: 1; }
-.query-filters-panel { border-top: 1px solid #eef1f5; margin-top: 18px; padding-top: 16px; }
+.query-filters-panel { margin: 0; }
 .query-filters-panel__heading { align-items: center; display: flex; gap: 9px; }
-.query-filters-panel__heading-icon { align-items: center; background: #eaf2ff; border-radius: 8px; color: #246fe5; display: inline-flex; height: 28px; justify-content: center; width: 28px; }
+.query-filters-panel__heading-icon { align-items: center; background: #e8f1ff; border-radius: 7px; color: #246fe5; display: inline-flex; height: 26px; justify-content: center; width: 26px; }
 .query-filters-panel__heading strong { color: #1f2937; display: block; font-size: 14px; line-height: 1.15; }
 .query-filters-panel__heading .ant-typography { display: block; font-size: 12px; line-height: 1.2; margin-top: 3px; }
 .query-filters-panel__intro { color: #7b8798; font-size: 12px; line-height: 1.55; margin: 10px 0 12px; }
-.query-filters-panel__summary { display: grid; gap: 7px; margin-top: 10px; }
-.query-filters-panel__summary-item { align-items: center; background: #fbfdff; border: 1px solid #e3ebf5; border-radius: 8px; display: flex; gap: 8px; min-height: 42px; padding: 6px 7px 6px 10px; }
+.query-filters-panel__summary { display: grid; gap: 6px; margin-top: 12px; }
+.query-filters-panel__summary-item { align-items: center; background: #fff; border: 1px solid #e7ebf0; border-radius: 6px; display: flex; gap: 8px; min-height: 40px; padding: 6px 7px 6px 10px; }
 .query-filters-panel__summary-item > div { display: flex; flex: 1; flex-direction: column; gap: 2px; min-width: 0; }
 .query-filters-panel__summary-item strong { color: #344054; font-size: 12px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .query-filters-panel__summary-item span { color: #7b8798; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .query-filters-panel__summary-item .ant-btn { flex: 0 0 auto; height: 26px; padding-inline: 5px; }
-.query-filters-panel__empty { align-items: center; background: #fafcff; border: 1px dashed #d9e4f2; border-radius: 10px; color: #94a3b8; display: flex; font-size: 12px; justify-content: center; min-height: 58px; }
-.query-filters-panel__actions { align-items: center; display: flex; width: 100%; }
+.query-filters-panel__empty { align-items: center; background: #fff; border: 1px dashed #cfdae8; border-radius: 6px; color: #9aa7b8; display: flex; font-size: 12px; justify-content: center; min-height: 52px; }
+.query-filters-panel__actions { align-items: center; display: flex; margin-top: 12px !important; width: 100%; }
+.query-filters-panel__actions .ant-btn { border-radius: 6px; box-shadow: none; }
 .query-filters-panel__actions .ant-btn-primary { margin-left: auto; }
 .query-filters-drawer .ant-drawer-header { border-bottom-color: #edf1f5; }
 .query-filters-drawer .ant-drawer-body { background: #fff; padding: 18px max(18px, calc((100% - 920px) / 2)); }
@@ -276,17 +277,17 @@
 .component-frame--untitled .component-frame__chart-content { padding-inline: 12px; }
 .component-frame__renderer[data-interacting="true"] { opacity: .65; }
 .component-frame__refresh-mask { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; color: #1677ff; background: rgba(255, 255, 255, .78); font-size: 13px; font-weight: 500; pointer-events: none; }
-.date-filter-configuration { display: flex; flex-direction: column; gap: 16px; padding: 8px 10px 14px; }
-.date-filter-configuration__switch { min-height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #262626; font-size: 14px; }
+.date-filter-configuration { display: flex; flex-direction: column; gap: 12px; padding: 0; }
+.date-filter-configuration__switch { min-height: 28px; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #344054; font-size: 13px; }
 .date-filter-configuration__switch > .ant-typography { color: inherit; font-size: inherit; font-weight: 500; }
-.date-filter-configuration__fields { display: flex; flex-direction: column; gap: 14px; padding-top: 14px; border-top: 1px solid #f0f0f0; }
+.date-filter-configuration__fields { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
 .date-filter-configuration__field { display: flex; flex-direction: column; gap: 6px; color: #8c8c8c; font-size: 12px; font-weight: 500; line-height: 18px; }
 .date-filter-configuration__range { display: flex; gap: 8px; }
 .date-filter-configuration__range .ant-btn { height: 30px; padding-inline: 14px; border-color: #cbd5e1; color: #334155; font-size: 13px; font-weight: 600; }
 .date-filter-configuration__range .ant-btn-primary { border-color: #172033; background: #172033; color: #fff; }
 .date-filter-configuration__custom-switch { min-height: 28px; padding-top: 1px; color: #595959; font-size: 13px; font-weight: 400; }
 .date-filter-configuration__custom-switch > .ant-typography { font-weight: 400; }
-.date-filter-field-drop { min-height: 60px; padding: 10px; display: flex; flex-direction: column; justify-content: center; gap: 5px; border: 1px solid #d9d9d9; border-radius: 4px; background: #fff; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+.date-filter-field-drop { min-height: 56px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border: 1px solid #dce3ec; border-radius: 6px; background: #fff; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
 .date-filter-field-drop--active { border-color: #1677ff; background: #f0f7ff; box-shadow: 0 0 0 2px rgb(22 119 255 / 12%); }
 .date-filter-field-drop__value { min-width: 0; display: flex; align-items: center; gap: 7px; color: #262626; font-size: 14px; font-weight: 500; line-height: 20px; }
 .date-filter-field-drop__value .anticon { color: #4c8ffb; }
@@ -455,11 +456,15 @@
 .display-hints-panel__position-picker button:hover:not(:disabled), .display-hints-panel__position-picker button.is-selected { color: #1677ff; border-color: #bae0ff; background: #f0f7ff; }
 .display-hints-panel__position-picker button:disabled { color: #bfbfbf; cursor: not-allowed; }
 .inspector-analysis.ant-collapse { border-radius: 0; }
-.inspector-analysis.ant-collapse > .ant-collapse-item { border-bottom: 1px solid #f0f0f0; }
-.inspector-analysis.ant-collapse > .ant-collapse-item > .ant-collapse-header { min-height: 36px; padding: 8px 16px; color: #262626; font-size: 13px; font-weight: 500; line-height: 20px; }
+.inspector-analysis.ant-collapse > .ant-collapse-item { border-bottom: 1px solid #edf0f4; }
+.inspector-analysis.ant-collapse > .ant-collapse-item > .ant-collapse-header { min-height: 38px; padding: 9px 16px; color: #344054; font-size: 13px; font-weight: 600; line-height: 20px; }
 .inspector-analysis.ant-collapse > .ant-collapse-item > .ant-collapse-header > .ant-collapse-expand-icon { margin-inline-end: 8px; color: #64748b; font-size: 10px; }
 .inspector-analysis.ant-collapse > .ant-collapse-item > .ant-collapse-header > .ant-collapse-expand-icon svg { width: 10px; height: 10px; }
-.inspector-analysis.ant-collapse > .ant-collapse-item > .ant-collapse-content > .ant-collapse-content-box { padding: 0 16px 12px; }
+.inspector-analysis.ant-collapse > .ant-collapse-item > .ant-collapse-content > .ant-collapse-content-box { padding: 8px 12px 14px; }
+.inspector-analysis__card { border-radius: 7px; background: #f6f7f9; padding: 12px; }
+.inspector-analysis__card + .inspector-analysis__card { margin-top: 10px; }
+.inspector-analysis__card-heading { color: #475467; font-size: 12px; font-weight: 600; line-height: 18px; margin-bottom: 10px; }
+.inspector-analysis__query-card { padding-top: 11px; }
 .binding-field { width: 100%; }
 .binding-field--drop-target { position: relative; border-radius: 6px; outline: 2px solid #91caff; outline-offset: 3px; background: #f0f7ff; }
 .binding-field__label { min-height: 22px; margin-bottom: 6px; display: flex; align-items: center; gap: 4px; }

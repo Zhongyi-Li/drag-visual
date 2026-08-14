@@ -475,6 +475,19 @@ export const buildBarOption = (
             borderRadius: index === 0 ? [3, 3, 0, 0] : index === measures.length - 1 ? [0, 0, 3, 3] : 0,
           }
         : { color: colors[index % colors.length] },
+      label: {
+        show: true,
+        position: stacked ? "inside" : "top",
+        color: stacked ? "#ffffff" : "#475569",
+        fontSize: 11,
+        formatter: ({ value }: { readonly value: unknown }) => {
+          const numeric = Number(value);
+          if (!Number.isFinite(numeric) || numeric === 0) return "";
+          return percentage
+            ? `${numeric.toFixed(numeric >= 10 ? 0 : 1).replace(/\.0$/, "")}%`
+            : formatMetricValue(numeric, currencyMeasures.has(measure), quantityMeasures.has(measure));
+        },
+      },
       emphasis: { focus: percentage ? "none" : "series" },
       tooltip: percentage ? undefined : {
         valueFormatter: (value: unknown) => formatMetricValue(Number(value), currencyMeasures.has(measure), quantityMeasures.has(measure)),
@@ -494,51 +507,71 @@ export const buildHorizontalBarOption = (
   rowsAreAggregated = false,
 ) => {
   const dimension = fieldKeys(component, "dimension")[0] ?? "";
-  const measure = fieldKeys(component, "measure")[0] ?? "";
+  const measures = fieldKeys(component, "measure");
+  const primaryMeasure = measures[0] ?? "";
   const aggregation = propString(component, "aggregation", "sum") as CrosstabAggregation;
   const dimensionField = fields.find((field) => field.key === dimension);
   const fieldLabels = new Map(fields.map((field) => [field.key, field.label]));
   const aggregatedRows = rowsAreAggregated
     ? rows
-    : aggregateBarRows(rows, dimension, [measure], dimensionField, (fieldKey) => metricAggregationFor(component, "measure", fieldKey, aggregation));
+    : aggregateBarRows(rows, dimension, measures, dimensionField, (fieldKey) => metricAggregationFor(component, "measure", fieldKey, aggregation));
   const maxItems = Math.max(3, Math.min(20, Math.trunc(typeof component.props.maxItems === "number" ? component.props.maxItems : 10)));
   const rankedRows = [...aggregatedRows]
-    .sort((left, right) => numericValue(right, measure) - numericValue(left, measure) || compareLabels(lineDimensionLabel(left[dimension], dimensionField), lineDimensionLabel(right[dimension], dimensionField)))
+    .sort((left, right) => numericValue(right, primaryMeasure) - numericValue(left, primaryMeasure) || compareLabels(lineDimensionLabel(left[dimension], dimensionField), lineDimensionLabel(right[dimension], dimensionField)))
     .slice(0, maxItems);
-  const isCurrency = isCurrencyMetric(measure, fields);
-  const isQuantity = isQuantityMetric(measure, fields);
-  const isNumericMeasure = fields.find((field) => field.key === measure)?.type === "number";
-  const values = rankedRows.map((row) => numericValue(row, measure));
+  const currencyMeasures = new Set(measures.filter((measure) => isCurrencyMetric(measure, fields)));
+  const quantityMeasures = new Set(measures.filter((measure) => isQuantityMetric(measure, fields)));
+  const allMeasuresAreCurrency = measures.length > 0 && currencyMeasures.size === measures.length;
+  const allMeasuresAreQuantity = measures.length > 0 && quantityMeasures.size === measures.length;
+  const isNumericMeasure = measures.some((measure) => fields.find((field) => field.key === measure)?.type === "number");
+  const maximum = Math.max(0, ...rankedRows.flatMap((row) => measures.map((measure) => numericValue(row, measure))));
   // The headline reflects the full filtered result, rather than only the
   // visible Top-N bars, so it remains a reliable total when authors reduce
   // the chart's maximum display count.
-  const total = aggregatedRows.reduce((sum, row) => sum + numericValue(row, measure), 0);
-  const maximum = Math.max(0, ...values);
+  const totalText = measures.map((measure) => {
+    const total = aggregatedRows.reduce((sum, row) => sum + numericValue(row, measure), 0);
+    return `${fieldLabels.get(measure) ?? measure} ${formatMetricValue(total, currencyMeasures.has(measure), quantityMeasures.has(measure))}`;
+  }).join(" · ");
   const showValue = component.props.showValue !== false;
-  const color = propString(component, "color", "#5b6ff0");
-  const measureLabel = fieldLabels.get(measure) ?? measure;
+  const colors = [propString(component, "color", "#5b6ff0"), "#36cfc9", "#9254de", "#fa8c16"];
+  const measureLabels = new Map(measures.map((measure) => [measure, fieldLabels.get(measure) ?? measure]));
+  const showLegend = measures.length > 1;
   return {
     // Keep the right-side total aligned with the drawable X-axis edge, not
     // the full canvas edge (which reserves space for bar value labels).
     ...(isNumericMeasure ? {
       title: {
-        text: `总计 ${formatMetricValue(total, isCurrency, isQuantity)}`,
+        text: `总计 ${totalText}`,
         right: showValue ? 72 : 20,
         top: 4,
         textStyle: { color: "#334155", fontSize: 12, fontWeight: 600 },
       },
     } : {}),
-    grid: { top: isNumericMeasure ? 38 : 14, right: showValue ? 72 : 20, bottom: 14, left: 12, containLabel: true },
+    legend: {
+      show: showLegend,
+      top: isNumericMeasure ? 28 : 8,
+      left: 12,
+      icon: "circle",
+      itemWidth: 8,
+      itemHeight: 8,
+      itemGap: 16,
+      textStyle: { color: "#475569", fontSize: 12 },
+    },
+    grid: { top: isNumericMeasure ? showLegend ? 62 : 38 : showLegend ? 36 : 14, right: showValue ? 72 : 20, bottom: 14, left: 12, containLabel: true },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },
-      formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, isCurrency ? new Set([measureLabel]) : new Set(), isQuantity ? new Set([measureLabel]) : new Set()),
+      formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(
+        params,
+        new Set(measures.filter((measure) => currencyMeasures.has(measure)).map((measure) => measureLabels.get(measure) ?? measure)),
+        new Set(measures.filter((measure) => quantityMeasures.has(measure)).map((measure) => measureLabels.get(measure) ?? measure)),
+      ),
     },
     xAxis: {
       type: "value",
       min: 0,
       max: maximum === 0 ? 1 : Math.ceil(maximum * 1.08),
-      axisLabel: { color: "#64748b", formatter: (value: number) => compactAxisValue(value, isCurrency, isQuantity) },
+      axisLabel: { color: "#64748b", formatter: (value: number) => compactAxisValue(value, allMeasuresAreCurrency, allMeasuresAreQuantity) },
       splitLine: { show: false },
       axisLine: { show: false },
       axisTick: { show: false },
@@ -552,20 +585,20 @@ export const buildHorizontalBarOption = (
       axisLabel: { color: "#475569", width: 176, overflow: "truncate", margin: 16 },
       splitLine: { show: true, lineStyle: { color: "#edf0f5" } },
     },
-    series: [{
+    series: measures.map((measure, index) => ({
       type: "bar",
-      name: measureLabel,
-      data: values,
-      barMaxWidth: 28,
-      itemStyle: { color, borderRadius: [0, 8, 8, 0] },
+      name: measureLabels.get(measure) ?? measure,
+      data: rankedRows.map((row) => numericValue(row, measure)),
+      barMaxWidth: Math.max(12, Math.floor(28 / Math.max(1, measures.length))),
+      itemStyle: { color: colors[index % colors.length], borderRadius: [0, 8, 8, 0] },
       label: showValue ? {
         show: true,
         position: "right",
         color: "#475569",
-        formatter: ({ value }: { readonly value: unknown }) => formatMetricValue(Number(value), isCurrency, isQuantity),
+        formatter: ({ value }: { readonly value: unknown }) => formatMetricValue(Number(value), currencyMeasures.has(measure), quantityMeasures.has(measure)),
       } : { show: false },
-      tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), isCurrency, isQuantity) },
-    }],
+      tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), currencyMeasures.has(measure), quantityMeasures.has(measure)) },
+    })),
   };
 };
 
@@ -692,6 +725,16 @@ export const buildBarLineOption = (
         data: displayRows.map((row) => numericValue(row, barMeasure)),
         barMaxWidth: 42,
         itemStyle: { color: propString(component, "barColor", "#2f62dc"), borderRadius: [7, 7, 0, 0] },
+        label: {
+          show: true,
+          position: "top",
+          color: "#475569",
+          fontSize: 11,
+          formatter: ({ value }: { readonly value: unknown }) => {
+            const numeric = Number(value);
+            return !Number.isFinite(numeric) || numeric === 0 ? "" : formatMetricValue(numeric, barIsCurrency, barIsQuantity);
+          },
+        },
         tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), barIsCurrency, barIsQuantity) },
       }] : []),
       ...(showLine ? [{
@@ -704,6 +747,16 @@ export const buildBarLineOption = (
         symbolSize: 9,
         lineStyle: { width: 4, color: propString(component, "lineColor", "#ff7417") },
         itemStyle: { color: propString(component, "lineColor", "#ff7417") },
+        label: {
+          show: true,
+          position: "top",
+          color: "#475569",
+          fontSize: 11,
+          formatter: ({ value }: { readonly value: unknown }) => {
+            const numeric = Number(value);
+            return !Number.isFinite(numeric) || numeric === 0 ? "" : formatMetricValue(numeric, lineIsCurrency, lineIsQuantity);
+          },
+        },
         tooltip: { valueFormatter: (value: unknown) => formatMetricValue(Number(value), lineIsCurrency, lineIsQuantity) },
       }] : []),
     ],

@@ -228,7 +228,7 @@ describe("component registry", () => {
     expect(horizontalBar.createDefaults()).toEqual({ aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true });
     expect(horizontalBar.dataSlots).toEqual([
       expect.objectContaining({ key: "dimension", title: "分类维度", required: true }),
-      expect.objectContaining({ key: "measure", title: "条形指标", required: true, multiple: false }),
+      expect.objectContaining({ key: "measure", title: "条形指标", required: true, multiple: true }),
     ]);
 
     expect(barLineDefinition.title).toBe("柱状折线组合图");

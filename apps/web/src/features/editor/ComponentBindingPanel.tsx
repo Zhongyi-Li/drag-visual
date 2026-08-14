@@ -159,7 +159,7 @@ const slotHelpText = (slotKey: string, slotTitle: string, componentType: Compone
   if (slotKey === "dimensions") return "作为多维分析的分组层级，可选择地区、品类、渠道等多个分类字段。";
   if (slotKey === "measures") return "作为多维分析要汇总的数值指标，可选择销售额、订单数、访客数等多个指标。";
   if (componentType === "bar" && slotKey === "measure") return "可选择一个或多个数值指标；多个指标会按同一维度并列展示为多组柱。";
-  if (componentType === "horizontalBar" && slotKey === "measure") return "选择一个数值指标，图表会按汇总结果从高到低排列，适合展示商品、门店或品类排名。";
+  if (componentType === "horizontalBar" && slotKey === "measure") return "可选择多个数值指标，按第一个指标从高到低排列；建议选择量纲相近的指标，便于横向比较。";
   if (componentType === "barLine" && slotKey === "barMeasure") return "选择以柱状展示的主指标，例如库存金额或销售额。";
   if (componentType === "barLine" && slotKey === "lineMeasure") return "选择以折线展示的对比指标，例如库存数量或订单数；该指标使用右侧纵轴。";
   if (componentType === "ringBar" && slotKey === "measure") return "主指标决定各维度同心环的长度，系统会按所选聚合方式汇总。";

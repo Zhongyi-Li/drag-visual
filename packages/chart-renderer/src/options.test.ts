@@ -116,8 +116,22 @@ describe("component option builders", () => {
     }), chartRows, chartFields);
     expect(horizontal.yAxis.data).toEqual(["Note 14", "K80", "15 Ultra"]);
     expect(horizontal.series[0]).toMatchObject({ type: "bar", data: [1660, 1420, 1074], label: { show: true, position: "right" } });
-    expect(horizontal.title).toMatchObject({ text: "总计 0.42万 ¥", right: 72, top: 4 });
+    expect(horizontal.title).toMatchObject({ text: "总计 库存金额 0.42万 ¥", right: 72, top: 4 });
     expect(horizontal.grid).toMatchObject({ top: 38, right: 72 });
+
+    const multiMetricHorizontal = buildHorizontalBarOption(component({
+      type: "horizontalBar",
+      props: { aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true },
+      binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, measure: [{ fieldKey: "inventoryAmount" }, { fieldKey: "inventoryQuantity" }] } },
+    }), chartRows, chartFields);
+    expect(multiMetricHorizontal.yAxis.data).toEqual(["Note 14", "K80", "15 Ultra"]);
+    expect(multiMetricHorizontal.series).toEqual([
+      expect.objectContaining({ name: "库存金额", data: [1660, 1420, 1074] }),
+      expect.objectContaining({ name: "库存数量", data: [120, 80, 36] }),
+    ]);
+    expect(multiMetricHorizontal.title).toMatchObject({ text: "总计 库存金额 0.42万 ¥ · 库存数量 236 件" });
+    expect(multiMetricHorizontal.legend).toMatchObject({ show: true, top: 28, left: 12 });
+    expect(multiMetricHorizontal.grid).toMatchObject({ top: 62 });
 
     const combo = buildBarLineOption(component({
       type: "barLine",
@@ -127,8 +141,8 @@ describe("component option builders", () => {
     expect(combo.yAxis).toHaveLength(2);
     expect(combo.grid).toMatchObject({ top: 68, left: 64, right: 72, containLabel: true });
     expect(combo.series).toEqual([
-      expect.objectContaining({ type: "bar", name: "库存金额", data: [1660, 1420, 1074] }),
-      expect.objectContaining({ type: "line", name: "库存数量", yAxisIndex: 1, data: [120, 80, 36] }),
+      expect.objectContaining({ type: "bar", name: "库存金额", data: [1660, 1420, 1074], label: expect.objectContaining({ show: true, position: "top" }) }),
+      expect.objectContaining({ type: "line", name: "库存数量", yAxisIndex: 1, data: [120, 80, 36], label: expect.objectContaining({ show: true, position: "top" }) }),
     ]);
     expect(combo.tooltip.formatter([
       { axisValueLabel: "K80", marker: "●", seriesName: "库存金额", value: 1423 },
@@ -546,8 +560,8 @@ describe("component option builders", () => {
     expect(stacked.xAxis).toMatchObject({ boundaryGap: true, name: "月份", data: ["2026-01", "2026-02"] });
     expect(stacked.yAxis).toMatchObject({ min: 0, max: 300, interval: 100 });
     expect(stacked.series).toEqual([
-      expect.objectContaining({ type: "bar", name: "销售额", data: [120, 150], stack: "total" }),
-      expect.objectContaining({ type: "bar", name: "毛利", data: [40, 60], stack: "total" }),
+      expect.objectContaining({ type: "bar", name: "销售额", data: [120, 150], stack: "total", label: expect.objectContaining({ show: true, position: "inside" }) }),
+      expect.objectContaining({ type: "bar", name: "毛利", data: [40, 60], stack: "total", label: expect.objectContaining({ show: true, position: "inside" }) }),
     ]);
     expect(stacked.tooltip).toMatchObject({ trigger: "item" });
     expect(stacked.tooltip.formatter?.({ marker: "●", seriesName: "毛利", value: 60 })).toBe("●毛利<br/>60 ¥");
@@ -562,8 +576,8 @@ describe("component option builders", () => {
     }), rows, lineFields);
 
     expect(grouped.series).toEqual([
-      expect.objectContaining({ type: "bar", name: "销售额", data: [10], stack: undefined }),
-      expect.objectContaining({ type: "bar", name: "毛利", data: [4], stack: undefined }),
+      expect.objectContaining({ type: "bar", name: "销售额", data: [10], stack: undefined, label: expect.objectContaining({ show: true, position: "top" }) }),
+      expect.objectContaining({ type: "bar", name: "毛利", data: [4], stack: undefined, label: expect.objectContaining({ show: true, position: "top" }) }),
     ]);
     expect(buildBarOption(component({}), rows).series).toEqual([
       expect.objectContaining({ name: "月收入", data: [10] }),

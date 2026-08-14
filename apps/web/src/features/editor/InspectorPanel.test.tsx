@@ -109,7 +109,7 @@ describe("InspectorPanel", () => {
     await userEvent.click(screen.getByText("数据交互"));
 
     expect(screen.getByText("选择图表后配置日期筛选。")).toBeInTheDocument();
-    expect(screen.getByText("高级设置")).toBeInTheDocument();
+    expect(screen.queryByText("高级设置")).not.toBeInTheDocument();
     expect(document.querySelector(".inspector-analysis")).toBeInTheDocument();
   });
 
