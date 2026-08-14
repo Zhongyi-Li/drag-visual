@@ -190,7 +190,7 @@ export const ComponentDataPanel = ({
     store.getState().dispatch({
       type: "component.binding.update",
       componentId: selected.id,
-      nextBinding: { ...selected.binding, slots: nextSlots },
+      nextBinding: DataBinding.parse({ ...selected.binding, slots: nextSlots }),
     });
   };
   const removeHeaderFilter = (fieldKey: string) => {

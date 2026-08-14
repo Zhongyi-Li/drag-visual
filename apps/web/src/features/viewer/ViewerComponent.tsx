@@ -1,5 +1,5 @@
 import { createDefaultRegistry } from "@drag-visual/component-registry";
-import type { ComponentInstance, Dashboard, Dataset, DatasetFilter } from "@drag-visual/contracts";
+import type { ComponentInstance, Dashboard, Dataset, DatasetFilter, DatasetQueryResult } from "@drag-visual/contracts";
 import { applyTransforms, validateBinding } from "@drag-visual/data-engine";
 import { DashboardComponentRenderer, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -7,6 +7,7 @@ import { Alert, Empty, Spin } from "antd";
 import { useEffect, useState } from "react";
 
 import { buildDatasetAggregation } from "../datasets/datasetAggregation.js";
+import { aggregateLocalRows, applyCalculatedMetrics, calculatedMetricFields, hasActiveCalculatedMetrics } from "../datasets/calculatedMetrics.js";
 import { getDataset, getDatasetFieldOptions, queryDatasetRequest } from "../datasets/datasetApi.js";
 import { DateRangeFilterBar } from "../datasets/DateRangeFilterBar.js";
 import { ChartQueryFilterBar, type ChartQueryFilterControl } from "../datasets/ChartQueryFilterBar.js";
@@ -38,7 +39,7 @@ interface ViewerComponentProps {
 
 interface ResolvedComponentProps extends ViewerComponentProps {
   readonly dataset: Dataset;
-  readonly rows: readonly Readonly<Record<string, unknown>>[];
+  readonly rows: readonly DatasetQueryResult["rows"][number][];
   readonly rowsAreAggregated?: boolean | undefined;
 }
 
@@ -49,7 +50,8 @@ const formatBindingMessage = (message: string): string => {
 
 const ResolvedComponent = ({ component, dataset, rows, rowsAreAggregated = false, globalFilterValues, globalFilters, globalFilterOptions, onGlobalFilterChange, globalFiltersLoading, onGlobalFiltersApply }: ResolvedComponentProps) => {
   const definition = createDefaultRegistry().get(component.type);
-  const validation = validateBinding(component.binding, dataset.fields, definition.dataSlots);
+  const fields = calculatedMetricFields(dataset.fields, component.binding);
+  const validation = validateBinding(component.binding, fields, definition.dataSlots);
   if (!validation.valid) {
     return (
       <Alert
@@ -69,10 +71,11 @@ const ResolvedComponent = ({ component, dataset, rows, rowsAreAggregated = false
         ...(component.binding.sort === undefined ? {} : { sort: component.binding.sort }),
       }
       : component.binding;
-  const transformed = applyTransforms(rows, bindingForRender, dataset.fields);
+  const calculatedRows = applyCalculatedMetrics(rows, component.binding);
+  const transformed = applyTransforms(calculatedRows, bindingForRender, fields);
   return <div style={{ position: "relative", display: "flex", flex: "1 1 auto", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
     <ResponsiveChartContainer>
-      <DashboardComponentRenderer component={component} fields={dataset.fields} rows={transformed} rowsAreAggregated={rowsAreAggregated} dashboardFilterValues={globalFilterValues} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} />
+      <DashboardComponentRenderer component={component} fields={fields} rows={transformed} rowsAreAggregated={rowsAreAggregated} dashboardFilterValues={globalFilterValues} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} />
     </ResponsiveChartContainer>
     {component.type !== "analysisGroup" && component.type !== "dashboardHeader" && <ChartDisplayHints component={component} />}
   </div>;
@@ -156,9 +159,12 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
 
   const unfilteredResult = localResult ?? data.data;
   const localFilters = activeFilters;
-  const resolvedResult = isUploadedDataset && localResult !== undefined && localFilters.length > 0
+  const unaggregatedResult = isUploadedDataset && localResult !== undefined && localFilters.length > 0
     ? { ...localResult, rows: filterRowsByDashboardFilters(localResult.rows, localFilters), total: filterRowsByDashboardFilters(localResult.rows, localFilters).length }
     : unfilteredResult;
+  const resolvedResult = isUploadedDataset && unaggregatedResult !== undefined && aggregation !== undefined && hasActiveCalculatedMetrics(component.binding)
+    ? { ...unaggregatedResult, rows: aggregateLocalRows(unaggregatedResult.rows, aggregation), total: aggregateLocalRows(unaggregatedResult.rows, aggregation).length }
+    : unaggregatedResult;
   const localQueryFilterOptions = isUploadedDataset && localResult !== undefined
     ? Object.fromEntries(savedComponentQueryFilterControls.filter((filter) => filter.kind === "fieldValue").map((filter) => [
         filter.fieldKey,
@@ -219,7 +225,7 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
           savedDataset={savedDataset}
           dataset={resultDataset}
           rows={resolvedResult.rows}
-          rowsAreAggregated={aggregation !== undefined && localResult === undefined}
+          rowsAreAggregated={aggregation !== undefined && (localResult === undefined || hasActiveCalculatedMetrics(component.binding))}
           globalFilterValues={globalFilterValues}
           globalFilters={globalFilters}
           globalFilterOptions={headerOptions}

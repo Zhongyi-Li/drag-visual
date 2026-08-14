@@ -201,4 +201,39 @@ describe("buildDatasetAggregation", () => {
       measures: [{ fieldKey: "saleGrossProfit", aggregation: "sum" }],
     });
   });
+
+  it("requests the source fields of a bound calculated metric rather than its synthetic key", () => {
+    const chart = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1",
+        type: "bar",
+        props: { aggregation: "sum", color: "#1677ff", showLegend: true },
+        binding: {
+          datasetId: "sales",
+          slots: { dimension: { fieldKey: "psCProEname" }, measure: { fieldKey: "calculated-margin" } },
+          calculatedMetrics: [{
+            id: "calculated-margin",
+            name: "毛利率",
+            format: "percent",
+            decimals: 2,
+            divideByZero: "dash",
+            tokens: [
+              { kind: "metric", reference: { fieldKey: "saleGrossProfit", aggregation: "sum" } },
+              { kind: "operator", value: "/" },
+              { kind: "metric", reference: { fieldKey: "salesAmount", aggregation: "sum" } },
+            ],
+          }],
+        },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(chart)).toEqual({
+      groupBy: ["psCProEname"],
+      measures: [
+        { fieldKey: "saleGrossProfit", aggregation: "sum" },
+        { fieldKey: "salesAmount", aggregation: "sum" },
+      ],
+    });
+  });
 });

@@ -1,5 +1,7 @@
 import type { ComponentInstance, DatasetAggregation, DatasetQueryRequest, FieldBinding } from "@drag-visual/contracts";
 
+import { activeCalculatedMetricReferences, calculatedMetricsForBinding } from "./calculatedMetrics.js";
+
 const aggregationValues = new Set<DatasetAggregation>(["sum", "avg", "count", "max", "min"]);
 const groupSlotKeys = new Set(["dimension", "dimensions", "timeDimension", "dateDimension", "rowDimension", "columnDimension"]);
 const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasure", "target", "comparison", "secondaryMeasures", "tooltipMeasures"]);
@@ -28,14 +30,17 @@ export const buildDatasetAggregation = (
   const groupBy = Object.entries(component.binding.slots)
     .filter(([slotKey]) => groupSlotKeys.has(slotKey))
     .flatMap(([, value]) => asBindings(value).map((binding) => binding.fieldKey));
+  const calculatedMetricIds = new Set(calculatedMetricsForBinding(component.binding).map((metric) => metric.id));
   const metricBindings = Object.entries(component.binding.slots)
     .filter(([slotKey]) => metricSlotKeys.has(slotKey))
-    .flatMap(([, value]) => asBindings(value));
-  if (metricBindings.length === 0) return undefined;
+    .flatMap(([, value]) => asBindings(value))
+    .filter((binding) => !calculatedMetricIds.has(binding.fieldKey));
+  const calculatedReferences = activeCalculatedMetricReferences(component.binding);
+  if (metricBindings.length === 0 && calculatedReferences.length === 0) return undefined;
   // The query contract identifies an aggregated value by its field key, so a
   // metric bound to more than one visual role (for example both column and
   // line) must only be requested once.
-  const measures = metricBindings.reduce<Array<{ fieldKey: string; aggregation: DatasetAggregation | undefined }>>((result, binding) => {
+  const measures = [...metricBindings, ...calculatedReferences].reduce<Array<{ fieldKey: string; aggregation: DatasetAggregation | undefined }>>((result, binding) => {
     if (result.some((measure) => measure.fieldKey === binding.fieldKey)) return result;
     result.push({ fieldKey: binding.fieldKey, aggregation: binding.aggregation ?? defaultAggregation });
     return result;

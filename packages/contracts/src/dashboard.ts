@@ -62,6 +62,36 @@ export const MetricAggregation = z.enum(["sum", "avg", "count", "max", "min"]);
 
 export type MetricAggregation = z.infer<typeof MetricAggregation>;
 
+/** A single numeric source referenced by a calculated metric after aggregation. */
+export const CalculatedMetricReference = z.object({
+  fieldKey: nonEmptyString,
+  aggregation: MetricAggregation,
+}).strict();
+
+export type CalculatedMetricReference = z.infer<typeof CalculatedMetricReference>;
+
+export const CalculatedMetricToken = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("metric"), reference: CalculatedMetricReference }).strict(),
+  z.object({ kind: z.literal("operator"), value: z.enum(["+", "-", "*", "/", "(", ")"]) }).strict(),
+]);
+
+export type CalculatedMetricToken = z.infer<typeof CalculatedMetricToken>;
+
+/**
+ * A component-scoped semantic metric. Its source fields are aggregated first,
+ * then the saved expression is evaluated once for every chart group.
+ */
+export const CalculatedMetric = z.object({
+  id: nonEmptyString,
+  name: z.string().min(1).max(50),
+  tokens: z.array(CalculatedMetricToken).min(1).max(30),
+  format: z.enum(["number", "percent", "currency"]),
+  decimals: z.number().int().min(0).max(4).default(2),
+  divideByZero: z.enum(["dash", "zero"]).default("dash"),
+}).strict();
+
+export type CalculatedMetric = z.infer<typeof CalculatedMetric>;
+
 export const FieldBinding = z.object({
   fieldKey: nonEmptyString,
   // Aggregation is intentionally kept on the individual metric binding. A component can
@@ -168,6 +198,8 @@ export type ComponentDisplayAnnotations = z.infer<typeof ComponentDisplayAnnotat
 export const DataBinding = z.object({
   datasetId: nonEmptyString,
   slots: safeRecord(z.union([FieldBinding, z.array(FieldBinding)])),
+  /** Reusable calculated measures available to the current component's metric slots. */
+  calculatedMetrics: z.array(CalculatedMetric).max(20).optional(),
   sort: z
     .object({
       fieldKey: nonEmptyString,

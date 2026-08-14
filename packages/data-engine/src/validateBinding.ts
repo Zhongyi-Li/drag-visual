@@ -24,6 +24,26 @@ export const validateBinding = (
 ): BindingValidationResult => {
   const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
   const messages: string[] = [];
+  const calculatedMetrics = binding?.calculatedMetrics ?? [];
+  const calculatedIds = new Set<string>();
+  for (const metric of calculatedMetrics) {
+    if (calculatedIds.has(metric.id)) {
+      messages.push(`Calculated metric "${metric.id}" is duplicated`);
+      continue;
+    }
+    calculatedIds.add(metric.id);
+    fieldsByKey.set(metric.id, { key: metric.id, label: metric.name, type: "number", nullable: true });
+    const references = metric.tokens.filter((token) => token.kind === "metric");
+    if (references.length === 0) messages.push(`Calculated metric "${metric.name}" has no metric reference`);
+    for (const token of references) {
+      const source = fieldsByKey.get(token.reference.fieldKey);
+      if (source === undefined || calculatedIds.has(token.reference.fieldKey)) {
+        messages.push(`Calculated metric "${metric.name}" references missing field "${token.reference.fieldKey}"`);
+      } else if (source.type !== "number") {
+        messages.push(`Calculated metric "${metric.name}" references non-numeric field "${token.reference.fieldKey}"`);
+      }
+    }
+  }
 
   for (const slot of slots) {
     const value = binding !== undefined && Object.hasOwn(binding.slots, slot.key)

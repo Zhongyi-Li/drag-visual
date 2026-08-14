@@ -1,6 +1,6 @@
-import { ArrowRightOutlined, CheckOutlined, DeleteOutlined, DownOutlined, MoreOutlined, QuestionCircleOutlined, TagOutlined } from "@ant-design/icons";
+import { ArrowRightOutlined, CalculatorOutlined, CheckOutlined, DeleteOutlined, DownOutlined, MoreOutlined, QuestionCircleOutlined, TagOutlined } from "@ant-design/icons";
 import type { ComponentDefinition } from "@drag-visual/component-registry";
-import type { ComponentType, DataBinding, Dataset, DatasetField, MetricAggregation, QueryParameter } from "@drag-visual/contracts";
+import type { CalculatedMetric, ComponentType, DataBinding, Dataset, DatasetField, MetricAggregation, QueryParameter } from "@drag-visual/contracts";
 import { validateBinding } from "@drag-visual/data-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Dropdown, InputNumber, Select, Space, Spin, Tooltip, Typography } from "antd";
@@ -8,7 +8,9 @@ import { type DragEvent, type ReactNode, useEffect, useState } from "react";
 import { useStore } from "zustand";
 
 import { getDataset, listDatasets } from "../datasets/datasetApi.js";
+import { calculatedMetricFields } from "../datasets/calculatedMetrics.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
+import { CalculatedMetricDrawer } from "./CalculatedMetricDrawer.js";
 import { ParameterForm } from "../datasets/ParameterForm.js";
 import { FIELD_DRAG_TYPE } from "./fieldDrag.js";
 import type { EditorStore } from "./store/editorStore.js";
@@ -29,9 +31,21 @@ interface ComponentBindingPanelProps {
 
 type StoredFieldBinding = { readonly fieldKey: string; readonly aggregation?: MetricAggregation | undefined };
 type StoredSlotValue = StoredFieldBinding | readonly StoredFieldBinding[];
+type StoredCalculatedMetric = {
+  readonly id: string;
+  readonly name: string;
+  readonly tokens: readonly (
+    | { readonly kind: "metric"; readonly reference: { readonly fieldKey: string; readonly aggregation: MetricAggregation } }
+    | { readonly kind: "operator"; readonly value: "+" | "-" | "*" | "/" | "(" | ")" }
+  )[];
+  readonly format: "number" | "percent" | "currency";
+  readonly decimals: number;
+  readonly divideByZero: "dash" | "zero";
+};
 interface StoredBinding {
   readonly datasetId: string;
   readonly slots: Readonly<Record<string, StoredSlotValue>>;
+  readonly calculatedMetrics?: readonly StoredCalculatedMetric[] | undefined;
   readonly sort?: { readonly fieldKey: string; readonly direction: "asc" | "desc" } | undefined;
   readonly limit?: number | undefined;
 }
@@ -149,6 +163,12 @@ const cloneBinding = (binding: StoredBinding): DataBinding => {
   };
   if (binding.sort !== undefined) cloned.sort = { ...binding.sort };
   if (binding.limit !== undefined) cloned.limit = binding.limit;
+  if (binding.calculatedMetrics !== undefined) cloned.calculatedMetrics = binding.calculatedMetrics.map((metric) => ({
+    ...metric,
+    tokens: metric.tokens.map((token) => token.kind === "metric"
+      ? { kind: "metric" as const, reference: { ...token.reference } }
+      : { kind: "operator" as const, value: token.value }),
+  }));
   return cloned;
 };
 
@@ -267,6 +287,7 @@ export const ComponentBindingPanel = ({
   const [selectionError, setSelectionError] = useState<unknown>(null);
   const [selectingDatasetId, setSelectingDatasetId] = useState<string | null>(null);
   const [dropSlotKey, setDropSlotKey] = useState<string | null>(null);
+  const [calculatedMetricSlot, setCalculatedMetricSlot] = useState<{ key: string; multiple: boolean } | null>(null);
   const storedComponent = useStore(store, (state) =>
     state.history.present.components.find((candidate) => candidate.id === component.id),
   );
@@ -361,6 +382,25 @@ export const ComponentBindingPanel = ({
       componentId: component.id,
       nextBinding,
     });
+  };
+
+  const saveCalculatedMetric = (metric: CalculatedMetric) => {
+    if (binding === undefined || calculatedMetricSlot === null) return;
+    const nextBinding = cloneBinding(binding);
+    nextBinding.calculatedMetrics = [...(nextBinding.calculatedMetrics ?? []), metric];
+    const current = nextBinding.slots[calculatedMetricSlot.key];
+    if (calculatedMetricSlot.multiple) {
+      const items = current === undefined ? [] : Array.isArray(current) ? current : [current];
+      nextBinding.slots[calculatedMetricSlot.key] = [...items, { fieldKey: metric.id }];
+    } else {
+      nextBinding.slots[calculatedMetricSlot.key] = { fieldKey: metric.id };
+    }
+    store.getState().dispatch({
+      type: "component.binding.update",
+      componentId: component.id,
+      nextBinding,
+    });
+    setCalculatedMetricSlot(null);
   };
 
   const selectedMetricAggregation = (slotKey: string, fieldKey: string): MetricAggregation | undefined => {
@@ -523,7 +563,8 @@ export const ComponentBindingPanel = ({
     });
   };
 
-  const fields = schema.data?.fields ?? [];
+  const sourceFields = schema.data?.fields ?? [];
+  const fields = calculatedMetricFields(sourceFields, binding as DataBinding | undefined);
   const metricTrendDimensionKey = currentComponent.type === "metricTrend"
     ? selectedKeys(binding, "timeDimension", false)
     : undefined;
@@ -947,6 +988,9 @@ export const ComponentBindingPanel = ({
                 {metricFieldKeys.length === 0
                   ? <div className="binding-field__empty">从右侧数据栏双击或拖入字段</div>
                   : <div className="binding-field__data-panel-hint">从右侧数据栏双击或拖入字段{slot.multiple ? "，添加指标" : "，更换字段"}</div>}
+                {datasetId !== undefined && <div className="metric-binding-list__calculated-actions">
+                  <Button icon={<CalculatorOutlined />} size="small" type="link" onClick={() => setCalculatedMetricSlot({ key: slot.key, multiple: slot.multiple })}>新建计算指标</Button>
+                </div>}
               </div>
             ) : isDimensionSlot ? (
               <div className="dimension-binding-list">
@@ -1031,6 +1075,13 @@ export const ComponentBindingPanel = ({
           </Space>
         </div>
       )}
+
+      <CalculatedMetricDrawer
+        fields={sourceFields}
+        open={calculatedMetricSlot !== null}
+        onClose={() => setCalculatedMetricSlot(null)}
+        onSave={saveCalculatedMetric}
+      />
 
       {!compact && showTimeGranularity && (
         <div className="binding-field">

@@ -19,6 +19,7 @@ import {
   type RuntimeParameterValues,
 } from "../datasets/RuntimeDatasetRequestBar.js";
 import { buildDatasetAggregation } from "../datasets/datasetAggregation.js";
+import { aggregateLocalRows, applyCalculatedMetrics, calculatedMetricFields, hasActiveCalculatedMetrics } from "../datasets/calculatedMetrics.js";
 import { getDataset, queryDatasetRequest } from "../datasets/datasetApi.js";
 import { findAvailableLayout } from "./canvasLayout.js";
 import { AnalysisGroupCanvas } from "./AnalysisGroupCanvas.js";
@@ -203,9 +204,14 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const dataResult = isUploadedDataset && localResult !== undefined && activeFilters.length > 0
     ? { ...localResult, rows: filterRowsByDashboardFilters(localResult.rows, activeFilters), total: filterRowsByDashboardFilters(localResult.rows, activeFilters).length }
     : rawDataResult;
-  const fields = localDataset?.fields ?? dataResult?.columns;
-  const rows = dataResult?.rows ?? [];
-  const rowsAreAggregated = aggregation !== undefined && remoteQuery.data === dataResult;
+  const sourceFields = localDataset?.fields ?? dataResult?.columns;
+  const fields = calculatedMetricFields(sourceFields ?? [], chartComponent.binding);
+  const sourceRows = dataResult?.rows ?? [];
+  const calculateAfterAggregation = hasActiveCalculatedMetrics(chartComponent.binding);
+  const rows = isUploadedDataset && aggregation !== undefined && calculateAfterAggregation
+    ? aggregateLocalRows(sourceRows, aggregation)
+    : sourceRows;
+  const rowsAreAggregated = aggregation !== undefined && (remoteQuery.data === dataResult || (isUploadedDataset && calculateAfterAggregation));
   const bindingForRender = chartComponent.type === "ranking" && chartComponent.binding !== undefined
     ? { datasetId: chartComponent.binding.datasetId, slots: chartComponent.binding.slots }
     : chartComponent.type === "barLine" && chartComponent.binding !== undefined
@@ -215,7 +221,8 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
         ...(chartComponent.binding.sort === undefined ? {} : { sort: chartComponent.binding.sort }),
       }
       : chartComponent.binding;
-  const transformedRows = applyTransforms(rows, bindingForRender, fields ?? []);
+  const calculatedRows = applyCalculatedMetrics(rows, chartComponent.binding);
+  const transformedRows = applyTransforms(calculatedRows, bindingForRender, fields);
   const isLoadingRemoteData = remoteQuery.isLoading && dataResult === undefined;
   const remoteDataError = remoteQuery.isError
     ? remoteQuery.error instanceof Error ? remoteQuery.error.message : "查询图表数据失败"
@@ -232,7 +239,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const activeTreemapMeasure = treemapMeasures.includes(selectedTreemapMeasure ?? "")
     ? selectedTreemapMeasure!
     : treemapMeasures[0];
-  const fieldLabels = new Map((fields ?? []).map((field) => [field.key, field.label]));
+  const fieldLabels = new Map(fields.map((field) => [field.key, field.label]));
   const dateFilterFieldLabel = (localDataset?.fields ?? cachedDataset?.fields ?? remoteSchema.data?.fields ?? []).find(
     (field) => field.key === dateFilterControl?.fieldKey,
   )?.label ?? dateFilterControl?.fieldKey;

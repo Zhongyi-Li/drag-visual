@@ -532,6 +532,61 @@
 .metric-binding-item__action.ant-btn { width: 22px; min-width: 22px; height: 22px; padding: 0; color: #4b8060; opacity: 0; }
 .metric-binding-item:hover .metric-binding-item__action.ant-btn, .metric-binding-item:focus-within .metric-binding-item__action.ant-btn { opacity: 1; }
 .metric-binding-item__action.ant-btn:hover, .metric-binding-item__action.ant-btn:focus-visible { color: #1677ff; background: rgb(22 119 255 / 9%); }
+.metric-binding-list__calculated-actions { display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.metric-binding-list__calculated-actions .ant-btn-link { height: 26px; padding-inline: 2px; font-size: 12px; }
+.calculated-metric-drawer .ant-drawer-header { min-height: 53px; padding: 0 20px; border-bottom-color: #edf0f4; }
+.calculated-metric-drawer .ant-drawer-title { color: #1d2939; font-size: 16px; font-weight: 650; }
+.calculated-metric-drawer .ant-drawer-body { padding: 24px 20px 20px; background: #fff; }
+.calculated-metric-drawer .ant-drawer-footer { padding: 14px 20px 20px; border-top: 0; background: #fff; }
+.calculated-metric-drawer__footer { display: flex; flex-direction: column; gap: 14px; }
+.calculated-metric-drawer__footer .ant-btn { height: 40px; border-radius: 7px; font-weight: 600; }
+.calculated-metric-form { display: flex; flex-direction: column; gap: 28px; }
+.calculated-metric-section { display: flex; flex-direction: column; gap: 15px; }
+.calculated-metric-section--formula { gap: 13px; }
+.calculated-metric-section__title { display: flex; align-items: center; gap: 10px; color: #344054; font-size: 16px; font-weight: 650; }
+.calculated-metric-section__title > span { width: 8px; height: 8px; border-radius: 50%; background: #1677ff; }
+.calculated-metric-section__help { display: block; margin-top: -5px; color: #667085; font-size: 13px; line-height: 20px; }
+.calculated-metric-form__settings { display: flex; flex-direction: column; gap: 16px; }
+.calculated-metric-form__settings label { display: flex; flex-direction: column; gap: 8px; color: #475467; font-size: 13px; font-weight: 600; }
+.calculated-metric-form__settings .ant-input, .calculated-metric-form__settings .ant-select-selector { border-radius: 7px !important; }
+.calculated-metric-form__settings .ant-input, .calculated-metric-form__settings .ant-select { min-height: 38px; }
+.calculated-metric-form__settings .ant-input-show-count-suffix { color: #98a2b3; }
+.calculated-metric-form__formula-shell { overflow: hidden; border: 1px solid #e1e8f0; border-radius: 9px; background: #fff; }
+.calculated-metric-form__formula { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 92px; padding: 12px; }
+.calculated-metric-form__placeholder { color: #98a2b3; font-size: 13px; }
+.calculated-metric-form__calculator { margin-left: auto; padding-left: 8px; color: #667085; font-size: 19px; }
+.calculated-metric-token { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-height: 34px; padding: 5px 4px 5px 9px; border: 1px solid #d4e5ff; border-radius: 7px; color: #1f5fbf; background: #eff6ff; font-size: 13px; }
+.calculated-metric-token__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calculated-metric-token__aggregation { width: 76px; }
+.calculated-metric-token__aggregation .ant-select-selector { height: 24px !important; padding-inline: 5px !important; border-color: #bfdbff !important; background: #fff !important; }
+.calculated-metric-token__aggregation .ant-select-selection-item { font-size: 12px; line-height: 22px !important; }
+.calculated-metric-token__remove.ant-btn { width: 22px; min-width: 22px; height: 22px; padding: 0; color: #3971bd; }
+.calculated-metric-token:hover { border-color: #91caff; background: #e5f1ff; }
+.calculated-metric-token--operator { min-width: 20px; padding-inline: 2px; border-color: transparent; color: #344054; background: transparent; font-size: 19px; font-weight: 500; }
+.calculated-metric-form__clear { margin-left: auto; color: #98a2b3; }
+.calculated-metric-form__operators { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border-top: 1px solid #e9edf2; background: #fbfcfd; }
+.calculated-metric-form__operators .ant-btn { height: 42px; border-radius: 0; border-right: 1px solid #e9edf2; color: #344054; font-size: 19px; font-weight: 500; }
+.calculated-metric-form__operators .ant-btn:last-child { border-right: 0; }
+.calculated-metric-form__operators .ant-btn:hover, .calculated-metric-form__operators .ant-btn:focus-visible { color: #1677ff; background: #edf5ff; }
+.calculated-metric-form__validation { margin: 0; }
+.calculated-metric-form__safe-divide { display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #475467; font-size: 13px; }
+.calculated-metric-form__safe-divide > span { display: inline-flex; align-items: center; gap: 5px; }
+.calculated-metric-form__safe-divide .ant-select { width: 138px; }
+.calculated-metric-form__safe-divide .ant-select-selector { border-radius: 7px !important; }
+.calculated-metric-available { display: flex; flex-direction: column; gap: 10px; }
+.calculated-metric-available__title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; color: #475467; font-size: 14px; font-weight: 600; }
+.calculated-metric-available__title .ant-typography-secondary { font-size: 12px; font-weight: 400; }
+.calculated-metric-available__search .ant-input-affix-wrapper { border-radius: 7px; }
+.calculated-metric-available__list { max-height: 216px; overflow: auto; border: 1px solid #e5e9ef; border-radius: 8px; }
+.calculated-metric-available__item { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 12px; height: 40px; padding: 0 12px; border: 0; border-bottom: 1px solid #edf0f3; color: #475467; background: #fff; cursor: pointer; text-align: left; }
+.calculated-metric-available__item:last-child { border-bottom: 0; }
+.calculated-metric-available__item > span { display: flex; min-width: 0; align-items: center; gap: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calculated-metric-available__item > span .anticon { flex: 0 0 auto; color: #3f81e4; }
+.calculated-metric-available__item > .anticon { flex: 0 0 auto; color: #98a2b3; font-size: 17px; }
+.calculated-metric-available__item:hover, .calculated-metric-available__item:focus-visible { color: #1d4f91; background: #f6faff; outline: none; }
+.calculated-metric-available__item:hover > .anticon, .calculated-metric-available__item:focus-visible > .anticon { color: #1677ff; }
+.calculated-metric-available__empty { padding: 18px 12px; color: #98a2b3; font-size: 13px; text-align: center; }
+@media (max-width: 460px) { .calculated-metric-drawer { width: 100% !important; } }
 .dimension-binding-item { min-width: 0; height: 28px; padding: 0 4px 0 8px; border: 1px solid #91caff; border-radius: 4px; display: flex; align-items: center; gap: 6px; color: #1d4f91; background: #eef6ff; transition: border-color .15s ease, background-color .15s ease; }
 .dimension-binding-item:hover, .dimension-binding-item:focus-within { border-color: #4096ff; background: #e6f4ff; }
 .dimension-binding-item__kind { flex: 0 0 auto; color: #1677ff; font-size: 12px; }
