@@ -259,7 +259,7 @@ describe("editor canvas library integration", () => {
 
     const layout = store.getState().history.present.layout;
     expect(layout.find((item) => item.i === "group-1")).toMatchObject({ x: 0, y: 0 });
-    expect(layout.find((item) => item.i === "nested-bar")).toMatchObject({ parentId: "group-1", x: 5, y: 0 });
+    expect(layout.find((item) => item.i === "nested-bar")).toMatchObject({ parentId: "group-1", x: 5, y: 3 });
   });
 
   it("runs real dnd-kit KeyboardSensor activation, movement, and drop", async () => {

@@ -3,7 +3,7 @@
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,6 +35,19 @@ const stacked = DashboardSchema.parse({
   components: [
     { id: "trend-1", type: "trend", title: "趋势分析", props: { aggregation: "sum", showSummary: true, timeGranularity: "day" } },
     { id: "multi-1", type: "multidimensional", title: "多维分析", props: { aggregation: "sum", showTotals: true, timeGranularity: "day" } },
+  ],
+});
+const outerLayoutWithNestedChild = DashboardSchema.parse({
+  ...populated,
+  layout: [
+    { i: "bar-1", x: 0, y: 8, w: 6, h: 5 },
+    { i: "group-1", x: 6, y: 0, w: 6, h: 8 },
+    { i: "nested-bar", parentId: "group-1", x: 0, y: 0, w: 6, h: 5 },
+  ],
+  components: [
+    ...populated.components,
+    { id: "group-1", type: "analysisGroup", title: "复合分析", props: {} },
+    { id: "nested-bar", parentId: "group-1", type: "bar", title: "内部图表", props: { color: "#1677ff", showLegend: true } },
   ],
 });
 
@@ -204,6 +217,19 @@ describe("GridCanvas", () => {
     expect(dispatch).toHaveBeenCalledWith({ type: "layout.change", updates: [{ i: "multi-1", x: 6, y: 5, w: 6, h: 4 }] });
   });
 
+  it("does not let an analysis-group child block a free position on the outer canvas", () => {
+    const store = createEditorStore(outerLayoutWithNestedChild);
+    const dispatch = vi.spyOn(store.getState(), "dispatch");
+    let received: GridRendererProps | undefined;
+    const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };
+    renderCanvas(<GridCanvas store={store} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={FakeGrid} />);
+
+    act(() => received?.onDragStart?.([], null, { i: "bar-1", x: 0, y: 8, w: 6, h: 5 }, null, new Event("pointerdown"), null));
+    act(() => received?.onDragStop?.([], null, { i: "bar-1", x: 0, y: 0, w: 6, h: 5 }, null, new Event("pointerup"), null));
+
+    expect(dispatch).toHaveBeenCalledWith({ type: "layout.change", updates: [{ i: "bar-1", x: 0, y: 0, w: 6, h: 5 }] });
+  });
+
   it("shows 12 guide columns only while dragging or resizing", () => {
     let received: GridRendererProps | undefined;
     const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };
@@ -215,6 +241,29 @@ describe("GridCanvas", () => {
 
     act(() => received?.onResizeStop?.([], null, { i: "bar-1", x: 0, y: 0, w: 6, h: 5 }, null, new Event("pointerup"), null));
     expect(screen.queryByTestId("canvas-grid-guides")).not.toBeInTheDocument();
+  });
+
+  it("releases the resize interaction when mouseup is not forwarded by the grid", async () => {
+    let received: GridRendererProps | undefined;
+    const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };
+    renderCanvas(<GridCanvas store={createEditorStore(populated)} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={FakeGrid} />);
+
+    act(() => received?.onResizeStart?.([], null, { i: "bar-1", x: 0, y: 0, w: 6, h: 5 }, null, new Event("pointerdown"), null));
+    expect(screen.getByTestId("component-renderer")).toHaveAttribute("data-interacting", "true");
+
+    fireEvent.mouseUp(document);
+    await waitFor(() => expect(screen.getByTestId("component-renderer")).toHaveAttribute("data-interacting", "false"));
+  });
+
+  it("releases an active interaction when the window loses focus", () => {
+    let received: GridRendererProps | undefined;
+    const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };
+    renderCanvas(<GridCanvas store={createEditorStore(populated)} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={FakeGrid} />);
+
+    act(() => received?.onResizeStart?.([], null, { i: "bar-1", x: 0, y: 0, w: 6, h: 5 }, null, new Event("pointerdown"), null));
+    fireEvent.blur(window);
+
+    expect(screen.getByTestId("component-renderer")).toHaveAttribute("data-interacting", "false");
   });
 
   it("does not create history or dirty state when a stop reports no layout change", () => {

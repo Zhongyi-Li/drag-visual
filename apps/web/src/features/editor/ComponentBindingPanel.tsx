@@ -1,4 +1,4 @@
-import { ArrowRightOutlined, CalculatorOutlined, CheckOutlined, DeleteOutlined, DownOutlined, MoreOutlined, QuestionCircleOutlined, TagOutlined } from "@ant-design/icons";
+import { ArrowRightOutlined, CalculatorOutlined, CheckOutlined, DeleteOutlined, DownOutlined, EditOutlined, MoreOutlined, QuestionCircleOutlined, TagOutlined } from "@ant-design/icons";
 import type { ComponentDefinition } from "@drag-visual/component-registry";
 import type { CalculatedMetric, ComponentType, DataBinding, Dataset, DatasetField, MetricAggregation, QueryParameter } from "@drag-visual/contracts";
 import { validateBinding } from "@drag-visual/data-engine";
@@ -179,7 +179,7 @@ const slotHelpText = (slotKey: string, slotTitle: string, componentType: Compone
   if (slotKey === "dimensions") return "作为多维分析的分组层级，可选择地区、品类、渠道等多个分类字段。";
   if (slotKey === "measures") return "作为多维分析要汇总的数值指标，可选择销售额、订单数、访客数等多个指标。";
   if (componentType === "bar" && slotKey === "measure") return "可选择一个或多个数值指标；多个指标会按同一维度并列展示为多组柱。";
-  if (componentType === "horizontalBar" && slotKey === "measure") return "可选择多个数值指标，按第一个指标从高到低排列；建议选择量纲相近的指标，便于横向比较。";
+  if (componentType === "horizontalBar" && slotKey === "measure") return "建议选择不超过两个数值指标，按第一个指标从高到低排列。单位不同或量级相差较大时，系统会自动使用独立刻度。";
   if (componentType === "barLine" && slotKey === "barMeasure") return "选择以柱状展示的主指标，例如库存金额或销售额。";
   if (componentType === "barLine" && slotKey === "lineMeasure") return "选择以折线展示的对比指标，例如库存数量或订单数；该指标使用右侧纵轴。";
   if (componentType === "ringBar" && slotKey === "measure") return "主指标决定各维度同心环的长度，系统会按所选聚合方式汇总。";
@@ -287,7 +287,7 @@ export const ComponentBindingPanel = ({
   const [selectionError, setSelectionError] = useState<unknown>(null);
   const [selectingDatasetId, setSelectingDatasetId] = useState<string | null>(null);
   const [dropSlotKey, setDropSlotKey] = useState<string | null>(null);
-  const [calculatedMetricSlot, setCalculatedMetricSlot] = useState<{ key: string; multiple: boolean } | null>(null);
+  const [calculatedMetricSlot, setCalculatedMetricSlot] = useState<{ key: string; multiple: boolean; editingMetric?: CalculatedMetric } | null>(null);
   const storedComponent = useStore(store, (state) =>
     state.history.present.components.find((candidate) => candidate.id === component.id),
   );
@@ -387,7 +387,15 @@ export const ComponentBindingPanel = ({
   const saveCalculatedMetric = (metric: CalculatedMetric) => {
     if (binding === undefined || calculatedMetricSlot === null) return;
     const nextBinding = cloneBinding(binding);
-    nextBinding.calculatedMetrics = [...(nextBinding.calculatedMetrics ?? []), metric];
+    const editingMetric = calculatedMetricSlot.editingMetric;
+    nextBinding.calculatedMetrics = editingMetric === undefined
+      ? [...(nextBinding.calculatedMetrics ?? []), metric]
+      : (nextBinding.calculatedMetrics ?? []).map((existing) => existing.id === metric.id ? metric : existing);
+    if (editingMetric !== undefined) {
+      store.getState().dispatch({ type: "component.binding.update", componentId: component.id, nextBinding });
+      setCalculatedMetricSlot(null);
+      return;
+    }
     const current = nextBinding.slots[calculatedMetricSlot.key];
     if (calculatedMetricSlot.multiple) {
       const items = current === undefined ? [] : Array.isArray(current) ? current : [current];
@@ -646,6 +654,7 @@ export const ComponentBindingPanel = ({
             return {
               measureKey: pair.measure,
               targetKey: pair.target ?? null,
+              targetValue: typeof previous?.targetValue === "number" ? previous.targetValue : null,
               label: typeof previous?.label === "string" ? previous.label : "",
               color: typeof previous?.color === "string" ? previous.color : ["#2f6bff", "#ff7a18", "#13b5a6", "#8b5cf6", "#e34d59", "#4f86f7"][index % 6]!,
               weight: typeof previous?.weight === "number" ? previous.weight : 0,
@@ -933,6 +942,7 @@ export const ComponentBindingPanel = ({
               <div className="metric-binding-list">
                 {metricFieldKeys.map((fieldKey) => {
                   const fieldLabel = fields.find((field) => field.key === fieldKey)?.label ?? fieldKey;
+                  const calculatedMetric = binding?.calculatedMetrics?.find((metric) => metric.id === fieldKey);
                   const aggregation = selectedMetricAggregation(slot.key, fieldKey)
                     ?? (isTargetProgressTarget ? "max" : undefined);
                   const displayAggregation = aggregationEnabled ? aggregationLabel(aggregation) : "原始值";
@@ -940,6 +950,7 @@ export const ComponentBindingPanel = ({
                     <div className="metric-binding-item" key={fieldKey}>
                       <span className="metric-binding-item__kind" aria-hidden="true">Nº</span>
                       <span className="metric-binding-item__name">{fieldLabel}{displayAggregation === undefined ? "" : `（${displayAggregation}）`}</span>
+                      {calculatedMetric !== undefined && <Tooltip title="编辑计算公式"><Button aria-label={`编辑计算指标 ${fieldLabel}`} className="metric-binding-item__action" icon={<EditOutlined />} size="small" type="text" onClick={() => setCalculatedMetricSlot({ key: slot.key, multiple: slot.multiple, editingMetric: { ...calculatedMetric, tokens: calculatedMetric.tokens.map((token) => token.kind === "metric" ? { kind: "metric" as const, reference: { ...token.reference } } : { kind: "operator" as const, value: token.value }) } })} /></Tooltip>}
                       <Dropdown
                         menu={{
                           items: [
@@ -1078,6 +1089,7 @@ export const ComponentBindingPanel = ({
 
       <CalculatedMetricDrawer
         fields={sourceFields}
+        initialMetric={calculatedMetricSlot?.editingMetric}
         open={calculatedMetricSlot !== null}
         onClose={() => setCalculatedMetricSlot(null)}
         onSave={saveCalculatedMetric}

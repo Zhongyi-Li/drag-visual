@@ -1,5 +1,5 @@
 import { DashboardGlobalFilterConfig, type ComponentInstance, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetField } from "@drag-visual/contracts";
-import { Button, DatePicker, Input, Segmented, Select } from "antd";
+import { Button, DatePicker, Input, InputNumber, Modal, Segmented, Select } from "antd";
 import zhCN from "antd/es/date-picker/locale/zh_CN.js";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/zh-cn.js";
@@ -65,6 +65,8 @@ interface Props {
   readonly dashboardFiltersLoading?: boolean | undefined;
   /** Called after a header's draft filter values have been committed. Returns false when no chart is bound. */
   readonly onDashboardFiltersApply?: (() => boolean) | undefined;
+  /** Editor-only bridge for persisting interactive custom-component settings. */
+  readonly onComponentPropsChange?: ((props: ComponentInstance["props"]) => void) | undefined;
 }
 
 type Row = Readonly<Record<string, unknown>>;
@@ -1148,68 +1150,49 @@ const progressIndicatorEmployeeRowStyle: CSSProperties = {
   width: "100%",
 };
 
-const ProgressIndicatorSurface = ({ component, rows, fields }: { readonly component: ComponentInstance; readonly rows: readonly Row[]; readonly fields: readonly DatasetField[] }) => {
+const ProgressIndicatorSurface = ({ component, rows, fields, onComponentPropsChange }: { readonly component: ComponentInstance; readonly rows: readonly Row[]; readonly fields: readonly DatasetField[]; readonly onComponentPropsChange?: ((props: ComponentInstance["props"]) => void) | undefined }) => {
   const model = buildProgressIndicatorModel(component, rows, fields);
   const decimals = Math.max(0, Math.min(4, Math.trunc(numberProp(component, "decimals", 1))));
   const showEmployeeRanking = component.props.showEmployeeRanking !== false;
   const maximumEmployees = Math.max(3, Math.min(20, Math.trunc(numberProp(component, "maxEmployees", 8))));
   const [activeEmployee, setActiveEmployee] = useState<string | null>(null);
-  const selectedEmployee = activeEmployee === null ? undefined : model.employees.find((employee) => employee.key === activeEmployee);
-  const activeMetrics = selectedEmployee?.metrics ?? model.metrics;
-  const activeScore = selectedEmployee?.score ?? model.score;
-  const selectedLabel = selectedEmployee?.label ?? "团队";
+  const [periodMode, setPeriodMode] = useState<"月度" | "年度">("月度");
+  const [targetConfigOpen, setTargetConfigOpen] = useState(false);
+  const [weightConfigOpen, setWeightConfigOpen] = useState(false);
+  const [targetDrafts, setTargetDrafts] = useState<Record<string, number | null>>({});
+  const [weightDrafts, setWeightDrafts] = useState<Record<string, number>>({});
   const metricsCount = Math.max(1, model.metrics.length);
-  const scoreText = activeScore === null ? "—" : `${(activeScore * 100).toFixed(decimals)}分`;
+  const metricSettings = Array.isArray(component.props.metricSettings) ? component.props.metricSettings : [];
+  const saveSettings = (changes: Record<string, { targetValue?: number | null; weight?: number }>) => {
+    if (onComponentPropsChange === undefined) return;
+    onComponentPropsChange({ ...component.props, metricSettings: model.metrics.map((metric) => {
+      const saved = metricSettings.find((setting) => setting !== null && typeof setting === "object" && (setting as { measureKey?: unknown }).measureKey === metric.measureKey) as Record<string, unknown> | undefined;
+      const change = changes[metric.measureKey];
+      return { measureKey: metric.measureKey, targetKey: metric.targetKey, targetValue: change?.targetValue ?? (typeof saved?.targetValue === "number" ? saved.targetValue : null), label: metric.label, color: metric.color, weight: change?.weight ?? metric.weight, includeInScore: metric.includeInScore };
+    }) });
+  };
 
-  return <section aria-label={`${component.title ?? "进度与指标"}图表`} data-testid="progress-indicator-surface" style={progressIndicatorShellStyle}>
-    <div style={progressIndicatorSummaryStyle}>
-      <div>
-        <div style={{ color: "#64748b", fontSize: 12, lineHeight: 1.35 }}>{model.periodLabel} · 当前查看：{selectedLabel}</div>
-        <strong style={{ color: "#172033", fontSize: 22, fontVariantNumeric: "tabular-nums", lineHeight: 1.35 }}>综合评分 {scoreText}</strong>
-      </div>
-      <span style={{ color: "#64748b", fontSize: 12 }}>{model.metrics.length} 个目标指标</span>
-    </div>
-    <div style={progressIndicatorContentStyle}>
-      <div style={progressIndicatorMetricListStyle}>
-        {activeMetrics.map((metric) => {
-          const percent = metric.progress === null ? null : metric.progress * 100;
-          const width = percent === null ? 0 : Math.max(0, Math.min(100, percent));
-          const gap = metric.value !== null && metric.target !== null ? Math.max(0, metric.target - metric.value) : null;
-          return <div key={metric.measureKey} style={progressIndicatorMetricStyle}>
-            <div style={progressIndicatorMetricHeaderStyle}>
-              <strong>{metric.label}</strong>
-              <strong style={{ color: percent !== null && percent < 70 ? "#e34d59" : "#172033", fontVariantNumeric: "tabular-nums" }}>{percent === null ? "未设置" : `${percent.toFixed(decimals)}%`}</strong>
-            </div>
-            <span aria-label={`${metric.label}完成进度`} style={progressIndicatorTrackStyle}><span style={{ background: metric.color, borderRadius: 999, display: "block", height: "100%", minWidth: width > 0 ? 6 : 0, width: `${width}%` }} /></span>
-            <div style={progressIndicatorMetricMetaStyle}>
-              <span>已完成 {formatCurrencyMetricNumber(metric.value, metric.isCurrency, metric.isQuantity)}</span>
-              <span>目标 {formatCurrencyMetricNumber(metric.target, metric.targetIsCurrency, metric.targetIsQuantity)}</span>
-              {gap !== null && <span>差额 {formatCurrencyMetricNumber(gap, metric.targetIsCurrency, metric.targetIsQuantity)}</span>}
-              {metric.includeInScore && <span>权重 {metric.weight}%</span>}
-            </div>
-          </div>;
-        })}
-      </div>
-      {showEmployeeRanking && <div style={progressIndicatorTableStyle}>
-        {model.employees.length === 0 ? <div style={{ color: "#94a3b8", fontSize: 12, padding: 18 }}>绑定员工维度后可查看员工达成排行。</div> : <>
-          <div aria-hidden="true" style={{ ...progressIndicatorTableHeadingStyle, "--metric-count": metricsCount } as CSSProperties}>
-            <span>{model.employeeLabel}</span><span>评分</span>{model.metrics.map((metric) => <span key={metric.measureKey} title={metric.label}>{metric.label}</span>)}
-          </div>
-          {model.employees.slice(0, maximumEmployees).map((employee) => <button
-            key={employee.key}
-            type="button"
-            aria-pressed={selectedEmployee?.key === employee.key}
-            onClick={() => setActiveEmployee((current) => current === employee.key ? null : employee.key)}
-            style={{ ...progressIndicatorEmployeeRowStyle, "--metric-count": metricsCount, background: selectedEmployee?.key === employee.key ? "#f0f5ff" : "#fff" } as CSSProperties}
-          >
-            <strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{employee.label}</strong>
-            <span style={{ color: employee.score !== null && employee.score < 0.7 ? "#e34d59" : "#2f6bff", fontVariantNumeric: "tabular-nums", fontWeight: 700 }}>{employee.score === null ? "—" : `${(employee.score * 100).toFixed(0)}`}</span>
-            {employee.metrics.map((metric) => <span key={metric.measureKey} style={{ color: "#475569", fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{metric.progress === null ? "—" : `${(metric.progress * 100).toFixed(0)}%`}</span>)}
-          </button>)}
-          {model.weights.length > 0 && <div style={{ borderTop: "1px solid #edf2f7", color: "#64748b", fontSize: 11, lineHeight: 1.5, padding: "9px 12px" }}>评分权重：{model.weights.map((metric) => `${metric.label} ${metric.weight}%`).join(" · ")}</div>}
-        </>}
-      </div>}
-    </div>
+  const metricCell = (metric: typeof model.metrics[number]) => {
+    const percent = metric.progress === null ? null : metric.progress * 100;
+    const width = Math.max(0, Math.min(100, percent ?? 0));
+    const warning = percent !== null && percent < 70;
+    return <div key={metric.measureKey} style={{ display: "grid", gap: 5, minWidth: 0 }}>
+      <div style={{ color: "#172033", fontSize: 13, fontVariantNumeric: "tabular-nums", fontWeight: 650, whiteSpace: "nowrap" }}>{formatCurrencyMetricNumber(metric.value, metric.isCurrency, metric.isQuantity)} <span style={{ color: "#94a3b8", fontWeight: 400 }}>/ {formatCurrencyMetricNumber(metric.target, metric.targetIsCurrency, metric.targetIsQuantity)}</span></div>
+      <div style={{ alignItems: "center", display: "flex", gap: 7 }}><span aria-label={`${metric.label}完成进度`} style={{ background: "#eaf0f6", borderRadius: 999, flex: 1, height: 7, overflow: "hidden" }}><span style={{ background: warning ? "#ff7a18" : metric.color, borderRadius: 999, display: "block", height: "100%", minWidth: width > 0 ? 5 : 0, width: `${width}%` }} /></span><strong style={{ color: warning ? "#e65f00" : "#2f6bee", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>{percent === null ? "—" : `${percent.toFixed(decimals)}%`}</strong></div>
+    </div>;
+  };
+
+  return <section aria-label={`${component.title ?? "目标任务进度表"}图表`} data-testid="progress-indicator-surface" style={{ ...progressIndicatorShellStyle, gap: 10, padding: "14px 16px 16px" }}>
+    <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}><span style={{ color: "#64748b", fontSize: 12 }}>当前周期：<strong style={{ color: "#2f6bee" }}>{model.periodLabel}</strong></span><Segmented size="small" options={["月度", "年度"]} value={periodMode} onChange={(value) => setPeriodMode(value as "月度" | "年度")} />{onComponentPropsChange !== undefined && <><Button size="small" onClick={() => setTargetConfigOpen(true)}>配置目标</Button><Button size="small" type="primary" onClick={() => setWeightConfigOpen(true)}>评分权重</Button></>}</div>
+    {showEmployeeRanking && <div style={{ ...progressIndicatorTableStyle, flex: "1 1 auto", borderRadius: 8 }}>
+      {model.employees.length === 0 ? <div style={{ color: "#94a3b8", fontSize: 12, padding: 18 }}>绑定员工维度后可查看运营人员的目标任务进度。</div> : <>
+        <div aria-hidden="true" style={{ background: "#f7f9fc", color: "#64748b", display: "grid", fontSize: 12, fontWeight: 650, gap: 14, gridTemplateColumns: `minmax(90px, .9fr) 56px repeat(${metricsCount}, minmax(150px, 1fr))`, padding: "10px 14px" }}><span>{model.employeeLabel}</span><span>评分</span>{model.metrics.map((metric) => <span key={metric.measureKey}>{metric.label}（实际 / 目标 / 完成）</span>)}</div>
+        {model.employees.slice(0, maximumEmployees).map((employee) => <button key={employee.key} type="button" aria-pressed={activeEmployee === employee.key} onClick={() => setActiveEmployee((current) => current === employee.key ? null : employee.key)} style={{ alignItems: "center", background: activeEmployee === employee.key ? "#f0f5ff" : "#fff", border: 0, borderTop: "1px solid #edf2f7", color: "#172033", cursor: "pointer", display: "grid", fontFamily: "inherit", gap: 14, gridTemplateColumns: `minmax(90px, .9fr) 56px repeat(${metricsCount}, minmax(150px, 1fr))`, padding: "13px 14px", textAlign: "left", width: "100%" }}><strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{employee.label}</strong><span style={{ color: employee.score !== null && employee.score < .7 ? "#e34d59" : "#2f6bee", fontSize: 18, fontVariantNumeric: "tabular-nums", fontWeight: 750 }}>{employee.score === null ? "—" : (employee.score * 100).toFixed(0)}</span>{employee.metrics.map(metricCell)}</button>)}
+        <div style={{ alignItems: "center", borderTop: "1px solid #e7edf5", color: "#64748b", display: "flex", flexWrap: "wrap", fontSize: 12, gap: 10, padding: "10px 14px" }}><strong style={{ color: "#475569" }}>评分权重：</strong>{model.weights.map((metric) => <span key={metric.label} style={{ background: "#f5f8fe", borderRadius: 4, padding: "3px 7px" }}>{metric.label} {metric.weight}%</span>)}<span style={{ marginLeft: "auto" }}>{periodMode}视图</span></div>
+      </>}
+    </div>}
+    <Modal title="目标配置" open={targetConfigOpen} okText="保存目标" cancelText="取消" onCancel={() => setTargetConfigOpen(false)} onOk={() => { saveSettings(Object.fromEntries(Object.entries(targetDrafts).map(([key, value]) => [key, { targetValue: value }]))); setTargetConfigOpen(false); }}><p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>为当前组件的每项指标设置统一目标；已绑定的目标字段会作为默认值。</p>{model.metrics.map((metric) => <label key={metric.measureKey} style={{ alignItems: "center", display: "grid", gap: 12, gridTemplateColumns: "96px 1fr", marginBottom: 14 }}><strong>{metric.label}</strong><InputNumber style={{ width: "100%" }} min={0} value={targetDrafts[metric.measureKey] ?? metric.target} onChange={(value) => setTargetDrafts((current) => ({ ...current, [metric.measureKey]: value }))} /></label>)}</Modal>
+    <Modal title="评分权重配置" open={weightConfigOpen} okText="保存配置" cancelText="取消" onCancel={() => setWeightConfigOpen(false)} onOk={() => { saveSettings(Object.fromEntries(Object.entries(weightDrafts).map(([key, value]) => [key, { weight: value }]))); setWeightConfigOpen(false); }}><p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>可调整各指标对综合评分的贡献，建议合计为 100%。</p>{model.metrics.map((metric) => <label key={metric.measureKey} style={{ alignItems: "center", display: "grid", gap: 12, gridTemplateColumns: "96px 1fr 34px", marginBottom: 14 }}><strong>{metric.label}</strong><InputNumber style={{ width: "100%" }} min={0} max={100} value={weightDrafts[metric.measureKey] ?? metric.weight} onChange={(value) => setWeightDrafts((current) => ({ ...current, [metric.measureKey]: value ?? 0 }))} /><span>%</span></label>)}</Modal>
   </section>;
 };
 
@@ -2291,6 +2274,7 @@ export const DashboardComponentRenderer = ({
   onDashboardFilterChange,
   dashboardFiltersLoading,
   onDashboardFiltersApply,
+  onComponentPropsChange,
 }: Props) => {
   const [tablePage, setTablePage] = useState(1);
   const [activeMetricTrendMeasure, setActiveMetricTrendMeasure] = useState<string | null>(null);
@@ -2691,7 +2675,7 @@ export const DashboardComponentRenderer = ({
       </section>
     );
   }
-  if (component.type === "progressIndicator") return <ProgressIndicatorSurface component={component} rows={rows} fields={fields} />;
+  if (component.type === "progressIndicator") return <ProgressIndicatorSurface component={component} rows={rows} fields={fields} onComponentPropsChange={onComponentPropsChange} />;
   if (component.type === "gauge" || isLegacyGaugeKpi(component)) {
     const models = buildGaugeModels(component, rows, fields);
     if (models.length === 1 && models[0]?.label === undefined) {

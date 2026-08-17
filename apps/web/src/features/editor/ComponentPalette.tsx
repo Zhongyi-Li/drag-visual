@@ -58,7 +58,7 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
       // TODO(chart-palette): 翻牌器待后续开发完成后再恢复展示。
       // { id: "flip-number", type: "flipNumber", title: "翻牌器", icon: "flip-number" },
       { id: "progress", type: "progressBar", title: "进度条", icon: "progress" },
-      { id: "progress-indicator", type: "progressIndicator", title: "进度与指标", icon: <NodeIndexOutlined /> },
+      { id: "progress-indicator", type: "progressIndicator", title: "目标任务进度表", icon: <NodeIndexOutlined /> },
       { id: "target-progress", type: "targetProgress", title: "目标完成率", icon: "target-progress" },
       { id: "gauge", type: "gauge", title: "仪表盘", icon: "gauge" },
       // TODO(chart-palette): 水波图、指标拆解待后续开发完成后再恢复展示。

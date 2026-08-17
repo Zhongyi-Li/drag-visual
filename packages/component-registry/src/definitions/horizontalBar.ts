@@ -9,6 +9,8 @@ const HorizontalBarPropsSchema = z.object({
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
   maxItems: z.number().int().min(3).max(20),
   showValue: z.boolean(),
+  /** Two measures can use individual axes when their units or ranges differ. */
+  multiMetricScale: z.enum(["auto", "independent", "shared"]).default("auto"),
 }).strict();
 
 const dataSlots = Object.freeze([
@@ -21,7 +23,7 @@ export const horizontalBarDefinition: ComponentDefinition<z.infer<typeof Horizon
   title: "条形图",
   category: "柱/条图",
   defaultLayout: Object.freeze({ w: 7, h: 5 }),
-  createDefaults: (): z.infer<typeof HorizontalBarPropsSchema> => ({ aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true }),
+  createDefaults: (): z.infer<typeof HorizontalBarPropsSchema> => ({ aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true, multiMetricScale: "auto" }),
   dataSlots,
   propsSchema: HorizontalBarPropsSchema,
   validateBinding: (binding: DataBinding | undefined) => {

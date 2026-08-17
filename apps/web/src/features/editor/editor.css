@@ -287,6 +287,16 @@
 .date-filter-configuration__range .ant-btn-primary { border-color: #172033; background: #172033; color: #fff; }
 .date-filter-configuration__custom-switch { min-height: 28px; padding-top: 1px; color: #595959; font-size: 13px; font-weight: 400; }
 .date-filter-configuration__custom-switch > .ant-typography { font-weight: 400; }
+.analysis-group-date-filter-configuration { display: flex; flex-direction: column; gap: 10px; }
+.analysis-group-date-filter-configuration > .ant-typography { color: #667085; font-size: 12px; line-height: 18px; }
+.analysis-group-date-filter-configuration__content { display: flex; flex-direction: column; gap: 12px; padding-top: 12px; border-top: 1px solid #e2e8f0; }
+.analysis-group-date-filter-configuration__content > label { display: flex; flex-direction: column; gap: 6px; color: #475467; font-size: 12px; font-weight: 500; }
+.analysis-group-date-filter-configuration__content > .analysis-group-date-filter-configuration__switch { flex-direction: row; align-items: center; justify-content: space-between; }
+.analysis-group-date-filter-configuration__targets { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid #e7edf5; border-radius: 7px; background: #fafcff; }
+.analysis-group-date-filter-configuration__heading { display: flex; align-items: center; gap: 7px; color: #344054; font-size: 12px; font-weight: 600; }
+.analysis-group-date-filter-configuration__heading .anticon { color: #1677ff; }
+.analysis-group-date-filter-configuration__target { display: grid !important; grid-template-columns: minmax(0, 1fr) 132px; align-items: center; gap: 8px; color: #475467 !important; font-size: 12px !important; }
+.analysis-group-date-filter-configuration__target > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .date-filter-field-drop { min-height: 56px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: center; gap: 4px; border: 1px solid #dce3ec; border-radius: 6px; background: #fff; transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
 .date-filter-field-drop--active { border-color: #1677ff; background: #f0f7ff; box-shadow: 0 0 0 2px rgb(22 119 255 / 12%); }
 .date-filter-field-drop__value { min-width: 0; display: flex; align-items: center; gap: 7px; color: #262626; font-size: 14px; font-weight: 500; line-height: 20px; }

@@ -225,7 +225,7 @@ describe("component registry", () => {
 
     expect(horizontalBarDefinition.title).toBe("条形图");
     expect(horizontalBar.defaultLayout).toEqual({ w: 7, h: 5 });
-    expect(horizontalBar.createDefaults()).toEqual({ aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true });
+    expect(horizontalBar.createDefaults()).toEqual({ aggregation: "sum", color: "#5b6ff0", maxItems: 10, multiMetricScale: "auto", showValue: true });
     expect(horizontalBar.dataSlots).toEqual([
       expect.objectContaining({ key: "dimension", title: "分类维度", required: true }),
       expect.objectContaining({ key: "measure", title: "条形指标", required: true, multiple: true }),

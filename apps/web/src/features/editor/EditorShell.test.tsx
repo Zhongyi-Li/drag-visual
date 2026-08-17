@@ -354,7 +354,7 @@ describe("EditorShell", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "添加条形图" }));
     expect(store.getState().history.present.components[0]).toMatchObject({
-      id: "horizontal-bar-1", type: "horizontalBar", title: "条形图", props: { aggregation: "sum", color: "#5b6ff0", maxItems: 10, showValue: true },
+      id: "horizontal-bar-1", type: "horizontalBar", title: "条形图", props: { aggregation: "sum", color: "#5b6ff0", maxItems: 10, multiMetricScale: "auto", showValue: true },
     });
 
     nextId = "bar-line-1";

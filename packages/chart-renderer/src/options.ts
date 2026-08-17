@@ -525,6 +525,19 @@ export const buildHorizontalBarOption = (
   const allMeasuresAreQuantity = measures.length > 0 && quantityMeasures.size === measures.length;
   const isNumericMeasure = measures.some((measure) => fields.find((field) => field.key === measure)?.type === "number");
   const maximum = Math.max(0, ...rankedRows.flatMap((row) => measures.map((measure) => numericValue(row, measure))));
+  const measureMaximums = new Map(measures.map((measure) => [measure, Math.max(0, ...rankedRows.map((row) => numericValue(row, measure)))]));
+  const nonZeroMaximums = [...measureMaximums.values()].filter((value) => value > 0);
+  const rangeRatio = nonZeroMaximums.length < 2 ? 1 : Math.max(...nonZeroMaximums) / Math.min(...nonZeroMaximums);
+  const hasMixedUnits = measures.length === 2 && (
+    currencyMeasures.has(measures[0]!) !== currencyMeasures.has(measures[1]!)
+    || quantityMeasures.has(measures[0]!) !== quantityMeasures.has(measures[1]!)
+  );
+  const scalePreference = propString(component, "multiMetricScale", "auto");
+  // Independent axes are only meaningful for two series. They prevent a
+  // quantity, percentage, or small monetary metric from becoming a hairline.
+  const useIndependentScales = measures.length === 2 && (
+    scalePreference === "independent" || (scalePreference !== "shared" && (hasMixedUnits || rangeRatio > 10))
+  );
   // The headline reflects the full filtered result, rather than only the
   // visible Top-N bars, so it remains a reliable total when authors reduce
   // the chart's maximum display count.
@@ -557,7 +570,13 @@ export const buildHorizontalBarOption = (
       itemGap: 16,
       textStyle: { color: "#475569", fontSize: 12 },
     },
-    grid: { top: isNumericMeasure ? showLegend ? 62 : 38 : showLegend ? 36 : 14, right: showValue ? 72 : 20, bottom: 14, left: 12, containLabel: true },
+    grid: {
+      top: isNumericMeasure ? useIndependentScales ? 82 : showLegend ? 62 : 38 : showLegend ? 36 : 14,
+      right: showValue ? 72 : 20,
+      bottom: useIndependentScales ? 28 : 14,
+      left: 12,
+      containLabel: true,
+    },
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },
@@ -567,7 +586,20 @@ export const buildHorizontalBarOption = (
         new Set(measures.filter((measure) => quantityMeasures.has(measure)).map((measure) => measureLabels.get(measure) ?? measure)),
       ),
     },
-    xAxis: {
+    xAxis: useIndependentScales ? measures.map((measure, index) => ({
+      type: "value",
+      min: 0,
+      max: (measureMaximums.get(measure) ?? 0) === 0 ? 1 : Math.ceil((measureMaximums.get(measure) ?? 0) * 1.08),
+      position: index === 0 ? "bottom" : "top",
+      name: measureLabels.get(measure) ?? measure,
+      nameLocation: "end",
+      nameGap: index === 0 ? 18 : 5,
+      nameTextStyle: { color: colors[index % colors.length], fontSize: 11, fontWeight: 600 },
+      axisLabel: { color: "#64748b", formatter: (value: number) => compactAxisValue(value, currencyMeasures.has(measure), quantityMeasures.has(measure)) },
+      splitLine: { show: index === 0, lineStyle: { color: "#edf0f5" } },
+      axisLine: { show: false },
+      axisTick: { show: false },
+    })) : {
       type: "value",
       min: 0,
       max: maximum === 0 ? 1 : Math.ceil(maximum * 1.08),
@@ -588,6 +620,7 @@ export const buildHorizontalBarOption = (
     series: measures.map((measure, index) => ({
       type: "bar",
       name: measureLabels.get(measure) ?? measure,
+      ...(useIndependentScales ? { xAxisIndex: index } : {}),
       data: rankedRows.map((row) => numericValue(row, measure)),
       barMaxWidth: Math.max(12, Math.floor(28 / Math.max(1, measures.length))),
       itemStyle: { color: colors[index % colors.length], borderRadius: [0, 8, 8, 0] },
@@ -2011,6 +2044,7 @@ export const buildTargetProgressModel = (
 type ProgressIndicatorMetricSetting = {
   readonly measureKey: string;
   readonly targetKey: string | null;
+  readonly targetValue: number | null;
   readonly label: string;
   readonly color: string;
   readonly weight: number;
@@ -2040,6 +2074,9 @@ const progressIndicatorSettings = (component: ComponentInstance): readonly Progr
     return {
       measureKey,
       targetKey,
+      targetValue: typeof setting?.targetValue === "number" && Number.isFinite(setting.targetValue) && setting.targetValue >= 0
+        ? setting.targetValue
+        : null,
       label: typeof setting?.label === "string" ? setting.label : "",
       color: typeof setting?.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(setting.color)
         ? setting.color : progressIndicatorColors[index % progressIndicatorColors.length]!,
@@ -2063,9 +2100,10 @@ const progressIndicatorMetricModels = (
   const fallbackAggregation = propString(component, "aggregation", "sum") as CrosstabAggregation;
   return progressIndicatorSettings(component).map((setting) => {
     const value = aggregateNullableNumbers(rows, setting.measureKey, metricAggregationFor(component, "measure", setting.measureKey, fallbackAggregation));
-    const target = setting.targetKey === null
+    const sourceTarget = setting.targetKey === null
       ? null
       : aggregateNullableNumbers(rows, setting.targetKey, metricAggregationFor(component, "target", setting.targetKey, "max"));
+    const target = setting.targetValue ?? sourceTarget;
     return {
       ...setting,
       label: setting.label.trim() || labels.get(setting.measureKey) || setting.measureKey,

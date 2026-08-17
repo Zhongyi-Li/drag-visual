@@ -20,6 +20,34 @@ vi.stubGlobal("ResizeObserver", class {
 
 afterEach(cleanup);
 
+it("renders the target task progress table and persists goal configuration", () => {
+  const onComponentPropsChange = vi.fn();
+  render(<DashboardComponentRenderer
+    component={{
+      id: "target-task-progress-1", type: "progressIndicator", title: "目标任务进度表",
+      props: {
+        aggregation: "sum", decimals: 1, periodLabel: "2026年8月", showEmployeeRanking: true, maxEmployees: 8,
+        metricSettings: [{ measureKey: "gmv", targetKey: "gmvTarget", label: "GMV", color: "#2f6bff", weight: 100, includeInScore: true }],
+      },
+      binding: { datasetId: "sales", slots: { employeeDimension: { fieldKey: "employee" }, measure: [{ fieldKey: "gmv" }], target: [{ fieldKey: "gmvTarget" }] } },
+    }}
+    fields={[
+      { key: "employee", label: "员工", type: "string", nullable: false },
+      { key: "gmv", label: "GMV", type: "number", nullable: false },
+      { key: "gmvTarget", label: "GMV目标", type: "number", nullable: false },
+    ]}
+    rows={[{ employee: "王雨晨", gmv: 80, gmvTarget: 100 }]}
+    onComponentPropsChange={onComponentPropsChange}
+  />);
+
+  expect(screen.getByLabelText("目标任务进度表图表")).toBeTruthy();
+  expect(screen.getByText("GMV（实际 / 目标 / 完成）")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "配置目标" }));
+  expect(screen.getByRole("dialog", { name: "目标配置" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "保存目标" }));
+  expect(onComponentPropsChange).toHaveBeenCalled();
+});
+
 const dataComponents = [
   {
     id: "bar-1",

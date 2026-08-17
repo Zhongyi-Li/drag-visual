@@ -26,6 +26,7 @@ const propertyLabels: Readonly<Record<string, string>> = {
   lineColor: "折线颜色",
   maxEmployees: "最多展示员工数",
   pageSize: "每页行数",
+  multiMetricScale: "多指标刻度",
   prefix: "数值前缀",
   showLegend: "显示图例",
   showEmployeeRanking: "显示员工排行",
@@ -57,6 +58,11 @@ const selectOptions: Readonly<Record<string, readonly { readonly label: string; 
     { label: "左对齐", value: "left" },
     { label: "居中", value: "center" },
     { label: "右对齐", value: "right" },
+  ],
+  multiMetricScale: [
+    { label: "自动", value: "auto" },
+    { label: "独立刻度", value: "independent" },
+    { label: "统一刻度", value: "shared" },
   ],
 };
 

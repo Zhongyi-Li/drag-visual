@@ -108,6 +108,8 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
   const interactionMode = useRef<InteractionMode>(null);
   const pointerDownPoint = useRef<DragStartSnapshot["point"] | null>(null);
   const dragStartSnapshot = useRef<DragStartSnapshot | null>(null);
+  const releaseFallbackTimer = useRef<number | null>(null);
+  const interactionSession = useRef(0);
   // Do not let the grid mount against a fallback width. A stale 900px measurement
   // makes a 12-column component look narrower than the canvas and prevents it from
   // growing to the visible right edge.
@@ -118,7 +120,8 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
   const { setNodeRef, isOver } = useDroppable({ id: PALETTE_DROP_ID });
   const width = gridWidth ?? measuredWidth;
 
-  const layout: Layout = dashboard.layout.filter((item) => item.parentId === undefined).map((item) => {
+  const topLevelLayout = dashboard.layout.filter((item) => item.parentId === undefined);
+  const layout: Layout = topLevelLayout.map((item) => {
     const component = dashboard.components.find((candidate) => candidate.id === item.i);
     return component ? { ...clampLayoutItem(item, RESIZABLE_ITEM_MINIMUM), minW: RESIZABLE_ITEM_MINIMUM.w, minH: RESIZABLE_ITEM_MINIMUM.h } : item;
   });
@@ -129,15 +132,43 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
     },
     preventCollision: fixedGridCompactor.preventCollision ?? false,
     compact(nextLayout, cols) {
-      return interactionMode.current === "drag" ? buildShadowLayout(nextLayout, dashboard.layout) : fixedGridCompactor.compact(nextLayout, cols);
+      return interactionMode.current === "drag" ? buildShadowLayout(nextLayout, topLevelLayout) : fixedGridCompactor.compact(nextLayout, cols);
     },
-  }), [dashboard.layout]);
+  }), [topLevelLayout]);
 
+  const clearInteraction = () => {
+    interactionMode.current = null;
+    pointerDownPoint.current = null;
+    dragStartSnapshot.current = null;
+    setIsInteracting(false);
+  };
+  const scheduleInteractionRelease = () => {
+    const activeSession = interactionSession.current;
+    if (releaseFallbackTimer.current !== null) window.clearTimeout(releaseFallbackTimer.current);
+    // react-grid-layout receives mouseup on document too. Defer the fallback
+    // until its stop callback has a chance to persist the final layout.
+    releaseFallbackTimer.current = window.setTimeout(() => {
+      releaseFallbackTimer.current = null;
+      if (interactionSession.current === activeSession) clearInteraction();
+    }, 0);
+  };
+  useEffect(() => {
+    const releaseFromDocument = () => scheduleInteractionRelease();
+    const releaseFromWindow = () => clearInteraction();
+    document.addEventListener("mouseup", releaseFromDocument, true);
+    document.addEventListener("touchend", releaseFromDocument, true);
+    window.addEventListener("blur", releaseFromWindow);
+    return () => {
+      document.removeEventListener("mouseup", releaseFromDocument, true);
+      document.removeEventListener("touchend", releaseFromDocument, true);
+      window.removeEventListener("blur", releaseFromWindow);
+      if (releaseFallbackTimer.current !== null) window.clearTimeout(releaseFallbackTimer.current);
+    };
+  }, []);
   const dispatchStoppedLayout = (nextLayout: Layout, nextItem: LayoutItem | null, resolveCollisions: boolean) => {
     const source = nextLayout.length > 0 ? nextLayout : nextItem ? [nextItem] : [];
     if (source.length === 0) {
-      interactionMode.current = null;
-      setIsInteracting(false);
+      clearInteraction();
       return;
     }
     const activeId = nextItem?.i ?? source[0]?.i;
@@ -154,20 +185,21 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
     if (changedUpdates.length > 0) {
       store.getState().dispatch({ type: "layout.change", updates: changedUpdates as [DashboardGridItem, ...DashboardGridItem[]] });
     }
-    interactionMode.current = null;
-    setIsInteracting(false);
+    clearInteraction();
   };
   const rememberPointerDown = (event: ReactMouseEvent<HTMLElement> | ReactTouchEvent<HTMLElement>) => {
     pointerDownPoint.current = getEventPoint(event.nativeEvent) ?? null;
   };
   const startInteraction: EventCallback = () => setIsInteracting(true);
   const startResizeInteraction: EventCallback = () => {
+    interactionSession.current += 1;
     interactionMode.current = "resize";
     pointerDownPoint.current = null;
     dragStartSnapshot.current = null;
     setIsInteracting(true);
   };
   const startDragInteraction: EventCallback = (_nextLayout, _oldItem, nextItem, _placeholder, event) => {
+    interactionSession.current += 1;
     interactionMode.current = "drag";
     const point = pointerDownPoint.current ?? getEventPoint(event);
     dragStartSnapshot.current = nextItem && point ? { item: toDashboardItem(nextItem), point } : null;
@@ -175,10 +207,7 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
   };
   const stopDragInteraction: EventCallback = (_nextLayout, _oldItem, nextItem, _placeholder, event) => {
     if (!nextItem) {
-      interactionMode.current = null;
-      pointerDownPoint.current = null;
-      dragStartSnapshot.current = null;
-      setIsInteracting(false);
+      clearInteraction();
       return;
     }
     const nextDashboardItem = toDashboardItem(nextItem);
@@ -189,17 +218,15 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
       : nextDashboardItem;
     pointerDownPoint.current = null;
     dragStartSnapshot.current = null;
-    if (!component || hasLayoutCollision(dashboard.layout, intendedItem, nextDashboardItem.i)) {
-      interactionMode.current = null;
-      setIsInteracting(false);
+    if (!component || hasLayoutCollision(topLevelLayout, intendedItem, nextDashboardItem.i)) {
+      clearInteraction();
       return;
     }
     const current = dashboard.layout.find((item) => item.i === nextDashboardItem.i);
     if (layoutChanged(current, nextDashboardItem)) {
       store.getState().dispatch({ type: "layout.change", updates: [nextDashboardItem] });
     }
-    interactionMode.current = null;
-    setIsInteracting(false);
+    clearInteraction();
   };
   const stopResizeInteraction: EventCallback = (nextLayout, _oldItem, nextItem) => dispatchStoppedLayout(nextLayout, nextItem, true);
 

@@ -459,6 +459,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
                 onDashboardFilterChange={onGlobalFilterChange}
                 dashboardFiltersLoading={globalFiltersLoading}
                 onDashboardFiltersApply={onGlobalFiltersApply}
+                onComponentPropsChange={(nextProps) => store.getState().dispatch({ type: "component.props.update", componentId: chartComponent.id, nextProps })}
               />
             </ResponsiveChartContainer>
           )}

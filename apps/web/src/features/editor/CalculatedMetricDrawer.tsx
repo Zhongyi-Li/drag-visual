@@ -18,6 +18,7 @@ type MetricTokens = NonNullable<DataBinding["calculatedMetrics"]>[number]["token
 interface CalculatedMetricDrawerProps {
   readonly open: boolean;
   readonly fields: readonly DatasetField[];
+  readonly initialMetric?: NonNullable<DataBinding["calculatedMetrics"]>[number] | undefined;
   readonly onClose: () => void;
   readonly onSave: (metric: NonNullable<DataBinding["calculatedMetrics"]>[number]) => void;
 }
@@ -53,7 +54,7 @@ const validTokenOrder = (tokens: MetricTokens) => {
   return !expectsMetric && depth === 0;
 };
 
-export const CalculatedMetricDrawer = ({ open, fields, onClose, onSave }: CalculatedMetricDrawerProps) => {
+export const CalculatedMetricDrawer = ({ open, fields, initialMetric, onClose, onSave }: CalculatedMetricDrawerProps) => {
   const [name, setName] = useState("");
   const [format, setFormat] = useState<"number" | "percent" | "currency">("number");
   const [divideByZero, setDivideByZero] = useState<"dash" | "zero">("dash");
@@ -69,12 +70,14 @@ export const CalculatedMetricDrawer = ({ open, fields, onClose, onSave }: Calcul
 
   useEffect(() => {
     if (!open) return;
-    setName("");
-    setFormat("number");
-    setDivideByZero("dash");
-    setTokens([]);
+    setName(initialMetric?.name ?? "");
+    setFormat(initialMetric?.format ?? "number");
+    setDivideByZero(initialMetric?.divideByZero ?? "dash");
+    setTokens(initialMetric?.tokens.map((token) => token.kind === "metric"
+      ? { kind: "metric" as const, reference: { ...token.reference } }
+      : { kind: "operator" as const, value: token.value }) ?? []);
     setKeyword("");
-  }, [open]);
+  }, [initialMetric, open]);
 
   const addMetric = (fieldKey: string) => setTokens((current) => [
     ...current,
@@ -90,7 +93,7 @@ export const CalculatedMetricDrawer = ({ open, fields, onClose, onSave }: Calcul
     const nextName = name.trim();
     if (nextName.length === 0 || !formulaValid) return;
     onSave({
-      id: `calculated-${Date.now().toString(36)}`,
+      id: initialMetric?.id ?? `calculated-${Date.now().toString(36)}`,
       name: nextName,
       tokens,
       format,
@@ -103,11 +106,11 @@ export const CalculatedMetricDrawer = ({ open, fields, onClose, onSave }: Calcul
     className="calculated-metric-drawer"
     destroyOnHidden
     footer={<div className="calculated-metric-drawer__footer">
-      <Button block size="large" type="primary" disabled={name.trim().length === 0 || !formulaValid} onClick={save}>保存计算指标</Button>
+      <Button block size="large" type="primary" disabled={name.trim().length === 0 || !formulaValid} onClick={save}>{initialMetric === undefined ? "保存计算指标" : "保存修改"}</Button>
     </div>}
     open={open}
     placement="right"
-    title="新建计算指标"
+    title={initialMetric === undefined ? "新建计算指标" : "编辑计算指标"}
     width={420}
     onClose={onClose}
   >

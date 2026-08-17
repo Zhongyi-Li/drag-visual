@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { QueryFilterControl } from "@drag-visual/contracts";
+import { AnalysisGroupDateFilterControl, QueryFilterControl } from "@drag-visual/contracts";
 
 import type { ComponentDefinition } from "../types.js";
 
@@ -10,6 +10,8 @@ const AnalysisGroupPropsSchema = z.object({
   showSurface: z.boolean(),
   /** Shared, saved filters applied to every bound chart inside this group. */
   queryFilters: z.array(QueryFilterControl).max(6),
+  /** Optional source-free date control whose targets are mapped to child charts. */
+  dateFilter: AnalysisGroupDateFilterControl.nullable().default(null),
 }).strict();
 
 /**
@@ -27,6 +29,7 @@ export const analysisGroupDefinition: ComponentDefinition<z.infer<typeof Analysi
     gap: 12,
     showSurface: true,
     queryFilters: [],
+    dateFilter: null,
   }),
   dataSlots: Object.freeze([]),
   propsSchema: AnalysisGroupPropsSchema,

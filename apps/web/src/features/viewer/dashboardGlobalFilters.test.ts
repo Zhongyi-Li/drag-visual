@@ -77,6 +77,17 @@ describe("dashboardGlobalFilters", () => {
     expect(hasDashboardGlobalDateTarget(chart, dateFilter)).toBe(false);
   });
 
+  it("combines a global date range and an analysis-group date range with AND", () => {
+    expect(filterRowsByDashboardFilters([
+      { globalTime: "2026-08-03", businessTime: "2026-08-03", id: "kept" },
+      { globalTime: "2026-08-03", businessTime: "2026-08-10", id: "outside-group" },
+      { globalTime: "2026-08-10", businessTime: "2026-08-03", id: "outside-global" },
+    ], [
+      { kind: "dateRange", fieldKey: "globalTime", start: "2026-08-01", end: "2026-08-05", timezone: "Asia/Shanghai" },
+      { kind: "dateRange", fieldKey: "businessTime", start: "2026-08-02", end: "2026-08-04", timezone: "Asia/Shanghai" },
+    ])).toEqual([{ globalTime: "2026-08-03", businessTime: "2026-08-03", id: "kept" }]);
+  });
+
   it("reads saved single-chart and analysis-group query conditions", () => {
     const queryFilters = [{ kind: "fieldText" as const, fieldKey: "product", operator: "contains" as const, value: "小米" }];
     expect(componentQueryFilters({ props: { queryFilters } })).toEqual(queryFilters);

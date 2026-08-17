@@ -131,6 +131,28 @@ export const DateFilterControl = z
 
 export type DateFilterControl = z.infer<typeof DateFilterControl>;
 
+/** A source-free date control owned by an analysis group and mapped to its children. */
+export const AnalysisGroupDateFilterTarget = z.object({
+  componentId: nonEmptyString,
+  fieldKey: nonEmptyString,
+}).strict();
+
+export type AnalysisGroupDateFilterTarget = z.infer<typeof AnalysisGroupDateFilterTarget>;
+
+export const AnalysisGroupDateFilterControl = z.object({
+  defaultPreset: DateFilterPreset,
+  defaultRange: z.object({
+    start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  }).strict().nullable().default(null),
+  allowCustom: z.boolean(),
+  timezone: z.literal("Asia/Shanghai"),
+  /** Each child chart supplies its own date field; the group has no dataset of its own. */
+  targets: z.array(AnalysisGroupDateFilterTarget).max(99),
+}).strict();
+
+export type AnalysisGroupDateFilterControl = z.infer<typeof AnalysisGroupDateFilterControl>;
+
 /** A dashboard-header filter is configured once and may target only selected charts. */
 export const DashboardGlobalFilterControlType = z.enum(["dateRange", "select", "input"]);
 

@@ -1,5 +1,5 @@
 import { createDefaultRegistry } from "@drag-visual/component-registry";
-import type { Dashboard, Dataset, DatasetField } from "@drag-visual/contracts";
+import { AnalysisGroupDateFilterControl, type Dashboard, type Dataset, type DatasetField } from "@drag-visual/contracts";
 import { Alert, Card, Empty, Space, Spin, Typography } from "antd";
 import { useQueries } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -9,6 +9,8 @@ import { ChartQueryFilterBar, type ChartQueryFilterControl } from "../datasets/C
 import { ComponentErrorBoundary } from "./ComponentErrorBoundary.js";
 import { chartTopLeftHint } from "../editor/ChartDisplayHints.js";
 import { ViewerComponent } from "./ViewerComponent.js";
+import { AnalysisGroupDateFilterBar } from "./AnalysisGroupDateFilterBar.js";
+import { analysisGroupDateFiltersForChildren, defaultAnalysisGroupDateSelection } from "./analysisGroupDateFilter.js";
 import { activeQueryFilters, analysisGroupQueryFilterControls, dashboardGlobalFilters, defaultDashboardGlobalFilterValues, type DashboardGlobalFilterValues } from "./dashboardGlobalFilters.js";
 
 interface DashboardViewerProps {
@@ -74,8 +76,17 @@ const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters
     setRuntimeAnalysisGroupFilters(activeQueryFilters(savedAnalysisGroupFilterControls));
     setRuntimeAnalysisGroupFilterControls([...savedAnalysisGroupFilterControls]);
   }, [savedAnalysisGroupFilterControlsKey]);
+  const parsedDateFilter = AnalysisGroupDateFilterControl.safeParse(parent.props.dateFilter);
+  const analysisGroupDateFilter = parsedDateFilter.success ? parsedDateFilter.data : undefined;
+  const analysisGroupDateFilterKey = JSON.stringify(analysisGroupDateFilter);
+  const [runtimeAnalysisGroupDateSelection, setRuntimeAnalysisGroupDateSelection] = useState(() => defaultAnalysisGroupDateSelection(analysisGroupDateFilter));
+  useEffect(() => {
+    setRuntimeAnalysisGroupDateSelection(defaultAnalysisGroupDateSelection(analysisGroupDateFilter));
+  }, [analysisGroupDateFilterKey]);
+  const analysisGroupDateFilters = useMemo(() => analysisGroupDateFiltersForChildren(analysisGroupDateFilter, runtimeAnalysisGroupDateSelection), [analysisGroupDateFilter, runtimeAnalysisGroupDateSelection]);
   return <section aria-label={`${parent.title || "复合分析"}内容`} style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", padding: "4px 0 0", boxSizing: "border-box" }}>
     {description && <p style={{ margin: "0 2px 12px", color: "#64748b", fontSize: 13, lineHeight: 1.5 }}>{description}</p>}
+    <AnalysisGroupDateFilterBar control={analysisGroupDateFilter} value={runtimeAnalysisGroupDateSelection} loading={globalFiltersLoading} onChange={setRuntimeAnalysisGroupDateSelection} />
     <ChartQueryFilterBar
       filters={runtimeAnalysisGroupFilterControls}
       fields={sharedFields}
@@ -99,7 +110,7 @@ const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters
             {topLeftHint !== undefined && <div style={{ color: "#64748b", fontSize: 12, fontWeight: 500, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topLeftHint}>{topLeftHint}</div>}
           </div>}
           <div style={{ display: "flex", flex: "1 1 auto", flexDirection: "column", minHeight: 0, overflow: "hidden", padding: hasHeading ? "0 14px 12px" : "12px 14px" }}>
-            <ViewerComponent component={child} savedDataset={child.binding ? savedDatasets.get(child.binding.datasetId) : undefined} currentDataset={child.binding ? currentDatasets?.get(child.binding.datasetId) : undefined} globalFilters={globalFilters} globalFilterValues={globalFilterValues} onGlobalFilterChange={onGlobalFilterChange} globalFilterApplyVersion={globalFilterApplyVersion} onGlobalFilterQuerySettled={onGlobalFilterQuerySettled} globalFiltersLoading={globalFiltersLoading} onGlobalFiltersApply={onGlobalFiltersApply} analysisGroupFilters={runtimeAnalysisGroupFilters} />
+            <ViewerComponent component={child} savedDataset={child.binding ? savedDatasets.get(child.binding.datasetId) : undefined} currentDataset={child.binding ? currentDatasets?.get(child.binding.datasetId) : undefined} globalFilters={globalFilters} globalFilterValues={globalFilterValues} onGlobalFilterChange={onGlobalFilterChange} globalFilterApplyVersion={globalFilterApplyVersion} onGlobalFilterQuerySettled={onGlobalFilterQuerySettled} globalFiltersLoading={globalFiltersLoading} onGlobalFiltersApply={onGlobalFiltersApply} analysisGroupFilters={[...runtimeAnalysisGroupFilters, ...(analysisGroupDateFilters[child.id] === undefined ? [] : [analysisGroupDateFilters[child.id]!])]} />
           </div>
         </div>;
       })}

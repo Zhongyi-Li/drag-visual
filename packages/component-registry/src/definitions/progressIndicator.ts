@@ -7,6 +7,7 @@ import { requireSlot } from "./helpers.js";
 const MetricSettingSchema = z.object({
   measureKey: z.string().min(1),
   targetKey: z.string().min(1).nullable().default(null),
+  targetValue: z.number().nonnegative().nullable().default(null),
   label: z.string().max(40).default(""),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#2f6bff"),
   weight: z.number().min(0).max(100).default(0),
@@ -26,7 +27,7 @@ export type ProgressIndicatorProps = z.infer<typeof ProgressIndicatorPropsSchema
 
 export const progressIndicatorDefinition: ComponentDefinition<ProgressIndicatorProps> = Object.freeze({
   type: "progressIndicator",
-  title: "进度与指标",
+  title: "目标任务进度表",
   category: "指标",
   defaultLayout: Object.freeze({ w: 12, h: 8 }),
   createDefaults: (): ProgressIndicatorProps => ({

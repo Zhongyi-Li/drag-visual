@@ -131,7 +131,26 @@ describe("component option builders", () => {
     ]);
     expect(multiMetricHorizontal.title).toMatchObject({ text: "总计 库存金额 0.42万 ¥ · 库存数量 236 件" });
     expect(multiMetricHorizontal.legend).toMatchObject({ show: true, top: 28, left: 12 });
-    expect(multiMetricHorizontal.grid).toMatchObject({ top: 62 });
+    expect(multiMetricHorizontal.grid).toMatchObject({ top: 82, bottom: 28 });
+    expect(multiMetricHorizontal.xAxis).toEqual([
+      expect.objectContaining({ position: "bottom", name: "库存金额" }),
+      expect.objectContaining({ position: "top", name: "库存数量" }),
+    ]);
+    expect(multiMetricHorizontal.series).toEqual([
+      expect.objectContaining({ name: "库存金额", xAxisIndex: 0, data: [1660, 1420, 1074] }),
+      expect.objectContaining({ name: "库存数量", xAxisIndex: 1, data: [120, 80, 36] }),
+    ]);
+
+    const sharedScaleHorizontal = buildHorizontalBarOption(component({
+      type: "horizontalBar",
+      props: { aggregation: "sum", color: "#5b6ff0", maxItems: 10, multiMetricScale: "shared", showValue: true },
+      binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, measure: [{ fieldKey: "inventoryAmount" }, { fieldKey: "inventoryQuantity" }] } },
+    }), chartRows, chartFields);
+    expect(sharedScaleHorizontal.xAxis).toMatchObject({ type: "value" });
+    expect(sharedScaleHorizontal.series).toEqual([
+      expect.not.objectContaining({ xAxisIndex: expect.anything() }),
+      expect.not.objectContaining({ xAxisIndex: expect.anything() }),
+    ]);
 
     const combo = buildBarLineOption(component({
       type: "barLine",
