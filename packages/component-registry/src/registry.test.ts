@@ -17,6 +17,7 @@ import {
   kpiDefinition,
   kpiInsightDefinition,
   liquidDefinition,
+  metricAlertDefinition,
   metricBreakdownDefinition,
   metricTrendDefinition,
   multidimensionalDefinition,
@@ -47,12 +48,14 @@ describe("component registry", () => {
       "donut",
       "flipNumber",
       "gauge",
+      "goalTaskProgress",
       "heatmap",
       "horizontalBar",
       "kpi",
       "kpiInsight",
       "line",
       "liquid",
+      "metricAlert",
       "metricBreakdown",
       "metricTrend",
       "multidimensional",
@@ -300,6 +303,22 @@ describe("component registry", () => {
         measure: [{ fieldKey: "revenue" }, { fieldKey: "orders" }],
       },
     }).valid).toBe(true);
+  });
+
+  it("requires a dimension and a metric for metric alerts", () => {
+    expect(metricAlertDefinition.type).toBe("metricAlert");
+    expect(metricAlertDefinition.dataSlots).toEqual([
+      expect.objectContaining({ key: "dimension", title: "预警维度", acceptedTypes: ["string", "date"], required: true, multiple: false }),
+      expect.objectContaining({ key: "measure", title: "预警指标", acceptedTypes: ["number"], required: true, multiple: false }),
+    ]);
+    expect(metricAlertDefinition.validateBinding?.({
+      datasetId: "sales",
+      slots: { dimension: { fieldKey: "store" }, measure: { fieldKey: "riskCount" } },
+    })).toEqual({ valid: true, messages: [] });
+    expect(metricAlertDefinition.validateBinding?.({
+      datasetId: "sales",
+      slots: { measure: { fieldKey: "riskCount" } },
+    })).toEqual({ valid: false, messages: ["请选择一个预警维度"] });
   });
 
   it("supports up to two typed KPI insight rows while keeping legacy props valid", () => {

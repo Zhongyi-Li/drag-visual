@@ -283,6 +283,33 @@ describe("applyCommand", () => {
     expect(initial.components[0]!.props).toEqual(component().props);
   });
 
+  it("adds and removes a component's field-level jump configuration", () => {
+    const initial = populatedDashboard();
+    const interaction = {
+      jumpRules: [{
+        id: "jump-1",
+        triggerFieldKey: "revenue",
+        targetDashboardId: "75ed663c-8859-47e1-a92b-0cf7a8ce7e03",
+        openMode: "current" as const,
+        parameterMappings: [{ sourceFieldKey: "region", targetFilterId: "region-filter" }],
+      }],
+    };
+
+    const configured = applyCommand(initial, {
+      type: "component.interaction.update",
+      componentId: "chart-1",
+      nextInteraction: interaction,
+    });
+    expect(configured.components[0]!.interaction).toEqual(interaction);
+
+    const cleared = applyCommand(configured, {
+      type: "component.interaction.update",
+      componentId: "chart-1",
+      nextInteraction: undefined,
+    });
+    expect(cleared.components[0]).not.toHaveProperty("interaction");
+  });
+
   it("updates a component title without changing its props or binding", () => {
     const initial = populatedDashboard();
     const next = applyCommand(initial, {

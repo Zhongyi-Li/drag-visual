@@ -22,6 +22,9 @@ export const AnalysisGroupPanel = ({ component, definition, store }: Props) => {
       <div className="inspector-analysis__card-heading">日期筛选</div>
       <AnalysisGroupDateFilterConfigurationPanel component={current} store={store} />
     </div>
-    <QueryFiltersPanel component={current} definition={definition} scope="analysisGroup" store={store} />
+    <div className="inspector-analysis__card inspector-analysis__query-card">
+      <div className="inspector-analysis__card-heading">筛选条件配置</div>
+      <QueryFiltersPanel component={current} definition={definition} scope="analysisGroup" store={store} />
+    </div>
   </div>;
 };

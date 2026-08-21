@@ -8,6 +8,7 @@ import {
   kpiDefinition,
   lineDefinition,
   liquidDefinition,
+  metricAlertDefinition,
   metricBreakdownDefinition,
   metricTrendDefinition,
   multidimensionalDefinition,
@@ -410,6 +411,54 @@ describe("ComponentBindingPanel", () => {
     expect(screen.getByText("拆解指标")).toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "拆解维度" })).not.toBeInTheDocument();
     expect(screen.queryByRole("combobox", { name: "拆解指标" })).not.toBeInTheDocument();
+  });
+
+  it("configures a metric alert comparison and threshold directly below its bindings", async () => {
+    const fields = [
+      { key: "productName", label: "商品名称", type: "string", nullable: false },
+      { key: "turnoverDays", label: "周转天数", type: "number", nullable: false },
+    ] as const;
+    server.use(
+      http.get("http://localhost/datasets", () => HttpResponse.json([{ id: "inventory", name: "库存数据", schemaVersion: "v1" }])),
+      http.get("http://localhost/datasets/inventory/schema", () => HttpResponse.json({ id: "inventory", name: "库存数据", fields, parameters: [], schemaVersion: "v1" })),
+    );
+    const alertDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "alert-1", x: 0, y: 0, w: 12, h: 2 }],
+      datasets: [{ datasetId: "inventory", schemaVersion: "v1", parameters: {} }],
+      components: [{
+        id: "alert-1",
+        type: "metricAlert",
+        title: "库存预警",
+        props: {
+          aggregation: "sum",
+          operator: "gte",
+          threshold: 10,
+          decimals: 0,
+          alertLabel: "库存风险 {{count}} 项",
+          scopeText: "全部范围",
+          headlineTemplate: "{{metric}}触发预警",
+          messageTemplate: "{{scope}}｜共 {{count}} 个{{dimensionLabel}}命中预警。",
+          detailTemplate: "{{dimension}}的{{metric}}当前值为 {{value}}。",
+        },
+        binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "productName" }, measure: { fieldKey: "turnoverDays", aggregation: "sum" } } },
+      }],
+    });
+    const store = createEditorStore(alertDashboard);
+    const component = store.getState().history.present.components[0]!;
+
+    render(<AppProviders><ComponentBindingPanel store={store} component={component} definition={metricAlertDefinition} /></AppProviders>);
+
+    expect(await screen.findByText("商品名称", { selector: ".dimension-binding-item__name" })).toBeInTheDocument();
+    expect(screen.getByText("预警规则")).toBeInTheDocument();
+    expect(screen.getByText("达到阈值后自动展示预警面板")).toBeInTheDocument();
+    expect(screen.getByText("按商品名称逐项高亮命中的周转天数")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("combobox", { name: "预警条件" }));
+    await userEvent.click(await screen.findByText("小于等于"));
+    await waitFor(() => expect(store.getState().history.present.components[0]!.props.operator).toBe("lte"));
+
+    fireEvent.change(screen.getByRole("spinbutton", { name: "预警阈值" }), { target: { value: "7" } });
+    await waitFor(() => expect(store.getState().history.present.components[0]!.props.threshold).toBe(7));
   });
 
   it("explains crosstab binding controls with visible labels and help affordances", async () => {

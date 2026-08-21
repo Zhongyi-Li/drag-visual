@@ -1,9 +1,10 @@
 import { BarChartOutlined, EditOutlined, ReloadOutlined, ShareAltOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Result, Spin, Tag, message } from "antd";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 
 import { DashboardViewer } from "../viewer/DashboardViewer.js";
+import { chartJumpFiltersFromSearch, chartJumpTargetFromSearch } from "../viewer/chartJump.js";
 import { getPreviewDashboard } from "../viewer/viewerQueries.js";
 import { appPath } from "../../app/appPath.js";
 
@@ -31,7 +32,8 @@ const copyLink = async (link: string): Promise<void> => {
 
 export const Component = () => {
   const { id = "" } = useParams();
-  const isEmbedded = new URLSearchParams(globalThis.location.search).get("embed") === "1";
+  const location = useLocation();
+  const isEmbedded = new URLSearchParams(location.search).get("embed") === "1";
   const query = useQuery({
     queryKey: ["preview-dashboard", id],
     queryFn: () => getPreviewDashboard(id),
@@ -99,6 +101,8 @@ export const Component = () => {
         headerDensity="compact"
         showHeader={false}
         embedded={isEmbedded}
+        initialGlobalFilterValues={chartJumpFiltersFromSearch(location.search)}
+        initialJumpTargetComponentId={chartJumpTargetFromSearch(location.search)}
       />
     </>
   );

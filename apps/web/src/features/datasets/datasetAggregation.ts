@@ -22,6 +22,19 @@ export const buildDatasetAggregation = (
   component: ComponentInstance,
 ): DatasetQueryRequest["aggregation"] => {
   if (component.binding === undefined) return undefined;
+  if (component.type === "table") {
+    // Detail tables keep their raw-record behaviour by default. Once row
+    // aggregation is enabled, the numeric column bindings carry the selected
+    // aggregation while the remaining columns become the grouping key.
+    if (component.props.aggregateRows !== true) return undefined;
+    const columns = asBindings(component.binding.slots.columns);
+    const measures = columns.filter((binding) => binding.aggregation !== undefined);
+    if (measures.length === 0) return undefined;
+    return {
+      groupBy: columns.filter((binding) => binding.aggregation === undefined).map((binding) => binding.fieldKey),
+      measures: measures.map((binding) => ({ fieldKey: binding.fieldKey, aggregation: binding.aggregation! })),
+    };
+  }
   // Percentage bars predate the aggregation prop. Treat legacy instances as
   // sum-by-default so one edited metric does not force the remaining metrics
   // back onto the raw-data path.

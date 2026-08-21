@@ -1,5 +1,5 @@
 import { createDefaultRegistry } from "@drag-visual/component-registry";
-import { AnalysisGroupDateFilterControl, type Dashboard, type Dataset, type DatasetField } from "@drag-visual/contracts";
+import { AnalysisGroupDateFilterControl, type ChartJumpRule, type Dashboard, type Dataset, type DatasetField } from "@drag-visual/contracts";
 import { Alert, Card, Empty, Space, Spin, Typography } from "antd";
 import { useQueries } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -12,6 +12,7 @@ import { ViewerComponent } from "./ViewerComponent.js";
 import { AnalysisGroupDateFilterBar } from "./AnalysisGroupDateFilterBar.js";
 import { analysisGroupDateFiltersForChildren, defaultAnalysisGroupDateSelection } from "./analysisGroupDateFilter.js";
 import { activeQueryFilters, analysisGroupQueryFilterControls, dashboardGlobalFilters, defaultDashboardGlobalFilterValues, type DashboardGlobalFilterValues } from "./dashboardGlobalFilters.js";
+import { chartJumpHref, chartJumpTargetElementId } from "./chartJump.js";
 
 interface DashboardViewerProps {
   readonly dashboard: Dashboard;
@@ -27,6 +28,10 @@ interface DashboardViewerProps {
   readonly showHeader?: boolean;
   /** Uses the real dashboard canvas in a compact visual thumbnail. */
   readonly embedded?: boolean;
+  /** Global filter values passed from a configured chart-jump URL. */
+  readonly initialGlobalFilterValues?: DashboardGlobalFilterValues | undefined;
+  /** Optional component anchor passed from a configured chart-jump URL. */
+  readonly initialJumpTargetComponentId?: string | undefined;
 }
 
 interface GlobalFilterQueryState {
@@ -45,9 +50,10 @@ interface AnalysisGroupViewerProps {
   readonly onGlobalFilterQuerySettled: (componentId: string, version: number) => void;
   readonly globalFiltersLoading: boolean;
   readonly onGlobalFiltersApply: () => boolean;
+  readonly onChartJump: (rule: ChartJumpRule, values: Readonly<Record<string, unknown>>) => void;
 }
 
-const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters, globalFilterValues, onGlobalFilterChange, globalFilterApplyVersion, onGlobalFilterQuerySettled, globalFiltersLoading, onGlobalFiltersApply }: AnalysisGroupViewerProps) => {
+const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters, globalFilterValues, onGlobalFilterChange, globalFilterApplyVersion, onGlobalFilterQuerySettled, globalFiltersLoading, onGlobalFiltersApply, onChartJump }: AnalysisGroupViewerProps) => {
   const props = parent.props as Record<string, unknown>;
   const description = typeof props.description === "string" ? props.description : "";
   const gap = typeof props.gap === "number" ? props.gap : 12;
@@ -88,6 +94,7 @@ const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters
     {description && <p style={{ margin: "0 2px 12px", color: "#64748b", fontSize: 13, lineHeight: 1.5 }}>{description}</p>}
     <AnalysisGroupDateFilterBar control={analysisGroupDateFilter} value={runtimeAnalysisGroupDateSelection} loading={globalFiltersLoading} onChange={setRuntimeAnalysisGroupDateSelection} />
     <ChartQueryFilterBar
+      className="chart-query-filter-bar--analysis-group"
       filters={runtimeAnalysisGroupFilterControls}
       fields={sharedFields}
       datasetId={childDatasetIds[0]}
@@ -104,13 +111,13 @@ const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters
         const title = child.title?.trim();
         const topLeftHint = chartTopLeftHint(child);
         const hasHeading = (title?.length ?? 0) > 0 || topLeftHint !== undefined;
-        return <div key={child.id} style={{ gridColumn: item ? `${item.x + 1} / span ${item.w}` : "span 6", gridRow: item ? `${item.y + 1} / span ${item.h}` : undefined, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", border: "1px solid #e8ecf1", borderRadius: 8, background: "#fff", boxShadow: "0 2px 8px rgba(15, 23, 42, .045)" }}>
+        return <div id={chartJumpTargetElementId(child.id)} key={child.id} style={{ gridColumn: item ? `${item.x + 1} / span ${item.w}` : "span 6", gridRow: item ? `${item.y + 1} / span ${item.h}` : undefined, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", border: "1px solid #e8ecf1", borderRadius: 8, background: "#fff", boxShadow: "0 2px 8px rgba(15, 23, 42, .045)" }}>
           {hasHeading && <div style={{ flex: "0 0 auto", minWidth: 0, padding: topLeftHint === undefined ? "11px 14px 8px" : "8px 14px 7px" }}>
             {title !== undefined && title.length > 0 && <div style={{ color: "#262626", fontSize: 14, fontWeight: 600, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
             {topLeftHint !== undefined && <div style={{ color: "#64748b", fontSize: 12, fontWeight: 500, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topLeftHint}>{topLeftHint}</div>}
           </div>}
           <div style={{ display: "flex", flex: "1 1 auto", flexDirection: "column", minHeight: 0, overflow: "hidden", padding: hasHeading ? "0 14px 12px" : "12px 14px" }}>
-            <ViewerComponent component={child} savedDataset={child.binding ? savedDatasets.get(child.binding.datasetId) : undefined} currentDataset={child.binding ? currentDatasets?.get(child.binding.datasetId) : undefined} globalFilters={globalFilters} globalFilterValues={globalFilterValues} onGlobalFilterChange={onGlobalFilterChange} globalFilterApplyVersion={globalFilterApplyVersion} onGlobalFilterQuerySettled={onGlobalFilterQuerySettled} globalFiltersLoading={globalFiltersLoading} onGlobalFiltersApply={onGlobalFiltersApply} analysisGroupFilters={[...runtimeAnalysisGroupFilters, ...(analysisGroupDateFilters[child.id] === undefined ? [] : [analysisGroupDateFilters[child.id]!])]} />
+            <ViewerComponent component={child} savedDataset={child.binding ? savedDatasets.get(child.binding.datasetId) : undefined} currentDataset={child.binding ? currentDatasets?.get(child.binding.datasetId) : undefined} globalFilters={globalFilters} globalFilterValues={globalFilterValues} onGlobalFilterChange={onGlobalFilterChange} globalFilterApplyVersion={globalFilterApplyVersion} onGlobalFilterQuerySettled={onGlobalFilterQuerySettled} globalFiltersLoading={globalFiltersLoading} onGlobalFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} analysisGroupFilters={[...runtimeAnalysisGroupFilters, ...(analysisGroupDateFilters[child.id] === undefined ? [] : [analysisGroupDateFilters[child.id]!])]} />
           </div>
         </div>;
       })}
@@ -156,6 +163,8 @@ export const DashboardViewer = ({
   headerNavigation,
   showHeader = true,
   embedded = false,
+  initialGlobalFilterValues,
+  initialJumpTargetComponentId,
 }: DashboardViewerProps) => {
   const layout = new Map(dashboard.layout.map((item) => [item.i, item]));
   const savedDatasets = new Map(dashboard.datasets.map((dataset) => [dataset.datasetId, dataset]));
@@ -171,9 +180,20 @@ export const DashboardViewer = ({
   });
   const headerComponent = dashboard.components.find((component) => component.type === "dashboardHeader");
   const globalFilters = dashboardGlobalFilters(headerComponent);
-  const [globalFilterValues, setGlobalFilterValues] = useState<DashboardGlobalFilterValues>(() => defaultDashboardGlobalFilterValues(headerComponent));
+  const initialGlobalFilterValuesKey = JSON.stringify(initialGlobalFilterValues ?? {});
+  const [globalFilterValues, setGlobalFilterValues] = useState<DashboardGlobalFilterValues>(() => ({ ...defaultDashboardGlobalFilterValues(headerComponent), ...initialGlobalFilterValues }));
   const [globalFilterQuery, setGlobalFilterQuery] = useState<GlobalFilterQueryState>({ version: 0, pendingComponentIds: [] });
-  useEffect(() => setGlobalFilterValues(defaultDashboardGlobalFilterValues(headerComponent)), [headerComponent?.id, JSON.stringify(headerComponent?.props.globalFilters), JSON.stringify(headerComponent?.props.dateRange)]);
+  useEffect(() => setGlobalFilterValues({ ...defaultDashboardGlobalFilterValues(headerComponent), ...initialGlobalFilterValues }), [headerComponent?.id, JSON.stringify(headerComponent?.props.globalFilters), JSON.stringify(headerComponent?.props.dateRange), initialGlobalFilterValuesKey]);
+  useEffect(() => {
+    if (initialJumpTargetComponentId === undefined || embedded) return;
+    const schedule = globalThis.requestAnimationFrame ?? ((callback: FrameRequestCallback) => globalThis.setTimeout(() => callback(Date.now()), 0));
+    const cancel = globalThis.cancelAnimationFrame ?? globalThis.clearTimeout;
+    const requestId = schedule(() => {
+      const target = document.getElementById(chartJumpTargetElementId(initialJumpTargetComponentId));
+      target?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    });
+    return () => cancel(requestId);
+  }, [dashboard.id, embedded, initialJumpTargetComponentId]);
   const applyGlobalFilters = (): boolean => {
     const pendingComponentIds = [...new Set(globalFilters.flatMap((filter) => filter.targets.map((target) => target.componentId)))];
     if (pendingComponentIds.length === 0) return false;
@@ -184,6 +204,14 @@ export const DashboardViewer = ({
     setGlobalFilterQuery((current) => current.version !== version || !current.pendingComponentIds.includes(componentId)
       ? current
       : { ...current, pendingComponentIds: current.pendingComponentIds.filter((pendingId) => pendingId !== componentId) });
+  };
+  const handleChartJump = (rule: ChartJumpRule, values: Readonly<Record<string, unknown>>) => {
+    const href = chartJumpHref(rule, values, mode);
+    if (rule.openMode === "newTab") {
+      globalThis.open(href, "_blank", "noopener");
+      return;
+    }
+    globalThis.location.assign(href);
   };
 
   return (
@@ -239,6 +267,7 @@ export const DashboardViewer = ({
               const hasComponentHeading = hasComponentTitle || hasTopLeftHint;
               return (
                 <Card
+                  id={chartJumpTargetElementId(component.id)}
                   key={component.id}
                   title={hasComponentHeading ? <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
                     {hasComponentTitle && <span style={{ color: "#262626", fontSize: 14, fontWeight: 600, lineHeight: 1.45 }}>{componentTitle}</span>}
@@ -301,6 +330,7 @@ export const DashboardViewer = ({
                         onGlobalFilterQuerySettled={settleGlobalFilterQuery}
                         globalFiltersLoading={globalFilterQuery.pendingComponentIds.length > 0}
                         onGlobalFiltersApply={applyGlobalFilters}
+                        onChartJump={handleChartJump}
                       />
                     ) : !blocksRendering && (
                       <ComponentErrorBoundary
@@ -326,6 +356,7 @@ export const DashboardViewer = ({
                           onGlobalFilterQuerySettled={settleGlobalFilterQuery}
                           onGlobalFiltersApply={applyGlobalFilters}
                           globalFiltersLoading={globalFilterQuery.pendingComponentIds.length > 0}
+                          onChartJump={handleChartJump}
                         />
                       </ComponentErrorBoundary>
                     )}

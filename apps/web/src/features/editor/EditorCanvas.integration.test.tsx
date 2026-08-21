@@ -44,6 +44,17 @@ const colliding = DashboardSchema.parse({
     { id: "bar-2", type: "bar", title: "利润额", props: { color: "#1677ff", showLegend: true } },
   ],
 });
+const verticallyColliding = DashboardSchema.parse({
+  ...base,
+  layout: [
+    { i: "bar-1", x: 0, y: 0, w: 12, h: 5 },
+    { i: "bar-2", x: 0, y: 5, w: 12, h: 5 },
+  ],
+  components: [
+    { id: "bar-1", type: "bar", title: "销售额", props: { color: "#1677ff", showLegend: true } },
+    { id: "bar-2", type: "bar", title: "利润额", props: { color: "#1677ff", showLegend: true } },
+  ],
+});
 const analysisGroup = DashboardSchema.parse({
   ...base,
   layout: [{ i: "group-1", x: 0, y: 0, w: 12, h: 9 }],
@@ -168,7 +179,7 @@ describe("editor canvas library integration", () => {
     expect(screen.queryByTestId("canvas-grid-guides")).not.toBeInTheDocument();
   });
 
-  it("blocks a real react-grid-layout drag into an occupied slot", () => {
+  it("persists a real react-grid-layout drag by moving the hit component into the source slot", () => {
     const store = createEditorStore(colliding);
     const dispatch = vi.spyOn(store.getState(), "dispatch");
     renderEditorShell(<EditorShell store={store} createComponentId={() => "unused"} />);
@@ -176,14 +187,29 @@ describe("editor canvas library integration", () => {
     fireEvent.mouseDown(frame, { clientX: 270, clientY: 120, button: 0 });
     fireEvent.mouseMove(document, { clientX: 700, clientY: 120, buttons: 1 });
     fireEvent.mouseUp(document, { clientX: 700, clientY: 120, button: 0 });
-    expect(dispatch).not.toHaveBeenCalled();
+    expect(dispatch).toHaveBeenCalledOnce();
     const [first, second] = store.getState().history.present.layout;
-    expect(first).toMatchObject({ i: "bar-1", x: 0, y: 0 });
-    expect(second).toMatchObject({ i: "bar-2", x: 6, y: 0 });
+    expect(first).toMatchObject({ i: "bar-1", x: 6, y: 0 });
+    expect(second).toMatchObject({ i: "bar-2", x: 0, y: 0 });
     expect(first && second && (
       first.x + first.w <= second.x || second.x + second.w <= first.x ||
       first.y + first.h <= second.y || second.y + second.h <= first.y
     )).toBe(true);
+  });
+
+  it("swaps a top chart with the lower chart instead of pushing it down", () => {
+    const store = createEditorStore(verticallyColliding);
+    renderEditorShell(<EditorShell store={store} createComponentId={() => "unused"} />);
+    const frame = screen.getByRole("group", { name: "销售额" });
+
+    fireEvent.mouseDown(frame, { clientX: 270, clientY: 120, button: 0 });
+    fireEvent.mouseMove(document, { clientX: 270, clientY: 400, buttons: 1 });
+    fireEvent.mouseUp(document, { clientX: 270, clientY: 400, button: 0 });
+
+    expect(store.getState().history.present.layout).toEqual([
+      expect.objectContaining({ i: "bar-1", x: 0, y: 5 }),
+      expect.objectContaining({ i: "bar-2", x: 0, y: 0 }),
+    ]);
   });
 
   it("runs real dnd-kit pointer drops inside and ignores drops outside", () => {

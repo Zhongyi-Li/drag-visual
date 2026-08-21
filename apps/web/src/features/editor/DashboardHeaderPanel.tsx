@@ -1,9 +1,8 @@
 import type { ComponentDefinition } from "@drag-visual/component-registry";
 import { DashboardGlobalFilterConfig, type Dataset, type DatasetField } from "@drag-visual/contracts";
-import { SettingOutlined } from "@ant-design/icons";
+import { DeleteOutlined, FormOutlined } from "@ant-design/icons";
 import { useQueries } from "@tanstack/react-query";
-import { Button, Checkbox, DatePicker, Drawer, Input, Select, Typography } from "antd";
-import dayjs, { type Dayjs } from "dayjs";
+import { Button, Checkbox, Drawer, Input, Select, Typography } from "antd";
 import { type DragEvent, useState } from "react";
 import { useStore } from "zustand";
 
@@ -29,17 +28,17 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
   const [isFilterDropTarget, setIsFilterDropTarget] = useState(false);
   const props = { ...definition.createDefaults(), ...component.props } as Record<string, unknown>;
   const stringValue = (key: string) => typeof props[key] === "string" ? props[key] : "";
-  const defaultDateRange = (): [Dayjs, Dayjs] => {
-    const fallback = stringValue("date") || dayjs().format("YYYY-MM-DD");
-    const value = props.dateRange;
-    const record = typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
-    const start = typeof record?.start === "string" ? record.start : fallback;
-    const end = typeof record?.end === "string" ? record.end : fallback;
-    return [dayjs(start), dayjs(end)];
-  };
   const globalFilters = DashboardGlobalFilterConfig.array().safeParse(props.globalFilters).success
     ? DashboardGlobalFilterConfig.array().parse(props.globalFilters)
     : [];
+  const filterOperatorLabel = (filter: (typeof globalFilters)[number]) => {
+    if (filter.controlType === "dateRange") return "范围";
+    if (filter.operator === "isEmpty") return "为空";
+    if (filter.operator === "isNotEmpty") return "不为空";
+    if (filter.operator === "notContains") return "不包含";
+    return filter.operator === "equals" || filter.controlType === "select" ? "等于" : "包含";
+  };
+  const filterControlLabel = (filter: (typeof globalFilters)[number]) => filter.controlType === "dateRange" ? "日期范围" : filter.controlType === "select" ? "下拉选择" : "输入框";
   const dashboardComponents = useStore(store, (state) => state.history.present.components);
   const update = (nextValues: Record<string, unknown>) => {
     const latest = store.getState().history.present.components.find((candidate) => candidate.id === component.id);
@@ -50,6 +49,11 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
   const updateFilter = (id: string, nextValues: Partial<(typeof globalFilters)[number]>) => update({
     globalFilters: globalFilters.map((filter) => filter.id === id ? { ...filter, ...nextValues } : filter),
   });
+  const removeFilter = (id: string) => {
+    const nextFilters = globalFilters.filter((filter) => filter.id !== id);
+    update({ globalFilters: nextFilters });
+    setActiveFilterId(nextFilters[0]?.id);
+  };
   const addFilterFromDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsFilterDropTarget(false);
@@ -100,26 +104,25 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
       <div className="dashboard-header-panel__section">
         <Typography.Text strong>全局筛选</Typography.Text>
         <Typography.Text type="secondary">先在右侧数据面板选择数据源，再点击日期字段和维度字段添加筛选器。筛选器只会影响下方选定的联动图表。</Typography.Text>
-        <label>默认日期范围<DatePicker.RangePicker aria-label="默认筛选日期范围" format="YYYY/MM/DD" value={defaultDateRange()} onChange={(range) => {
-          if (range === null) return;
-          const [start, end] = range;
-          if (start !== null && end !== null) update({ dateRange: { start: start.format("YYYY-MM-DD"), end: end.format("YYYY-MM-DD") } });
-        }} /></label>
+        <div className="inspector-analysis__config-label dashboard-header-panel__config-label">筛选条件配置</div>
         <div
-          className={`dashboard-header-panel__configured-filters${isFilterDropTarget ? " is-dragging" : ""}`}
+          className={`inspector-analysis__card inspector-analysis__query-card dashboard-header-panel__filter-card dashboard-header-panel__configured-filters${isFilterDropTarget ? " is-dragging" : ""}`}
           onDragEnter={(event) => { if (event.dataTransfer.types.includes(FIELD_DRAG_METADATA_TYPE)) setIsFilterDropTarget(true); }}
           onDragLeave={(event) => { if (event.currentTarget === event.target) setIsFilterDropTarget(false); }}
           onDragOver={(event) => { if (event.dataTransfer.types.includes(FIELD_DRAG_METADATA_TYPE)) event.preventDefault(); }}
           onDrop={addFilterFromDrop}
         >
-          <div className="dashboard-header-panel__configured-filters-heading">
-            <span>已添加筛选器</span>
-            <span className="dashboard-header-panel__configured-filters-count">{globalFilters.length}</span>
+          <div className="query-filters-panel__status" aria-label="全局筛选条件状态">
+            <span>{globalFilters.length > 0 ? "已配置" : "未配置"}</span>
+            <Button aria-label="编辑全局筛选条件" icon={<FormOutlined />} size="small" type="text" onClick={() => { setActiveFilterId(globalFilters[0]?.id); setDrawerOpen(true); }} />
           </div>
-          {globalFilters.length === 0
-            ? <Typography.Text type="secondary">双击右侧字段或拖入此处添加；已添加字段可在右侧单击移除。</Typography.Text>
-            : <div className="dashboard-header-panel__filter-tags">{globalFilters.map((filter) => <span className="dashboard-header-panel__filter-tag" key={filter.id}>{filter.label}<Button aria-label={`移除${filter.label}筛选器`} size="small" type="text" onClick={() => update({ globalFilters: globalFilters.filter((item) => item.id !== filter.id) })}>×</Button></span>)}</div>}
-          <Button block className="dashboard-header-panel__manage-filters" icon={<SettingOutlined />} onClick={() => { setActiveFilterId(globalFilters[0]?.id); setDrawerOpen(true); }}>管理筛选器</Button>
+          {globalFilters.length > 0 && <div className="query-filters-panel__summary" aria-label="已配置全局筛选条件">{globalFilters.map((filter) => <article className="query-filters-panel__summary-item" key={filter.id}>
+            <div>
+              <strong>{filter.label}</strong>
+              <span className="query-filters-panel__operator">{filterOperatorLabel(filter)}</span>
+              <span className="query-filters-panel__value">{filterControlLabel(filter)}</span>
+            </div>
+          </article>)}</div>}
         </div>
       </div>
       <Drawer
@@ -149,6 +152,7 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
             {(activeFilter.operator === "isEmpty" || activeFilter.operator === "isNotEmpty") && <Typography.Text type="secondary">该条件为固定条件，预览页不显示值输入，应用时直接筛选{activeFilter.operator === "isEmpty" ? "为空" : "不为空"}的数据。</Typography.Text>}
             {activeFilter.controlType === "select" && <Typography.Text type="secondary">下拉项由数据源字段去重生成，默认最多展示 200 项；输入关键字时按服务端搜索。</Typography.Text>}
             {activeFilter.controlType === "input" && <Typography.Text type="secondary">输入框支持包含、不包含与精确匹配，适合订单号、客户名称等高基数字段。</Typography.Text>}
+            <Button danger icon={<DeleteOutlined />} onClick={() => removeFilter(activeFilter.id)}>删除筛选器</Button>
           </section>}
           {activeFilter && <section className="dashboard-filter-drawer__targets">
             <Typography.Title level={5}>联动图表</Typography.Title>

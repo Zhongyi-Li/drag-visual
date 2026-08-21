@@ -1,5 +1,6 @@
 import {
   Controller,
+  Inject,
   HttpException,
   HttpStatus,
   Post,
@@ -65,7 +66,10 @@ const readUploadParts = async (request: FastifyRequest): Promise<{
 @UseFilters(DatasetExceptionFilter)
 @UseGuards(SessionAuthGuard)
 export class DatasetUploadController {
-  constructor(private readonly uploads: DatasetUploadService) {}
+  constructor(
+    @Inject(DatasetUploadService)
+    private readonly uploads: DatasetUploadService,
+  ) {}
 
   @Post("uploads")
   async upload(

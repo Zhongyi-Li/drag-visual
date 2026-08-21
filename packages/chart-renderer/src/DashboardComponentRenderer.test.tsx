@@ -8,7 +8,10 @@ import { DashboardComponentRenderer } from "./DashboardComponentRenderer.js";
 
 vi.mock("./EChart.js", () => {
   return {
-    EChart: ({ ariaLabel }: { readonly ariaLabel: string }) => <div role="img" aria-label={ariaLabel} />,
+    EChart: ({ ariaLabel, onPointClick }: {
+      readonly ariaLabel: string;
+      readonly onPointClick?: ((point: { readonly dataIndex?: number; readonly name?: string; readonly seriesName?: string }) => void) | undefined;
+    }) => <div role="img" aria-label={ariaLabel} onClick={() => onPointClick?.({ dataIndex: 0, name: "华东", seriesName: "销售额" })} />,
   };
 });
 
@@ -24,9 +27,9 @@ it("renders the target task progress table and persists goal configuration", () 
   const onComponentPropsChange = vi.fn();
   render(<DashboardComponentRenderer
     component={{
-      id: "target-task-progress-1", type: "progressIndicator", title: "目标任务进度表",
+      id: "target-task-progress-1", type: "goalTaskProgress", title: "目标任务进度",
       props: {
-        aggregation: "sum", decimals: 1, periodLabel: "2026年8月", showEmployeeRanking: true, maxEmployees: 8,
+        aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, maxEmployees: 8, employeeSettings: [],
         metricSettings: [{ measureKey: "gmv", targetKey: "gmvTarget", label: "GMV", color: "#2f6bff", weight: 100, includeInScore: true }],
       },
       binding: { datasetId: "sales", slots: { employeeDimension: { fieldKey: "employee" }, measure: [{ fieldKey: "gmv" }], target: [{ fieldKey: "gmvTarget" }] } },
@@ -40,12 +43,20 @@ it("renders the target task progress table and persists goal configuration", () 
     onComponentPropsChange={onComponentPropsChange}
   />);
 
-  expect(screen.getByLabelText("目标任务进度表图表")).toBeTruthy();
-  expect(screen.getByText("GMV（实际 / 目标 / 完成）")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "配置目标" }));
-  expect(screen.getByRole("dialog", { name: "目标配置" })).toBeTruthy();
+  expect(screen.getByLabelText("目标任务进度图表")).toBeTruthy();
+  expect(screen.getByText("GMV（实际 / 目标）")).toBeTruthy();
+  expect(screen.getByText("GMV完成率")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "自定义目标" }));
+  expect(screen.getByText("目标配置")).toBeTruthy();
+  const monthlyGmvInput = screen.getByRole("spinbutton", { name: "月度GMV目标" }) as HTMLInputElement;
+  fireEvent.change(monthlyGmvInput, { target: { value: "" } });
+  expect(monthlyGmvInput.value).toBe("");
+  fireEvent.change(monthlyGmvInput, { target: { value: "120" } });
+  expect(monthlyGmvInput.value).toBe("120");
   fireEvent.click(screen.getByRole("button", { name: "保存目标" }));
   expect(onComponentPropsChange).toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "评分权重设置" }));
+  expect(screen.getByText("评分权重配置")).toBeTruthy();
 });
 
 const dataComponents = [
@@ -309,6 +320,48 @@ it("does not render an empty-data notice when chart rows are available", () => {
   render(<DashboardComponentRenderer component={component} rows={[{ month: "1月", revenue: 10 }]} />);
 
   expect(screen.queryByText("当前图表无数据")).toBeNull();
+});
+
+it("forwards a configured metric click with the matching point row", () => {
+  const onChartJump = vi.fn();
+  const rule = {
+    id: "jump-sales", triggerFieldKey: "revenue", targetDashboardId: "detail-dashboard", openMode: "current" as const,
+    parameterMappings: [{ sourceFieldKey: "region", targetFilterId: "target-region" }],
+  };
+  render(<DashboardComponentRenderer
+    component={{
+      id: "bar-jump", type: "bar", title: "区域销售", props: { color: "#1677ff", showLegend: true }, interaction: { jumpRules: [rule] },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "region" }, measure: { fieldKey: "revenue" } } },
+    }}
+    fields={[{ key: "region", label: "区域", type: "string", nullable: false }, { key: "revenue", label: "销售额", type: "number", nullable: false }]}
+    rows={[{ region: "华东", revenue: 12800 }]}
+    onChartJump={onChartJump}
+  />);
+
+  fireEvent.click(screen.getByRole("img", { name: "区域销售图表" }));
+  expect(onChartJump).toHaveBeenCalledWith(rule, { region: "华东", revenue: 12800 });
+});
+
+it("forwards a configured heatmap cell click", () => {
+  const onChartJump = vi.fn();
+  const rule = {
+    id: "jump-visitors", triggerFieldKey: "visitors", targetDashboardId: "detail-dashboard", openMode: "newTab" as const,
+    parameterMappings: [{ sourceFieldKey: "weekday", targetFilterId: "target-weekday" }],
+  };
+  render(<DashboardComponentRenderer
+    component={{
+      id: "heatmap-jump", type: "heatmap", title: "访问热力", props: { aggregation: "sum", showValues: true }, interaction: { jumpRules: [rule] },
+      binding: { datasetId: "traffic", slots: { rowDimension: { fieldKey: "weekday" }, columnDimension: { fieldKey: "hour" }, measure: { fieldKey: "visitors" } } },
+    }}
+    fields={[
+      { key: "weekday", label: "星期", type: "string", nullable: false }, { key: "hour", label: "小时", type: "string", nullable: false }, { key: "visitors", label: "访客数", type: "number", nullable: false },
+    ]}
+    rows={[{ weekday: "周一", hour: "10时", visitors: 36 }]}
+    onChartJump={onChartJump}
+  />);
+
+  fireEvent.click(screen.getByRole("button", { name: "周一 10时 访客数 36" }));
+  expect(onChartJump).toHaveBeenCalledWith(rule, { weekday: "周一", hour: "10时", visitors: 36 });
 });
 
 it("renders a gauge chart from actual and target values", () => {
@@ -961,6 +1014,40 @@ it("renders table headers from dataset field labels and paginates rows", () => {
   expect(screen.getByText("510G")).toBeTruthy();
 });
 
+it("aggregates repeated detail-table dimensions when row aggregation is enabled", () => {
+  const component: ComponentInstance = {
+    id: "table-aggregation",
+    type: "table",
+    title: "商品汇总",
+    props: { aggregateRows: true, aggregation: "sum", pageSize: 20, striped: false },
+    binding: {
+      datasetId: "inventory",
+      slots: {
+        columns: [
+          { fieldKey: "product" },
+          { fieldKey: "units", aggregation: "sum" },
+        ],
+      },
+    },
+  };
+  render(<DashboardComponentRenderer
+    component={component}
+    fields={[
+      { key: "product", label: "商品名称", type: "string", nullable: false },
+      { key: "units", label: "数量", type: "number", nullable: false },
+    ]}
+    rows={[
+      { product: "小米电视机 A32", units: 2 },
+      { product: "小米电视机 A32", units: 3 },
+      { product: "小米路由器", units: 1 },
+    ]}
+  />);
+
+  expect(screen.getAllByText("小米电视机 A32")).toHaveLength(1);
+  expect(screen.getByText("5")).toBeTruthy();
+  expect(screen.getAllByText("2 行").length).toBeGreaterThan(0);
+});
+
 it("renders detail tables without row and column chips in the header", () => {
   const component: ComponentInstance = {
     id: "table-1",
@@ -1561,7 +1648,7 @@ it("hides dashboard header filter actions until a filter is configured", () => {
     },
   } as ComponentInstance;
 
-  render(<DashboardComponentRenderer component={component} />);
+  render(<DashboardComponentRenderer component={component} rows={[]} />);
 
   expect(screen.queryByLabelText("全局筛选器")).toBeNull();
   expect(screen.queryByRole("button", { name: "重置筛选" })).toBeNull();

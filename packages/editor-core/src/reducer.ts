@@ -54,6 +54,14 @@ const withoutBinding = (component: ComponentInstance): ComponentInstance => {
   return rest;
 };
 
+const withInteraction = (
+  component: ComponentInstance,
+  interaction: ComponentInstance["interaction"],
+): ComponentInstance =>
+  interaction === undefined
+    ? (({ interaction: _interaction, ...rest }) => rest)(component)
+    : { ...component, interaction };
+
 const withBinding = (
   component: ComponentInstance,
   binding: DataBinding | undefined,
@@ -238,6 +246,15 @@ const applyKnownCommand = (
           (component) => command.nextDisplayAnnotations === undefined
             ? (({ displayAnnotations: _displayAnnotations, ...rest }) => rest)(component)
             : { ...component, displayAnnotations: command.nextDisplayAnnotations },
+        ),
+      });
+    case "component.interaction.update":
+      return validateDashboardSnapshot({
+        ...dashboard,
+        components: replaceComponent(
+          dashboard,
+          command.componentId,
+          (component) => withInteraction(component, command.nextInteraction),
         ),
       });
     case "component.binding.update":

@@ -29,13 +29,14 @@ export const ComponentType = z.enum([
   "radar",
   "treemap",
   "kpi",
+  "metricAlert",
   "kpiInsight",
   "metricTrend",
   "metricBreakdown",
   "flipNumber",
   "progressBar",
   "targetProgress",
-  "progressIndicator",
+  "goalTaskProgress",
   "gauge",
   "liquid",
   "table",
@@ -177,7 +178,7 @@ export const DashboardGlobalFilterConfig = z.object({
   controlType: DashboardGlobalFilterControlType,
   // `null` keeps existing saved filters backward-compatible: their behavior is
   // derived from the control type (select = equals, input = contains).
-  operator: DashboardGlobalFilterOperator.optional().transform((operator) => operator ?? null),
+  operator: DashboardGlobalFilterOperator.nullable().optional().transform((operator) => operator ?? null),
   targets: z.array(DashboardGlobalFilterTarget).max(99),
 }).strict();
 
@@ -236,6 +237,49 @@ export const DataBinding = z.object({
 
 export type DataBinding = z.infer<typeof DataBinding>;
 
+/** Where a chart interaction opens the configured target dashboard. */
+export const ChartJumpOpenMode = z.enum(["current", "newTab"]);
+
+export type ChartJumpOpenMode = z.infer<typeof ChartJumpOpenMode>;
+
+/** Where the target dashboard opens after a chart interaction. */
+export const ChartJumpTargetPosition = z.enum(["top", "component"]);
+
+export type ChartJumpTargetPosition = z.infer<typeof ChartJumpTargetPosition>;
+
+/** Passes the value from a clicked chart field into a global filter on the target dashboard. */
+export const ChartJumpParameterMapping = z.object({
+  sourceFieldKey: nonEmptyString,
+  targetFilterId: nonEmptyString,
+}).strict();
+
+export type ChartJumpParameterMapping = z.infer<typeof ChartJumpParameterMapping>;
+
+/** A field-level rule that navigates from a chart data point to another dashboard. */
+export const ChartJumpRule = z.object({
+  id: nonEmptyString,
+  triggerFieldKey: nonEmptyString,
+  targetDashboardId: nonEmptyString,
+  openMode: ChartJumpOpenMode,
+  /** Omitted rules remain backward-compatible and open at the dashboard top. */
+  targetPosition: ChartJumpTargetPosition.optional(),
+  /** Required by the editor when targetPosition is component. */
+  targetComponentId: nonEmptyString.optional(),
+  parameterMappings: z.array(ChartJumpParameterMapping).max(20),
+}).strict().superRefine((rule, context) => {
+  if (rule.targetPosition === "component" && rule.targetComponentId === undefined) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["targetComponentId"], message: "定位到图表时请选择目标图表。" });
+  }
+});
+
+export type ChartJumpRule = z.infer<typeof ChartJumpRule>;
+
+export const ComponentInteraction = z.object({
+  jumpRules: z.array(ChartJumpRule).max(20),
+}).strict();
+
+export type ComponentInteraction = z.infer<typeof ComponentInteraction>;
+
 export const ComponentInstance = z.object({
   id: nonEmptyString,
   /** Optional owning analysis group. Root components omit this field. */
@@ -247,6 +291,8 @@ export const ComponentInstance = z.object({
   displayAnnotations: ComponentDisplayAnnotations.optional(),
   props: safeJsonRecord,
   binding: DataBinding.optional(),
+  /** Optional point-click interactions configured from the editor's analysis panel. */
+  interaction: ComponentInteraction.optional(),
 }).strict();
 
 export type ComponentInstance = z.infer<typeof ComponentInstance>;

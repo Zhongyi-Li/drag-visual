@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { barDefinition } from "@drag-visual/component-registry";
+import { analysisGroupDefinition, barDefinition } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
@@ -27,7 +27,7 @@ const dashboard = DashboardSchema.parse({
 });
 
 describe("QueryFiltersPanel", () => {
-  it("keeps a chart condition as a draft until the author applies it", async () => {
+  it("saves a chart condition after the author completes editing", async () => {
     server.use(http.get("http://localhost/datasets/sales/schema", () => HttpResponse.json({
       id: "sales", name: "销售数据", schemaVersion: "v1", parameters: [],
       fields: [
@@ -39,17 +39,18 @@ describe("QueryFiltersPanel", () => {
     const component = store.getState().history.present.components[0]!;
     render(<AppProviders><QueryFiltersPanel component={component} definition={barDefinition} scope="component" store={store} /></AppProviders>);
 
-    await screen.findByRole("button", { name: "配置筛选条件" });
-    fireEvent.click(screen.getByRole("button", { name: "配置筛选条件" }));
+    await screen.findByRole("button", { name: "编辑筛选条件" });
+    expect(screen.getByText("未配置")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "编辑筛选条件" }));
     fireEvent.click(await screen.findByRole("button", { name: "添加筛选条件" }));
     expect(store.getState().history.present.components[0]!.props.queryFilters).toBeUndefined();
     fireEvent.change(screen.getByRole("textbox", { name: "查询值1" }), { target: { value: "小米" } });
     fireEvent.click(screen.getByRole("button", { name: "完成编辑" }));
-    fireEvent.click(screen.getByRole("button", { name: "查询" }));
 
     await waitFor(() => expect(store.getState().history.present.components[0]!.props.queryFilters).toEqual([
       { kind: "fieldText", fieldKey: "product", operator: "contains", value: "小米" },
     ]));
+    expect(screen.getByText("已配置")).toBeInTheDocument();
   });
 
   it("lets authors remove one draft condition without clearing the others", async () => {
@@ -64,19 +65,16 @@ describe("QueryFiltersPanel", () => {
     const component = store.getState().history.present.components[0]!;
     render(<AppProviders><QueryFiltersPanel component={component} definition={barDefinition} scope="component" store={store} /></AppProviders>);
 
-    await screen.findByRole("button", { name: "配置筛选条件" });
-    fireEvent.click(screen.getByRole("button", { name: "配置筛选条件" }));
+    await screen.findByRole("button", { name: "编辑筛选条件" });
+    fireEvent.click(screen.getByRole("button", { name: "编辑筛选条件" }));
     fireEvent.click(await screen.findByRole("button", { name: "添加筛选条件" }));
     fireEvent.click(screen.getByRole("button", { name: "添加筛选条件" }));
     fireEvent.click(screen.getByRole("button", { name: "完成编辑" }));
-    expect(screen.getByRole("button", { name: "删除已选条件1" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "删除已选条件2" })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "删除已选条件1" }));
-    expect(screen.queryByRole("button", { name: "删除已选条件2" })).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "删除已选条件1" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "编辑筛选条件" }));
+    fireEvent.click(screen.getByRole("button", { name: "删除配置条件1" }));
+    fireEvent.click(screen.getByRole("button", { name: "完成编辑" }));
     expect(store.getState().history.present.components[0]!.props.queryFilters).toEqual([
-      { kind: "fieldText", fieldKey: "product", operator: "contains", value: "" },
       { kind: "fieldText", fieldKey: "product", operator: "contains", value: "" },
     ]);
   });
@@ -90,14 +88,63 @@ describe("QueryFiltersPanel", () => {
     const component = store.getState().history.present.components[0]!;
     render(<AppProviders><QueryFiltersPanel component={component} definition={barDefinition} scope="component" store={store} /></AppProviders>);
 
-    await screen.findByRole("button", { name: "配置筛选条件" });
-    fireEvent.click(screen.getByRole("button", { name: "配置筛选条件" }));
+    await screen.findByRole("button", { name: "编辑筛选条件" });
+    fireEvent.click(screen.getByRole("button", { name: "编辑筛选条件" }));
     fireEvent.click(await screen.findByRole("button", { name: "添加筛选条件" }));
     fireEvent.click(screen.getByRole("button", { name: "完成编辑" }));
-    fireEvent.click(screen.getByRole("button", { name: "查询" }));
 
     await waitFor(() => expect(store.getState().history.present.components[0]!.props.queryFilters).toEqual([
       { kind: "fieldText", fieldKey: "product", operator: "contains", value: "" },
     ]));
+  });
+
+  it("provides an exact-value selector for values shared by every chart in an analysis group", async () => {
+    server.use(
+      http.get("http://localhost/datasets/sales/schema", () => HttpResponse.json({
+        id: "sales", name: "销售数据", schemaVersion: "v1", parameters: [],
+        fields: [{ key: "category", label: "类目", type: "string", nullable: false }],
+      })),
+      http.get("http://localhost/datasets/inventory/schema", () => HttpResponse.json({
+        id: "inventory", name: "库存数据", schemaVersion: "v1", parameters: [],
+        fields: [{ key: "category", label: "类目", type: "string", nullable: false }],
+      })),
+      http.get("http://localhost/datasets/sales/fields/category/options", () => HttpResponse.json({ options: ["家电", "手机"] })),
+      http.get("http://localhost/datasets/inventory/fields/category/options", () => HttpResponse.json({ options: ["手机", "配件"] })),
+    );
+    const groupDashboard = DashboardSchema.parse({
+      ...dashboard,
+      datasets: [
+        { datasetId: "sales", schemaVersion: "v1", parameters: {} },
+        { datasetId: "inventory", schemaVersion: "v1", parameters: {} },
+      ],
+      layout: [
+        { i: "group-1", x: 0, y: 0, w: 12, h: 9 },
+        { i: "sales-chart", parentId: "group-1", x: 0, y: 0, w: 6, h: 5 },
+        { i: "inventory-chart", parentId: "group-1", x: 6, y: 0, w: 6, h: 5 },
+      ],
+      components: [
+        {
+          id: "group-1", type: "analysisGroup", title: "商品分析",
+          props: {
+            description: "用于组织同一业务主题下的多个图表与明细。", columns: 12, gap: 12, showSurface: true,
+            queryFilters: [{ kind: "fieldValue", fieldKey: "category", values: [""] }], dateFilter: null,
+          },
+        },
+        { id: "sales-chart", parentId: "group-1", type: "bar", title: "销售", props: {}, binding: { datasetId: "sales", slots: {} } },
+        { id: "inventory-chart", parentId: "group-1", type: "bar", title: "库存", props: {}, binding: { datasetId: "inventory", slots: {} } },
+      ],
+    });
+    const store = createEditorStore(groupDashboard);
+    const group = store.getState().history.present.components[0]!;
+    render(<AppProviders><QueryFiltersPanel component={group} definition={analysisGroupDefinition} scope="analysisGroup" store={store} /></AppProviders>);
+
+    await screen.findByRole("button", { name: "编辑筛选条件" });
+    fireEvent.click(screen.getByRole("button", { name: "编辑筛选条件" }));
+    const valueSelector = await screen.findByRole("combobox", { name: "查询值1" });
+    fireEvent.mouseDown(valueSelector);
+
+    expect(await screen.findByRole("option", { name: "手机" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "家电" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "配件" })).not.toBeInTheDocument();
   });
 });

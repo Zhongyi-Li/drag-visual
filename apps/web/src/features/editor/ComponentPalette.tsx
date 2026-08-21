@@ -1,4 +1,4 @@
-import { ApartmentOutlined, BarChartOutlined, FilterOutlined, NodeIndexOutlined, StockOutlined, SearchOutlined } from "@ant-design/icons";
+import { AlertOutlined, ApartmentOutlined, AppstoreOutlined, BarChartOutlined, BulbOutlined, FilterOutlined, NodeIndexOutlined, SearchOutlined, StockOutlined } from "@ant-design/icons";
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { createDefaultRegistry, type ComponentRegistry } from "@drag-visual/component-registry";
@@ -52,13 +52,14 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
   {
     category: "指标",
     items: [
-      { id: "metric-board", type: "kpi", title: "指标看板", icon: "metric-board" },
-      { id: "kpi-insight", type: "kpiInsight", title: "指标洞察", icon: "metric-board" },
+      { id: "metric-board", type: "kpi", title: "指标看板", icon: <AppstoreOutlined /> },
+      { id: "metric-alert", type: "metricAlert", title: "指标预警", instanceTitle: "", icon: <AlertOutlined /> },
+      { id: "kpi-insight", type: "kpiInsight", title: "指标洞察", icon: <BulbOutlined /> },
       { id: "metric-trend", type: "metricTrend", title: "指标趋势", icon: "metric-trend" },
       // TODO(chart-palette): 翻牌器待后续开发完成后再恢复展示。
       // { id: "flip-number", type: "flipNumber", title: "翻牌器", icon: "flip-number" },
       { id: "progress", type: "progressBar", title: "进度条", icon: "progress" },
-      { id: "progress-indicator", type: "progressIndicator", title: "目标任务进度表", icon: <NodeIndexOutlined /> },
+      { id: "goal-task-progress", type: "goalTaskProgress", title: "目标任务进度", icon: <NodeIndexOutlined /> },
       { id: "target-progress", type: "targetProgress", title: "目标完成率", icon: "target-progress" },
       { id: "gauge", type: "gauge", title: "仪表盘", icon: "gauge" },
       // TODO(chart-palette): 水波图、指标拆解待后续开发完成后再恢复展示。
@@ -115,10 +116,12 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
   },
 ];
 
-const DraggablePaletteCard = ({ id, type, title, icon, onAdd, disabled = false }: PaletteItem & { onAdd: () => void; disabled?: boolean }) => {
+const DraggablePaletteCard = ({ id, type, title, icon, instanceTitle, onAdd, disabled = false }: PaletteItem & { onAdd: () => void; disabled?: boolean }) => {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `palette:${id}`,
-    data: getPaletteDragData(type, title),
+    // Some compact, dashboard-level components intentionally render without
+    // a frame title. Carry that choice through drag-and-drop as well as click.
+    data: getPaletteDragData(type, instanceTitle ?? title),
     disabled,
   });
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {

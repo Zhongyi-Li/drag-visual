@@ -39,4 +39,26 @@ describe("ChartQueryFilterBar", () => {
     expect(screen.getByRole("textbox", { name: "图表查询值1" })).toHaveValue("创维");
     expect(screen.getByRole("textbox", { name: "图表查询值2" })).toHaveValue("华东");
   });
+
+  it("accepts a host surface class without changing its filter controls", () => {
+    const filters = [{ kind: "fieldText" as const, fieldKey: "product", operator: "contains" as const, value: "" }];
+    render(<AppProviders><ChartQueryFilterBar className="chart-query-filter-bar--analysis-group" filters={filters} fields={[{ key: "product", label: "商品", type: "string", nullable: false }]} onApply={vi.fn()} /></AppProviders>);
+
+    expect(screen.getByLabelText("图表查询条件")).toHaveClass("chart-query-filter-bar--analysis-group");
+    expect(screen.getByRole("textbox", { name: "图表查询值1" })).toBeInTheDocument();
+  });
+
+  it("allows an exact-value selection to be cleared before querying", () => {
+    const onApply = vi.fn();
+    const filters = [{ kind: "fieldValue" as const, fieldKey: "brand", values: ["创维"] }];
+    const { container } = render(<AppProviders><ChartQueryFilterBar filters={filters} fields={[{ key: "brand", label: "品牌", type: "string", nullable: false }]} localFieldOptions={{ brand: ["创维", "小米"] }} onApply={onApply} /></AppProviders>);
+
+    const clear = container.querySelector(".ant-select-clear") as HTMLElement;
+    expect(clear).toBeInTheDocument();
+    fireEvent.mouseDown(clear);
+    fireEvent.click(clear);
+    fireEvent.click(screen.getByRole("button", { name: "查询" }));
+
+    expect(onApply).toHaveBeenLastCalledWith([], [{ kind: "fieldValue", fieldKey: "brand", values: [""] }]);
+  });
 });

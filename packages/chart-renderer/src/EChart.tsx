@@ -6,7 +6,13 @@ import { useEffect, useRef } from "react";
 
 use([BarChart, GaugeChart, LineChart, PieChart, RadarChart, SunburstChart, TreemapChart, GridComponent, LegendComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
 
-export const EChart = ({ option, ariaLabel }: { readonly option: EChartsCoreOption; readonly ariaLabel: string }) => {
+export interface EChartPointClick {
+  readonly dataIndex?: number | undefined;
+  readonly name?: string | undefined;
+  readonly seriesName?: string | undefined;
+}
+
+export const EChart = ({ option, ariaLabel, onPointClick }: { readonly option: EChartsCoreOption; readonly ariaLabel: string; readonly onPointClick?: ((point: EChartPointClick) => void) | undefined }) => {
   const container = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof init> | null>(null);
 
@@ -40,5 +46,15 @@ export const EChart = ({ option, ariaLabel }: { readonly option: EChartsCoreOpti
     chart.resize();
   }, [option]);
 
-  return <div ref={container} role="img" aria-label={ariaLabel} style={{ flex: "1 1 auto", height: "100%", minHeight: 0, width: "100%" }} />;
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (chart === null || onPointClick === undefined) return undefined;
+    const handleClick = (event: EChartPointClick) => onPointClick(event);
+    chart.on("click", handleClick);
+    return () => {
+      chart.off("click", handleClick);
+    };
+  }, [onPointClick]);
+
+  return <div ref={container} role="img" aria-label={ariaLabel} style={{ flex: "1 1 auto", height: "100%", minHeight: 0, width: "100%", cursor: onPointClick === undefined ? undefined : "pointer" }} />;
 };

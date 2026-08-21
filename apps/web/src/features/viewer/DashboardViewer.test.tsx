@@ -5,7 +5,7 @@ import { Dataset } from "@drag-visual/contracts";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
 import { AppProviders } from "../../app/AppProviders.js";
 import { server } from "../../mocks/server.js";
@@ -110,6 +110,26 @@ it("uses a compact header density when a preview needs more space for its canvas
   expect(screen.getByRole("heading", { name: "经营看板", level: 3 })).toBeInTheDocument();
 });
 
+it("scrolls to a configured chart-jump target after rendering the dashboard", async () => {
+  const previousScrollIntoView = HTMLElement.prototype.scrollIntoView;
+  const scrollIntoView = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+  try {
+    render(<DashboardViewer dashboard={dashboard({
+      layout: [{ i: "bar-1", x: 0, y: 0, w: 6, h: 5 }, { i: "bar-2", x: 6, y: 8, w: 6, h: 5 }],
+      components: [
+        { id: "bar-1", type: "bar", title: "月收入", props: { color: "#1677ff", showLegend: true } },
+        { id: "bar-2", type: "bar", title: "区域明细", props: { color: "#1677ff", showLegend: true } },
+      ],
+    })} initialJumpTargetComponentId="bar-2" />);
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" }));
+    expect(document.getElementById("chart-jump-target-bar-2")).toBeInTheDocument();
+  } finally {
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: previousScrollIntoView });
+  }
+});
+
 it("renders every configured analysis-group query control, including empty values", () => {
   const orders = Dataset.parse({
     id: "orders",
@@ -157,11 +177,57 @@ it("renders every configured analysis-group query control, including empty value
   render(<AppProviders><DashboardViewer dashboard={grouped} currentDatasets={new Map([[orders.id, orders]])} /></AppProviders>);
 
   expect(screen.getByLabelText("复合分析查询条件")).toBeInTheDocument();
+  expect(screen.getByLabelText("复合分析查询条件")).toHaveClass("chart-query-filter-bar--analysis-group");
   expect(screen.getByText("订单明细")).toBeInTheDocument();
   expect(screen.getByText("订单编号")).toBeInTheDocument();
   expect(screen.getByText("货币标识")).toBeInTheDocument();
   expect(screen.getByRole("textbox", { name: "复合分析查询值1" })).toHaveValue("");
   expect(screen.getByRole("textbox", { name: "复合分析查询值2" })).toHaveValue("");
+});
+
+it("renders an analysis-group exact condition as a value selector", () => {
+  const orders = Dataset.parse({
+    id: "orders",
+    name: "订单",
+    schemaVersion: "orders-v1",
+    fields: [{ key: "brand", label: "品牌", type: "string", nullable: false }],
+    parameters: [],
+  });
+  const grouped = dashboard({
+    layout: [
+      { i: "group-1", x: 0, y: 0, w: 12, h: 8 },
+      { i: "table-1", parentId: "group-1", x: 0, y: 0, w: 12, h: 6 },
+    ],
+    components: [
+      {
+        id: "group-1",
+        type: "analysisGroup",
+        title: "订单分析",
+        props: {
+          description: "",
+          columns: 12,
+          gap: 12,
+          showSurface: true,
+          queryFilters: [{ kind: "fieldValue", fieldKey: "brand", values: [""] }],
+        },
+      },
+      {
+        id: "table-1",
+        parentId: "group-1",
+        type: "table",
+        title: "订单明细",
+        props: { pageSize: 20, striped: false },
+        binding: { datasetId: "orders", slots: { columns: [{ fieldKey: "brand" }] } },
+      },
+    ],
+    datasets: [{ datasetId: "orders", schemaVersion: "orders-v1", parameters: {} }],
+  });
+
+  render(<AppProviders><DashboardViewer dashboard={grouped} currentDatasets={new Map([[orders.id, orders]])} /></AppProviders>);
+
+  expect(screen.getByText("等于")).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "复合分析查询值1" })).toBeInTheDocument();
+  expect(screen.queryByRole("textbox", { name: "复合分析查询值1" })).not.toBeInTheDocument();
 });
 
 it("removes component card borders in preview mode", () => {

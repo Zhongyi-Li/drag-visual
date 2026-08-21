@@ -19,6 +19,22 @@ describe("migrateDashboard", () => {
     expect(migrateDashboard(dashboard)).toEqual(dashboard);
   });
 
+  it("upgrades the retired progress indicator component", () => {
+    const migrated = migrateDashboard({
+      ...dashboard,
+      layout: [{ i: "legacy-progress", x: 0, y: 0, w: 6, h: 4 }],
+      components: [{
+        id: "legacy-progress",
+        type: "progressIndicator",
+        title: "目标任务进度",
+        props: { color: "#1677ff" },
+      }],
+    });
+
+    expect(migrated.components[0]?.type).toBe("goalTaskProgress");
+    expect(migrated.components[0]?.props).toEqual({ color: "#1677ff" });
+  });
+
   it("requires an explicit schema version", () => {
     const { schemaVersion: _schemaVersion, ...withoutVersion } = dashboard;
 

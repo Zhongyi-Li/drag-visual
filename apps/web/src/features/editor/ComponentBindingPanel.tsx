@@ -1,9 +1,9 @@
-import { ArrowRightOutlined, CalculatorOutlined, CheckOutlined, DeleteOutlined, DownOutlined, EditOutlined, MoreOutlined, QuestionCircleOutlined, TagOutlined } from "@ant-design/icons";
+import { ArrowRightOutlined, CalculatorOutlined, CheckOutlined, DeleteOutlined, DownOutlined, EditOutlined, MoreOutlined, QuestionCircleOutlined, RightOutlined, RiseOutlined, TagOutlined } from "@ant-design/icons";
 import type { ComponentDefinition } from "@drag-visual/component-registry";
-import type { CalculatedMetric, ComponentType, DataBinding, Dataset, DatasetField, MetricAggregation, QueryParameter } from "@drag-visual/contracts";
+import type { CalculatedMetric, ComponentInstance, ComponentType, DataBinding, Dataset, DatasetField, MetricAggregation, QueryParameter } from "@drag-visual/contracts";
 import { validateBinding } from "@drag-visual/data-engine";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Dropdown, InputNumber, Select, Space, Spin, Tooltip, Typography } from "antd";
+import { Alert, Button, Dropdown, InputNumber, Select, Space, Spin, Switch, Tooltip, Typography } from "antd";
 import { type DragEvent, type ReactNode, useEffect, useState } from "react";
 import { useStore } from "zustand";
 
@@ -140,6 +140,20 @@ const aggregationOptions: readonly { readonly label: string; readonly value: Met
   { label: "最大值", value: "max" },
   { label: "最小值", value: "min" },
 ];
+
+type MetricAlertOperator = "gt" | "gte" | "lt" | "lte" | "eq" | "neq";
+
+const metricAlertOperatorOptions: readonly { readonly label: string; readonly value: MetricAlertOperator }[] = [
+  { label: "大于", value: "gt" },
+  { label: "大于等于", value: "gte" },
+  { label: "小于", value: "lt" },
+  { label: "小于等于", value: "lte" },
+  { label: "等于", value: "eq" },
+  { label: "不等于", value: "neq" },
+];
+
+const metricAlertOperatorValue = (value: unknown): MetricAlertOperator =>
+  metricAlertOperatorOptions.some((option) => option.value === value) ? value as MetricAlertOperator : "gte";
 
 const aggregationLabel = (
   aggregation: MetricAggregation | undefined,
@@ -384,6 +398,22 @@ export const ComponentBindingPanel = ({
     });
   };
 
+  const updateMetricAlertProps = (nextValues: Readonly<Record<string, unknown>>) => {
+    if (currentComponent.type !== "metricAlert") return;
+    const latestComponent = store.getState().history.present.components.find((candidate) => candidate.id === component.id);
+    const latestProps = latestComponent?.props ?? {};
+    const propsForSchema = Object.fromEntries(
+      Object.keys(defaultProps).map((key) => [key, latestProps[key] ?? defaultProps[key]]),
+    );
+    const parsed = definition.propsSchema.safeParse({ ...propsForSchema, ...nextValues });
+    if (!parsed.success) return;
+    store.getState().dispatch({
+      type: "component.props.update",
+      componentId: component.id,
+      nextProps: { ...latestProps, ...parsed.data } as ComponentInstance["props"],
+    });
+  };
+
   const saveCalculatedMetric = (metric: CalculatedMetric) => {
     if (binding === undefined || calculatedMetricSlot === null) return;
     const nextBinding = cloneBinding(binding);
@@ -435,6 +465,9 @@ export const ComponentBindingPanel = ({
       componentId: component.id,
       nextBinding: { ...cloneBinding(binding), slots: nextSlots },
     });
+    if (currentComponent.type === "metricAlert" && slotKey === "measure") {
+      updateMetricAlertProps({ aggregation });
+    }
   };
 
   useEffect(() => {
@@ -573,6 +606,54 @@ export const ComponentBindingPanel = ({
 
   const sourceFields = schema.data?.fields ?? [];
   const fields = calculatedMetricFields(sourceFields, binding as DataBinding | undefined);
+  const isMetricAlert = currentComponent.type === "metricAlert";
+  const metricAlertDimensionKey = isMetricAlert ? selectedKeys(binding, "dimension", false) : undefined;
+  const metricAlertMeasureKey = isMetricAlert ? selectedKeys(binding, "measure", false) : undefined;
+  const metricAlertDimensionLabel = typeof metricAlertDimensionKey === "string"
+    ? fields.find((field) => field.key === metricAlertDimensionKey)?.label ?? metricAlertDimensionKey
+    : "预警维度";
+  const metricAlertMeasureLabel = typeof metricAlertMeasureKey === "string"
+    ? fields.find((field) => field.key === metricAlertMeasureKey)?.label ?? metricAlertMeasureKey
+    : "预警指标";
+  const metricAlertAggregation = typeof metricAlertMeasureKey === "string"
+    ? selectedMetricAggregation("measure", metricAlertMeasureKey)
+      ?? (typeof componentProps.aggregation === "string" ? componentProps.aggregation as MetricAggregation : "sum")
+    : "sum";
+  const metricAlertRuleReady = typeof metricAlertDimensionKey === "string" && typeof metricAlertMeasureKey === "string";
+  const metricAlertRuleOperator = metricAlertOperatorValue(componentProps.operator);
+  const metricAlertRuleThreshold = typeof componentProps.threshold === "number" && Number.isFinite(componentProps.threshold)
+    ? componentProps.threshold
+    : typeof defaultProps.threshold === "number" ? defaultProps.threshold : 0;
+  const metricAlertThresholdUnit = metricAlertMeasureLabel.includes("天") ? "天" : "值";
+  const tableColumns = currentComponent.type === "table"
+    ? (Array.isArray(selectedKeys(binding, "columns", true)) ? selectedKeys(binding, "columns", true) as string[] : [])
+    : [];
+  const tableNumericColumnKeys = tableColumns.filter((fieldKey) => fields.find((field) => field.key === fieldKey)?.type === "number");
+  const tableAggregateRows = currentComponent.type === "table" && componentProps.aggregateRows === true;
+  const tableAggregation = componentProps.aggregation === "avg" || componentProps.aggregation === "count" || componentProps.aggregation === "max" || componentProps.aggregation === "min"
+    ? componentProps.aggregation
+    : "sum";
+  const updateTableAggregation = (aggregateRows: boolean, aggregation: MetricAggregation = tableAggregation) => {
+    if (currentComponent.type !== "table" || binding === undefined) return;
+    const nextSlots = cloneSlots(binding.slots);
+    const selectedColumns = nextSlots.columns;
+    if (selectedColumns !== undefined) {
+      const columns = Array.isArray(selectedColumns) ? selectedColumns : [selectedColumns];
+      nextSlots.columns = columns.map((column) => tableNumericColumnKeys.includes(column.fieldKey)
+        ? { fieldKey: column.fieldKey, ...(aggregateRows ? { aggregation } : {}) }
+        : column);
+    }
+    store.getState().dispatch({
+      type: "component.binding.update",
+      componentId: component.id,
+      nextBinding: { ...cloneBinding(binding), slots: nextSlots },
+    });
+    store.getState().dispatch({
+      type: "component.props.update",
+      componentId: component.id,
+      nextProps: { ...componentProps, aggregateRows, aggregation },
+    });
+  };
   const metricTrendDimensionKey = currentComponent.type === "metricTrend"
     ? selectedKeys(binding, "timeDimension", false)
     : undefined;
@@ -584,14 +665,14 @@ export const ComponentBindingPanel = ({
   const showTimeGranularity = supportsTimeGranularity && (
     currentComponent.type !== "metricTrend" || metricTrendDimension === undefined || metricTrendDimension.type === "date"
   );
-  const isProgressPairingComponent = currentComponent.type === "progressBar" || currentComponent.type === "progressIndicator";
+  const isProgressPairingComponent = currentComponent.type === "progressBar" || currentComponent.type === "goalTaskProgress";
   const progressMeasureKeys = isProgressPairingComponent
     ? (Array.isArray(selectedKeys(binding, "measure", true)) ? selectedKeys(binding, "measure", true) as string[] : [])
     : [];
   const progressTargetKeys = isProgressPairingComponent
     ? (Array.isArray(selectedKeys(binding, "target", true)) ? selectedKeys(binding, "target", true) as string[] : [])
     : [];
-  const rawProgressPairs = currentComponent.type === "progressIndicator"
+  const rawProgressPairs = currentComponent.type === "goalTaskProgress"
     ? (Array.isArray(componentProps.metricSettings) ? componentProps.metricSettings : [])
     : (Array.isArray(componentProps.progressPairs) ? componentProps.progressPairs : []);
   const savedProgressPairs = rawProgressPairs.flatMap((pair) => {
@@ -646,7 +727,7 @@ export const ComponentBindingPanel = ({
       componentId: component.id,
       nextBinding: { ...cloneBinding(binding), slots: nextSlots },
     });
-    const nextProps = currentComponent.type === "progressIndicator"
+    const nextProps = currentComponent.type === "goalTaskProgress"
       ? {
           ...componentProps,
           metricSettings: normalizedPairs.map((pair, index) => {
@@ -803,7 +884,7 @@ export const ComponentBindingPanel = ({
 
       {isProgressPairingComponent && (
         <div className="binding-field progress-pair-field">
-          <BindingFieldLabel label={currentComponent.type === "progressIndicator" ? "指标配对" : "指标与目标配对"} help="每一行对应一项已完成指标和它的目标指标。可从右侧数据栏双击添加，再拖动字段到对应一行完成配对。" />
+          <BindingFieldLabel label={currentComponent.type === "goalTaskProgress" ? "任务指标配对" : "指标与目标配对"} help="每一行对应一项已完成指标和它的目标指标。可从右侧数据栏双击添加，再拖动字段到对应一行完成配对。" />
           <div className="progress-pair-list">
             {progressPairs.map((pair, index) => {
               const measureAggregation = selectedMetricAggregation("measure", pair.measure) ?? "sum";
@@ -815,12 +896,12 @@ export const ComponentBindingPanel = ({
               return (
                 <div className="progress-pair" key={`${pair.measure}:${index}`}>
                   <div className="progress-pair__heading">
-                    <Typography.Text type="secondary">{currentComponent.type === "progressIndicator" ? "指标" : "进度"} {index + 1}</Typography.Text>
-                    <Button aria-label={`移除${currentComponent.type === "progressIndicator" ? "指标" : "进度"} ${index + 1}`} className="progress-pair__remove" danger icon={<DeleteOutlined />} size="small" type="text" onClick={() => updateProgressPair(index, "measure", undefined)} />
+                    <Typography.Text type="secondary">{currentComponent.type === "goalTaskProgress" ? "任务指标" : "进度"} {index + 1}</Typography.Text>
+                    <Button aria-label={`移除${currentComponent.type === "goalTaskProgress" ? "任务指标" : "进度"} ${index + 1}`} className="progress-pair__remove" danger icon={<DeleteOutlined />} size="small" type="text" onClick={() => updateProgressPair(index, "measure", undefined)} />
                   </div>
                   <div className="progress-pair__controls">
                     <div className="progress-pair__control">
-                      <span>{currentComponent.type === "progressIndicator" ? "已完成指标" : "实际指标"}</span>
+                      <span>{currentComponent.type === "goalTaskProgress" ? "已完成指标" : "实际指标"}</span>
                       <div
                         className="metric-binding-item progress-pair__field"
                         onDragOver={(event) => { if (canAcceptProgressField(event)) event.preventDefault(); }}
@@ -842,21 +923,21 @@ export const ComponentBindingPanel = ({
                         }}
                         trigger={["click"]}
                       >
-                        <Button aria-label={`${currentComponent.type === "progressIndicator" ? "指标" : "进度"} ${index + 1}实际指标聚合方式`} className="progress-pair__aggregation-button" icon={<DownOutlined />} size="small" type="text">
+                        <Button aria-label={`${currentComponent.type === "goalTaskProgress" ? "任务指标" : "进度"} ${index + 1}实际指标聚合方式`} className="progress-pair__aggregation-button" icon={<DownOutlined />} size="small" type="text">
                           {aggregationLabel(measureAggregation)}
                         </Button>
                       </Dropdown>
                     </div>
                     <ArrowRightOutlined className="progress-pair__arrow" aria-hidden="true" />
                     <div className="progress-pair__control">
-                      <span>{currentComponent.type === "progressIndicator" ? "目标指标" : "目标值"}</span>
+                      <span>{currentComponent.type === "goalTaskProgress" ? "目标指标" : "目标值"}</span>
                       {targetLabel === undefined ? (
                         <div
                           className="binding-field__empty progress-pair__drop-target"
                           onDragOver={(event) => { if (canAcceptProgressField(event)) event.preventDefault(); }}
                           onDrop={(event) => dropProgressField(event, index, "target")}
                         >
-                          从右侧数据栏双击或拖入{currentComponent.type === "progressIndicator" ? "目标指标" : "目标值"}
+                          从右侧数据栏双击或拖入{currentComponent.type === "goalTaskProgress" ? "目标指标" : "目标值"}
                         </div>
                       ) : (
                         <div
@@ -866,7 +947,7 @@ export const ComponentBindingPanel = ({
                         >
                           <span className="metric-binding-item__kind" aria-hidden="true">Nº</span>
                           <span className="metric-binding-item__name">{targetLabel}</span>
-                          <Button aria-label={`移除${currentComponent.type === "progressIndicator" ? "指标" : "进度"} ${index + 1}${currentComponent.type === "progressIndicator" ? "目标指标" : "目标值"}`} className="metric-binding-item__action" icon={<DeleteOutlined />} size="small" type="text" onClick={() => updateProgressPair(index, "target", undefined)} />
+                          <Button aria-label={`移除${currentComponent.type === "goalTaskProgress" ? "任务指标" : "进度"} ${index + 1}${currentComponent.type === "goalTaskProgress" ? "目标指标" : "目标值"}`} className="metric-binding-item__action" icon={<DeleteOutlined />} size="small" type="text" onClick={() => updateProgressPair(index, "target", undefined)} />
                         </div>
                       )}
                       {pair.target === undefined ? (
@@ -885,7 +966,7 @@ export const ComponentBindingPanel = ({
                           }}
                           trigger={["click"]}
                         >
-                          <Button aria-label={`${currentComponent.type === "progressIndicator" ? "指标" : "进度"} ${index + 1}目标值聚合方式`} className="progress-pair__aggregation-button" icon={<DownOutlined />} size="small" type="text">
+                          <Button aria-label={`${currentComponent.type === "goalTaskProgress" ? "任务指标" : "进度"} ${index + 1}目标值聚合方式`} className="progress-pair__aggregation-button" icon={<DownOutlined />} size="small" type="text">
                             {aggregationLabel(targetAggregation, "max")}
                           </Button>
                         </Dropdown>
@@ -895,7 +976,7 @@ export const ComponentBindingPanel = ({
                 </div>
               );
             })}
-            <div className="binding-field__data-panel-hint">从右侧数据栏双击或拖入度量，添加{currentComponent.type === "progressIndicator" ? "指标" : "进度"}</div>
+            <div className="binding-field__data-panel-hint">从右侧数据栏双击或拖入度量，添加{currentComponent.type === "goalTaskProgress" ? "任务指标" : "进度"}</div>
           </div>
         </div>
       )}
@@ -1044,6 +1125,87 @@ export const ComponentBindingPanel = ({
           </div>
         );
       })}
+
+      {isMetricAlert && (
+        <section className="binding-field metric-alert-rule" aria-label="预警规则">
+          <BindingFieldLabel label="预警规则" help="系统会按每个预警维度分别计算所选指标；只要有任一维度满足此条件，就展示预警面板。" />
+
+          <div className="metric-alert-rule__expression">
+            <div className="metric-alert-rule__field metric-alert-rule__field--dimension" title={`预警维度：${metricAlertDimensionLabel}`}>
+              <TagOutlined aria-hidden="true" />
+              <span>{metricAlertDimensionLabel}</span>
+              <DownOutlined aria-hidden="true" />
+            </div>
+            <div className="metric-alert-rule__field metric-alert-rule__field--metric" title={`预警指标：${metricAlertMeasureLabel}（${aggregationLabel(metricAlertAggregation)}）`}>
+              <RiseOutlined aria-hidden="true" />
+              <span>{metricAlertMeasureLabel}</span>
+              <small>{aggregationLabel(metricAlertAggregation)}</small>
+            </div>
+            <Select
+              aria-label="预警条件"
+              className="metric-alert-rule__operator"
+              disabled={!metricAlertRuleReady}
+              options={[...metricAlertOperatorOptions]}
+              value={metricAlertRuleOperator}
+              onChange={(operator: MetricAlertOperator) => updateMetricAlertProps({ operator })}
+            />
+            <div className="metric-alert-rule__threshold">
+              <InputNumber
+                aria-label="预警阈值"
+                disabled={!metricAlertRuleReady}
+                max={1_000_000_000}
+                min={-1_000_000_000}
+                placeholder="输入阈值"
+                value={metricAlertRuleThreshold}
+                onChange={(threshold) => { if (threshold !== null) updateMetricAlertProps({ threshold }); }}
+              />
+              <span aria-label={`单位：${metricAlertThresholdUnit}`}>{metricAlertThresholdUnit}</span>
+            </div>
+          </div>
+
+          <div className="metric-alert-rule__outcome" aria-live="polite">
+            <span aria-hidden="true" className="metric-alert-rule__outcome-icon"><RiseOutlined /></span>
+            <div>
+              <Typography.Text className="metric-alert-rule__outcome-title">
+                {metricAlertRuleReady ? "达到阈值后自动展示预警面板" : "选择维度与指标后自动展示预警面板"}
+              </Typography.Text>
+              <Typography.Text className="metric-alert-rule__outcome-detail">
+                {metricAlertRuleReady
+                  ? `按${metricAlertDimensionLabel}逐项高亮命中的${metricAlertMeasureLabel}`
+                  : "完成字段绑定后即可配置条件与阈值"}
+              </Typography.Text>
+            </div>
+            <span className="metric-alert-rule__outcome-state">预览查看 <RightOutlined aria-hidden="true" /></span>
+          </div>
+        </section>
+      )}
+
+      {currentComponent.type === "table" && (
+        <div className="binding-field table-aggregation-field">
+          <BindingFieldLabel label="行聚合" help="开启后，相同的维度值会合并为一行；数值字段按所选方式计算。未开启时保留每一条原始明细记录。" />
+          <Switch
+            aria-label="合并重复维度"
+            checked={tableAggregateRows}
+            disabled={tableColumns.length === 0}
+            checkedChildren="已合并"
+            unCheckedChildren="未合并"
+            onChange={(checked) => updateTableAggregation(checked)}
+          />
+          {tableAggregateRows && (
+            <Select
+              aria-label="数值聚合方式"
+              options={[...aggregationOptions]}
+              value={tableAggregation}
+              onChange={(aggregation: MetricAggregation) => updateTableAggregation(true, aggregation)}
+            />
+          )}
+          <Typography.Text type="secondary" className="binding-field__data-panel-hint">
+            {tableNumericColumnKeys.length > 0
+              ? `按非数值字段分组，${tableNumericColumnKeys.length} 个数值字段参与计算。`
+              : "当前没有数值字段；开启后仅合并重复的维度记录。"}
+          </Typography.Text>
+        </div>
+      )}
 
       {!compact && currentComponent.type === "ranking" && rankingMeasures.length > 1 && (
         <div className="binding-field">

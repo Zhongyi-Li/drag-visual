@@ -28,11 +28,59 @@ describe("DashboardSchema", () => {
     expect(Dashboard).toBe(DashboardSchema);
   });
 
+  it("accepts saved global filters whose derived operator is null", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "header-1", x: 0, y: 0, w: 12, h: 3 }],
+      components: [{
+        id: "header-1",
+        type: "dashboardHeader",
+        title: "",
+        props: {
+          headline: "经营数据看板",
+          description: "",
+          updatedAt: "",
+          date: "2026-08-05",
+          dateRange: { start: "2026-08-05", end: "2026-08-05" },
+          globalFilters: [{ id: "filter-region", fieldKey: "region", label: "区域", controlType: "select", operator: null, targets: [] }],
+        },
+      }],
+    };
+
+    expect(DashboardSchema.parse(dashboard).components[0]?.props).toMatchObject({
+      globalFilters: [{ id: "filter-region", operator: null }],
+    });
+  });
+
   it("accepts an optional chart subtitle", () => {
     const dashboard = {
       ...validDashboard(),
       layout: [{ i: "bar-1", x: 0, y: 0, w: 6, h: 5 }],
       components: [{ id: "bar-1", type: "bar", title: "销售趋势", subtitle: "统计口径：已支付订单", props: { color: "#1677ff", showLegend: true } }],
+    };
+
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
+  it("accepts field-level chart jump rules with target filter mappings", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "bar-1", x: 0, y: 0, w: 6, h: 5 }],
+      components: [{
+        id: "bar-1",
+        type: "bar",
+        title: "销售趋势",
+        props: { color: "#1677ff", showLegend: true },
+        interaction: {
+          jumpRules: [{
+            id: "jump-1",
+            triggerFieldKey: "salesAmount",
+            targetDashboardId: "75ed663c-8859-47e1-a92b-0cf7a8ce7e03",
+            openMode: "current",
+            parameterMappings: [{ sourceFieldKey: "region", targetFilterId: "target-region" }],
+          }],
+        },
+      }],
     };
 
     expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
@@ -218,7 +266,7 @@ describe("DashboardSchema", () => {
 
     expect(ComponentType.parse("flipNumber")).toBe("flipNumber");
     expect(ComponentType.parse("progressBar")).toBe("progressBar");
-    expect(ComponentType.parse("progressIndicator")).toBe("progressIndicator");
+    expect(ComponentType.parse("goalTaskProgress")).toBe("goalTaskProgress");
     expect(ComponentType.parse("targetProgress")).toBe("targetProgress");
     expect(ComponentType.parse("gauge")).toBe("gauge");
     expect(ComponentType.parse("liquid")).toBe("liquid");

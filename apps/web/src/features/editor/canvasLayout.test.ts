@@ -81,4 +81,24 @@ describe("canvas layout helpers", () => {
       { i: "detail", x: 6, y: 0, w: 6, h: 4 },
     ]);
   });
+
+  it("moves the hit chart into the dragged chart's old slot when reordering downward", () => {
+    expect(createShadowLayout([
+      { i: "copy", x: 0, y: 0, w: 12, h: 5 },
+      { i: "progress", x: 0, y: 5, w: 12, h: 5 },
+    ], { i: "copy", x: 0, y: 5, w: 12, h: 5 })).toEqual([
+      { i: "copy", x: 0, y: 5, w: 12, h: 5 },
+      { i: "progress", x: 0, y: 0, w: 12, h: 5 },
+    ]);
+  });
+
+  it("snaps the dragged chart into the hit chart's exact slot after crossing it", () => {
+    expect(createShadowLayout([
+      { i: "copy", x: 0, y: 0, w: 12, h: 5 },
+      { i: "progress", x: 0, y: 5, w: 12, h: 5 },
+    ], { i: "copy", x: 0, y: 7, w: 12, h: 5 })).toEqual([
+      { i: "copy", x: 0, y: 5, w: 12, h: 5 },
+      { i: "progress", x: 0, y: 0, w: 12, h: 5 },
+    ]);
+  });
 });

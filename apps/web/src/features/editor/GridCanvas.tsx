@@ -12,13 +12,13 @@ import ReactGridLayout, {
   type LayoutItem,
   type ReactGridLayoutProps,
 } from "react-grid-layout";
-import type { ComponentType as ReactComponentType, MouseEvent as ReactMouseEvent, TouchEvent as ReactTouchEvent } from "react";
+import type { ComponentType as ReactComponentType } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
-import { clampLayoutItem, createShadowLayout, GRID_COLUMNS, GRID_MARGIN, GRID_PADDING, GRID_ROW_HEIGHT, hasLayoutCollision, RESIZABLE_ITEM_MINIMUM, resolveLayoutCollisions } from "./canvasLayout.js";
+import { clampLayoutItem, createShadowLayout, GRID_COLUMNS, GRID_MARGIN, GRID_PADDING, GRID_ROW_HEIGHT, RESIZABLE_ITEM_MINIMUM, resolveLayoutCollisions } from "./canvasLayout.js";
 import { ComponentFrame } from "./ComponentFrame.js";
 import { PALETTE_DROP_ID } from "./paletteDrag.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
@@ -55,28 +55,13 @@ interface GlobalFilterQueryState {
 
 interface DragStartSnapshot {
   readonly item: DashboardGridItem;
-  readonly point: { readonly clientX: number; readonly clientY: number };
 }
 
-const getEventPoint = (event: Event): DragStartSnapshot["point"] | undefined => {
-  const mouseLike = event as Partial<MouseEvent>;
-  if (typeof mouseLike.clientX === "number" && typeof mouseLike.clientY === "number") {
-    return { clientX: mouseLike.clientX, clientY: mouseLike.clientY };
-  }
-  const touchLike = event as Partial<TouchEvent>;
-  const touch = touchLike.changedTouches?.[0] ?? touchLike.touches?.[0];
-  return touch ? { clientX: touch.clientX, clientY: touch.clientY } : undefined;
-};
-
-const projectDragCandidate = (snapshot: DragStartSnapshot, point: DragStartSnapshot["point"], width: number): DashboardGridItem => {
-  const columnWidth = Math.max(1, (width - GRID_PADDING * 2 - GRID_MARGIN * (GRID_COLUMNS - 1)) / GRID_COLUMNS);
-  const x = snapshot.item.x + Math.round((point.clientX - snapshot.point.clientX) / (columnWidth + GRID_MARGIN));
-  const y = snapshot.item.y + Math.round((point.clientY - snapshot.point.clientY) / (GRID_ROW_HEIGHT + GRID_MARGIN));
-  return clampLayoutItem({ ...snapshot.item, x, y }, RESIZABLE_ITEM_MINIMUM);
-};
-
-const buildShadowLayout = (nextLayout: Layout, baseline: readonly DashboardGridItem[]): Layout => {
-  const active = nextLayout.find((item) => item.moved);
+const buildShadowLayout = (nextLayout: Layout, baseline: readonly DashboardGridItem[], activeId: string | undefined): Layout => {
+  // RGL may set `moved` on a collision participant after the active item has
+  // crossed it. Keep the chart grabbed at drag start as the single source of
+  // truth so upward, downward and horizontal swaps use the same rule.
+  const active = activeId === undefined ? undefined : nextLayout.find((item) => item.i === activeId);
   if (!active) return nextLayout;
 
   const activeItem = toDashboardItem(active);
@@ -106,7 +91,6 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
       : { ...current, pendingComponentIds: current.pendingComponentIds.filter((pendingId) => pendingId !== componentId) });
   };
   const interactionMode = useRef<InteractionMode>(null);
-  const pointerDownPoint = useRef<DragStartSnapshot["point"] | null>(null);
   const dragStartSnapshot = useRef<DragStartSnapshot | null>(null);
   const releaseFallbackTimer = useRef<number | null>(null);
   const interactionSession = useRef(0);
@@ -127,18 +111,21 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
   });
   const gridCompactor = useMemo<Compactor>(() => ({
     type: fixedGridCompactor.type,
-    get allowOverlap() {
-      return interactionMode.current === "drag";
-    },
+    // RGL captures this value before onDragStart has a chance to trigger a
+    // React render. Keep collision movement disabled at the grid-library
+    // layer, then resolve the layout ourselves below. Otherwise a top/left
+    // chart can push its target away before the swap shadow is calculated.
+    allowOverlap: true,
     preventCollision: fixedGridCompactor.preventCollision ?? false,
     compact(nextLayout, cols) {
-      return interactionMode.current === "drag" ? buildShadowLayout(nextLayout, topLevelLayout) : fixedGridCompactor.compact(nextLayout, cols);
+      return interactionMode.current === "drag"
+        ? buildShadowLayout(nextLayout, topLevelLayout, dragStartSnapshot.current?.item.i)
+        : fixedGridCompactor.compact(nextLayout, cols);
     },
   }), [topLevelLayout]);
 
   const clearInteraction = () => {
     interactionMode.current = null;
-    pointerDownPoint.current = null;
     dragStartSnapshot.current = null;
     setIsInteracting(false);
   };
@@ -187,44 +174,43 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
     }
     clearInteraction();
   };
-  const rememberPointerDown = (event: ReactMouseEvent<HTMLElement> | ReactTouchEvent<HTMLElement>) => {
-    pointerDownPoint.current = getEventPoint(event.nativeEvent) ?? null;
-  };
   const startInteraction: EventCallback = () => setIsInteracting(true);
   const startResizeInteraction: EventCallback = () => {
     interactionSession.current += 1;
     interactionMode.current = "resize";
-    pointerDownPoint.current = null;
     dragStartSnapshot.current = null;
     setIsInteracting(true);
   };
-  const startDragInteraction: EventCallback = (_nextLayout, _oldItem, nextItem, _placeholder, event) => {
+  const startDragInteraction: EventCallback = (_nextLayout, _oldItem, nextItem) => {
     interactionSession.current += 1;
     interactionMode.current = "drag";
-    const point = pointerDownPoint.current ?? getEventPoint(event);
-    dragStartSnapshot.current = nextItem && point ? { item: toDashboardItem(nextItem), point } : null;
+    dragStartSnapshot.current = nextItem ? { item: toDashboardItem(nextItem) } : null;
     setIsInteracting(true);
   };
-  const stopDragInteraction: EventCallback = (_nextLayout, _oldItem, nextItem, _placeholder, event) => {
-    if (!nextItem) {
+  const stopDragInteraction: EventCallback = (nextLayout, _oldItem, nextItem) => {
+    const activeId = dragStartSnapshot.current?.item.i ?? nextItem?.i;
+    const activeItem = activeId === undefined ? nextItem : nextLayout.find((item) => item.i === activeId) ?? nextItem;
+    if (!activeItem) {
       clearInteraction();
       return;
     }
-    const nextDashboardItem = toDashboardItem(nextItem);
+    const nextDashboardItem = toDashboardItem(activeItem);
     const component = dashboard.components.find((candidate) => candidate.id === nextDashboardItem.i);
-    const point = getEventPoint(event);
-    const intendedItem = dragStartSnapshot.current?.item.i === nextDashboardItem.i && point
-      ? projectDragCandidate(dragStartSnapshot.current, point, width)
-      : nextDashboardItem;
-    pointerDownPoint.current = null;
     dragStartSnapshot.current = null;
-    if (!component || hasLayoutCollision(topLevelLayout, intendedItem, nextDashboardItem.i)) {
+    if (!component) {
       clearInteraction();
       return;
     }
-    const current = dashboard.layout.find((item) => item.i === nextDashboardItem.i);
-    if (layoutChanged(current, nextDashboardItem)) {
-      store.getState().dispatch({ type: "layout.change", updates: [nextDashboardItem] });
+    // The drag shadow already shows the intended collision resolution. Persist
+    // that full layout when the pointer is released so preview/save never
+    // retain the old locations of components that were pushed down.
+    const resolvedLayout = createShadowLayout(topLevelLayout, nextDashboardItem);
+    const updates = resolvedLayout.filter((item) => layoutChanged(
+      dashboard.layout.find((current) => current.i === item.i),
+      item,
+    ));
+    if (updates.length > 0) {
+      store.getState().dispatch({ type: "layout.change", updates: updates as [DashboardGridItem, ...DashboardGridItem[]] });
     }
     clearInteraction();
   };
@@ -248,8 +234,6 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
       <div
         ref={containerRef}
         className={`editor-canvas__grid-container${isInteracting ? " editor-canvas__grid-container--interacting" : ""}`}
-        onMouseDownCapture={rememberPointerDown}
-        onTouchStartCapture={rememberPointerDown}
       >
         {dashboard.components.length === 0 ? (
           <section className="editor-canvas__empty" aria-labelledby="empty-canvas-heading">

@@ -1,4 +1,4 @@
-import { MenuFoldOutlined, MenuUnfoldOutlined, SettingOutlined } from "@ant-design/icons";
+import { MenuFoldOutlined, MenuUnfoldOutlined, QuestionCircleOutlined, SettingOutlined } from "@ant-design/icons";
 import { Button, Collapse, Drawer, Empty, Tabs, Tooltip, Typography } from "antd";
 import { useState } from "react";
 import type { ComponentRegistry } from "@drag-visual/component-registry";
@@ -15,6 +15,7 @@ import { KpiInsightPanel } from "./KpiInsightPanel.js";
 import { AnalysisGroupPanel } from "./AnalysisGroupPanel.js";
 import { AnalysisGroupDisplayPanel } from "./AnalysisGroupDisplayPanel.js";
 import { QueryFiltersPanel } from "./QueryFiltersPanel.js";
+import { ChartJumpConfigurationPanel } from "./ChartJumpConfigurationPanel.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
 
 interface InspectorPanelProps {
@@ -86,8 +87,6 @@ export const InspectorPanel = ({
               </div>
             </Drawer>
           </>
-        ) : selected.type === "progressIndicator" ? (
-          <ComponentBindingPanel store={store} component={selected} definition={definition} />
         ) : (
           <ComponentBindingPanel store={store} component={selected} definition={definition} />
         )}
@@ -107,15 +106,42 @@ export const InspectorPanel = ({
             ? <Typography.Text type="secondary">选择图表后配置日期筛选。</Typography.Text>
             : selected.type === "analysisGroup" || selected.type === "dashboardHeader"
               ? <Typography.Text type="secondary">该组件不支持独立数据交互。</Typography.Text>
-              : <>
-                  <div className="inspector-analysis__card inspector-analysis__date-card">
-                    <div className="inspector-analysis__card-heading">日期筛选</div>
-                    <DateFilterConfigurationPanel store={store} component={selected} />
-                  </div>
-                  <div className="inspector-analysis__card inspector-analysis__query-card">
-                    <QueryFiltersPanel component={selected} definition={registry.get(selected.type)} scope="component" store={store} />
-                  </div>
-                </>,
+              : <Collapse
+                  ghost
+                  className="inspector-analysis__subcollapse"
+                  defaultActiveKey={["linkage"]}
+                  items={[
+                    {
+                      key: "linkage",
+                      label: "联动",
+                      children: <>
+                        <div className="inspector-analysis__config-label inspector-analysis__config-label--first inspector-analysis__config-label--with-help">
+                          <span>日期筛选</span>
+                          <Tooltip title="从右侧点击或拖入日期字段">
+                            <span aria-label="日期筛选帮助" className="inspector-analysis__config-help" role="img" tabIndex={0}><QuestionCircleOutlined /></span>
+                          </Tooltip>
+                        </div>
+                        <div className="inspector-analysis__card inspector-analysis__date-card">
+                          <DateFilterConfigurationPanel store={store} component={selected} />
+                        </div>
+                        <div className="inspector-analysis__config-label">筛选条件配置</div>
+                        <div className="inspector-analysis__card inspector-analysis__query-card">
+                          <QueryFiltersPanel component={selected} definition={registry.get(selected.type)} scope="component" store={store} />
+                        </div>
+                      </>,
+                    },
+                    {
+                      key: "jump",
+                      label: "跳转",
+                      children: <>
+                        <div className="inspector-analysis__config-label inspector-analysis__config-label--first">图表跳转</div>
+                        <div className="inspector-analysis__card inspector-analysis__jump-card">
+                          <ChartJumpConfigurationPanel component={selected} store={store} />
+                        </div>
+                      </>,
+                    },
+                  ]}
+                />,
         },
       ]}
     />

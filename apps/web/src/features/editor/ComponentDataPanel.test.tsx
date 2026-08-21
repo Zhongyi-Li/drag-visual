@@ -4,6 +4,7 @@ import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AppProviders } from "../../app/AppProviders.js";
@@ -74,7 +75,7 @@ describe("ComponentDataPanel", () => {
     }));
   });
 
-  it("clicks a date field to replace the active chart's date-filter field", async () => {
+  it("clicks a date field to create or replace the active chart's date-filter field", async () => {
     const dateFilterFields = [
       { key: "orderTime", label: "订单时间", type: "date", nullable: true },
       { key: "paymentTime", label: "支付时间", type: "date", nullable: true },
@@ -100,13 +101,14 @@ describe("ComponentDataPanel", () => {
     render(<AppProviders><ComponentDataPanel store={store} registry={createDefaultRegistry()} /></AppProviders>);
 
     const paymentField = await screen.findByRole("button", { name: "支付时间" });
-    expect(screen.getByText("点击设为筛选字段")).toBeInTheDocument();
+    expect(screen.getByText("点击设为日期筛选字段")).toBeInTheDocument();
     fireEvent.click(paymentField);
 
     await waitFor(() => expect(store.getState().history.present.components[0]!.binding?.dateFilter?.fieldKey).toBe("paymentTime"));
   });
 
   it("adds header filter controls by double-click and removes them by single click", async () => {
+    const user = userEvent.setup();
     server.use(
       http.get("http://localhost/datasets", () => HttpResponse.json([{ id: "sales", name: "销售数据", schemaVersion: "v1" }])),
       http.get("http://localhost/datasets/sales/schema", () => HttpResponse.json({ id: "sales", name: "销售数据", fields, parameters: [], schemaVersion: "v1" })),
@@ -125,15 +127,18 @@ describe("ComponentDataPanel", () => {
     render(<AppProviders><ComponentDataPanel store={store} registry={createDefaultRegistry()} /></AppProviders>);
 
     expect(await screen.findByText("双击或拖拽添加维度筛选")).toBeInTheDocument();
-    fireEvent.doubleClick(screen.getByRole("button", { name: "订单时间" }));
-    fireEvent.doubleClick(screen.getByRole("button", { name: "商品名称" }));
+    await user.dblClick(screen.getByRole("button", { name: "订单时间" }));
+    await waitFor(() => expect(store.getState().history.present.components[0]!.props).toMatchObject({
+      globalFilters: [{ id: "filter-orderTime", fieldKey: "orderTime", controlType: "dateRange" }],
+    }));
+    await user.dblClick(screen.getByRole("button", { name: "商品名称" }));
     await waitFor(() => expect(store.getState().history.present.components[0]!.props).toMatchObject({
       globalFilters: [
         { id: "filter-orderTime", fieldKey: "orderTime", label: "订单时间", controlType: "dateRange", targets: [] },
         { id: "filter-productName", fieldKey: "productName", label: "商品名称", controlType: "select", targets: [] },
       ],
     }));
-    fireEvent.click(screen.getByRole("button", { name: "商品名称" }));
+    await user.click(screen.getByRole("button", { name: "商品名称" }));
     await waitFor(() => expect(store.getState().history.present.components[0]!.props).toMatchObject({
       globalFilters: [{ id: "filter-orderTime", fieldKey: "orderTime", controlType: "dateRange" }],
     }));

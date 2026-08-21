@@ -1,15 +1,17 @@
 import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Result, Spin } from "antd";
-import { useParams } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 
 import { ApiError } from "../../api/ApiError.js";
 import { DashboardViewer } from "../viewer/DashboardViewer.js";
+import { chartJumpFiltersFromSearch, chartJumpTargetFromSearch } from "../viewer/chartJump.js";
 import { getPublishedViewerDashboard } from "../viewer/viewerQueries.js";
 import { appPath } from "../../app/appPath.js";
 
 export const Component = () => {
   const { id = "" } = useParams();
+  const location = useLocation();
   const query = useQuery({
     queryKey: ["published-dashboard", id],
     queryFn: () => getPublishedViewerDashboard(id),
@@ -38,6 +40,8 @@ export const Component = () => {
       dashboard={query.data}
       headerDensity="compact"
       showRevision={false}
+      initialGlobalFilterValues={chartJumpFiltersFromSearch(location.search)}
+      initialJumpTargetComponentId={chartJumpTargetFromSearch(location.search)}
     />
   );
 };

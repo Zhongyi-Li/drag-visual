@@ -1,8 +1,8 @@
 import type { ComponentDefinition } from "@drag-visual/component-registry";
 import { QueryFilterControl, type ComponentInstance, type DatasetField, type QueryFilterControl as QueryFilterControlValue } from "@drag-visual/contracts";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { CloseOutlined, DeleteOutlined, FilterOutlined, PlusOutlined, SettingOutlined } from "@ant-design/icons";
-import { Alert, Button, Drawer, Input, InputNumber, Select, Space, Typography } from "antd";
+import { DeleteOutlined, FormOutlined, PlusOutlined } from "@ant-design/icons";
+import { Alert, Button, Drawer, Input, InputNumber, Select, Typography } from "antd";
 import { useEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
 
@@ -46,6 +46,18 @@ const valueLabel = (filter: DraftFilter): string => {
 
 const replaceAt = <Value,>(items: readonly Value[], index: number, next: Value): Value[] => items.map((item, current) => current === index ? next : item);
 
+const commonOptions = (optionGroups: readonly (readonly string[])[]): string[] => {
+  if (optionGroups.length === 0) return [];
+  const shared = new Set(optionGroups[0]);
+  for (const options of optionGroups.slice(1)) {
+    const available = new Set(options);
+    for (const option of shared) {
+      if (!available.has(option)) shared.delete(option);
+    }
+  }
+  return [...shared].sort((left, right) => left.localeCompare(right, "zh-CN"));
+};
+
 export const QueryFiltersPanel = ({ component, definition, scope, store }: Props) => {
   const localDatasets = useLocalDatasets();
   const dashboard = useStore(store, (state) => state.history.present);
@@ -84,14 +96,16 @@ export const QueryFiltersPanel = ({ component, definition, scope, store }: Props
   const [draft, setDraft] = useState<readonly DraftFilter[]>(savedFilters);
   const [error, setError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const optionDatasetIds = scope === "component"
+    ? componentDatasetId === undefined ? [] : [componentDatasetId]
+    : childDatasetIds;
   const optionQueries = useQueries({
-    queries: draft.map((filter) => ({
-      queryKey: ["dataset-field-options", componentDatasetId, filter.fieldKey],
-      queryFn: () => getDatasetFieldOptions(componentDatasetId!, filter.fieldKey),
-      enabled: scope === "component" && componentDatasetId !== undefined && !localDatasets.isUploadedDataset(componentDatasetId) && filter.kind === "fieldValue",
-    })),
+    queries: draft.flatMap((filter) => optionDatasetIds.map((datasetId) => ({
+      queryKey: ["dataset-field-options", datasetId, filter.fieldKey],
+      queryFn: () => getDatasetFieldOptions(datasetId, filter.fieldKey),
+      enabled: !localDatasets.isUploadedDataset(datasetId) && filter.kind === "fieldValue",
+    }))),
   });
-  const localRows = componentDatasetId === undefined ? undefined : localDatasets.queryDataset(componentDatasetId)?.rows;
   useEffect(() => { setDraft(savedFilters); setError(null); }, [savedKey]);
 
   const add = () => {
@@ -120,7 +134,6 @@ export const QueryFiltersPanel = ({ component, definition, scope, store }: Props
     setError(null);
     return true;
   };
-  const clear = () => { setDraft([]); setError(null); };
   const unavailableMessage = scope === "component"
     ? "请先在“字段”页绑定数据集，再添加查询条件。"
     : "请先在复合分析中添加已绑定数据集的图表。仅展示所有子图共同拥有的字段。";
@@ -129,28 +142,36 @@ export const QueryFiltersPanel = ({ component, definition, scope, store }: Props
   const finishEditing = () => {
     if (apply()) setDrawerOpen(false);
   };
+  const openDrawer = () => {
+    setDraft(savedFilters);
+    setError(null);
+    setDrawerOpen(true);
+  };
+  const closeDrawer = () => {
+    setDraft(savedFilters);
+    setError(null);
+    setDrawerOpen(false);
+  };
 
   return <section aria-label={scope === "component" ? "图表查询条件" : "复合分析查询条件"} className="query-filters-panel">
-    <div className="query-filters-panel__heading">
-      <span className="query-filters-panel__heading-icon"><FilterOutlined /></span>
-      <div><strong>查询分析</strong></div>
-    </div>
     {fields.length === 0 ? <Typography.Text type="secondary">{unavailableMessage}</Typography.Text> : queryFields.length === 0 ? <Typography.Text type="secondary">当前数据集没有可配置的非日期筛选字段。</Typography.Text> : <>
-      <div className="query-filters-panel__summary" aria-label="已选查询条件">
-        {draft.length === 0 ? <div className="query-filters-panel__empty">暂未添加筛选条件</div> : draft.map((filter, index) => {
+      <div className="query-filters-panel__status" aria-label="筛选配置状态">
+        <span>{savedFilters.length > 0 ? "已配置" : "未配置"}</span>
+        <Button aria-label="编辑筛选条件" type="text" size="small" icon={<FormOutlined />} onClick={openDrawer} />
+      </div>
+      {savedFilters.length > 0 && <div className="query-filters-panel__summary" aria-label="已选查询条件">
+        {savedFilters.map((filter, index) => {
           const field = queryFields.find((candidate) => candidate.key === filter.fieldKey);
           return <article className="query-filters-panel__summary-item" key={`${filter.fieldKey}-${index}`}>
-            <div><strong>{field?.label ?? filter.fieldKey}</strong><span>{operatorLabel(filter)} · {valueLabel(filter)}</span></div>
-            <Button aria-label={`删除已选条件${index + 1}`} type="text" size="small" danger icon={<CloseOutlined />} onClick={() => remove(index)} />
+            <div>
+              <strong>{field?.label ?? filter.fieldKey}</strong>
+              <span className="query-filters-panel__operator">{operatorLabel(filter)}</span>
+              <span className="query-filters-panel__value">{valueLabel(filter)}</span>
+            </div>
           </article>;
         })}
-      </div>
+      </div>}
       {error !== null && <Alert type="warning" showIcon message={error} style={{ marginTop: 10 }} />}
-      <Space className="query-filters-panel__actions" style={{ marginTop: 14 }}>
-        <Button icon={<span aria-hidden="true"><SettingOutlined /></span>} onClick={() => setDrawerOpen(true)}>配置筛选条件</Button>
-        <Button type="text" danger onClick={clear} disabled={draft.length === 0}>清空</Button>
-        <Button aria-label="查询" type="primary" onClick={() => { apply(); }}>查询</Button>
-      </Space>
       <Drawer
         className="query-filters-drawer"
         destroyOnClose={false}
@@ -159,15 +180,20 @@ export const QueryFiltersPanel = ({ component, definition, scope, store }: Props
         placement="bottom"
         size={540}
         title="配置筛选条件"
-        onClose={() => setDrawerOpen(false)}
+        onClose={closeDrawer}
       >
         <div className="query-filters-drawer__intro">所有条件以“且”组合。完成配置后返回分析面板执行查询。</div>
         <div className="query-filters-drawer__conditions">
           {draft.map((filter, index) => {
             const field = queryFields.find((candidate) => candidate.key === filter.fieldKey) ?? queryFields[0]!;
-            const matchingOptions = filter.kind !== "fieldValue" ? [] : localRows === undefined
-              ? optionQueries[index]?.data ?? []
-              : [...new Set(localRows.map((row) => row[filter.fieldKey]).filter((value): value is string | boolean => typeof value === "string" || typeof value === "boolean").map(String))].sort();
+            const matchingOptions = filter.kind !== "fieldValue" ? [] : commonOptions(optionDatasetIds.map((datasetId, datasetIndex) => {
+              const localRows = localDatasets.queryDataset(datasetId)?.rows;
+              if (localRows !== undefined) return [...new Set(localRows
+                .map((row) => row[filter.fieldKey])
+                .filter((value): value is string | boolean => typeof value === "string" || typeof value === "boolean")
+                .map(String))];
+              return optionQueries[index * optionDatasetIds.length + datasetIndex]?.data ?? [];
+            }));
             const textValue = filter.kind === "fieldValue"
               ? String(filter.values[0] ?? "")
               : filter.kind === "fieldText" ? filter.value : "";
@@ -187,7 +213,7 @@ export const QueryFiltersPanel = ({ component, definition, scope, store }: Props
                 }
                 setDraft((items) => replaceAt(items, index, operator === "equals" ? { kind: "fieldValue", fieldKey: field.key, values: [textValue] } : { kind: "fieldText", fieldKey: field.key, operator: operator === "notContains" ? "notContains" : "contains", value: textValue }));
               }} />
-              {filter.kind === "fieldNull" ? <span className="query-filters-drawer__value query-filters-drawer__empty-value">无需填写值</span> : field.type === "number" ? <InputNumber aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "numberComparison" ? filter.value : 0} onChange={(value) => setDraft((items) => replaceAt(items, index, { kind: "numberComparison", fieldKey: field.key, operator: filter.kind === "numberComparison" ? filter.operator : "gte", value: typeof value === "number" ? value : 0 }))} /> : field.type === "boolean" ? <Select aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "fieldValue" ? String(filter.values[0] ?? "true") : "true"} options={[{ value: "true", label: "是" }, { value: "false", label: "否" }]} onChange={(value: string) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value] }))} /> : filter.kind === "fieldValue" && scope === "component" ? <Select allowClear aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" showSearch optionFilterProp="label" placeholder="选择或搜索精确值" value={textValue || null} options={matchingOptions.map((value) => ({ value, label: value }))} onChange={(value: string | undefined) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value ?? ""] }))} /> : <Input aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" placeholder={filter.kind === "fieldValue" ? "输入精确值" : "输入关键字"} value={textValue} onChange={(event) => setDraft((items) => replaceAt(items, index, filter.kind === "fieldValue" ? { ...filter, values: [event.target.value] } : { kind: "fieldText", fieldKey: field.key, operator: filter.kind === "fieldText" ? filter.operator ?? "contains" : "contains", value: event.target.value }))} />}
+              {filter.kind === "fieldNull" ? <span className="query-filters-drawer__value query-filters-drawer__empty-value">无需填写值</span> : field.type === "number" ? <InputNumber aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "numberComparison" ? filter.value : 0} onChange={(value) => setDraft((items) => replaceAt(items, index, { kind: "numberComparison", fieldKey: field.key, operator: filter.kind === "numberComparison" ? filter.operator : "gte", value: typeof value === "number" ? value : 0 }))} /> : field.type === "boolean" ? <Select aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" value={filter.kind === "fieldValue" ? String(filter.values[0] ?? "true") : "true"} options={[{ value: "true", label: "是" }, { value: "false", label: "否" }]} onChange={(value: string) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value] }))} /> : filter.kind === "fieldValue" ? <Select allowClear aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" showSearch optionFilterProp="label" placeholder="选择或搜索精确值" value={textValue || null} options={matchingOptions.map((value) => ({ value, label: value }))} onChange={(value: string | undefined) => setDraft((items) => replaceAt(items, index, { kind: "fieldValue", fieldKey: field.key, values: [value ?? ""] }))} /> : <Input aria-label={`查询值${index + 1}`} className="query-filters-drawer__value" placeholder="输入关键字" value={textValue} onChange={(event) => setDraft((items) => replaceAt(items, index, { kind: "fieldText", fieldKey: field.key, operator: filter.kind === "fieldText" ? filter.operator : "contains", value: event.target.value }))} />}
               <Button aria-label={`删除配置条件${index + 1}`} className="query-filters-drawer__remove" type="text" danger icon={<DeleteOutlined />} onClick={() => remove(index)} />
             </div>;
           })}

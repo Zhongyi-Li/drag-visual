@@ -2,7 +2,7 @@
 
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -113,6 +113,30 @@ describe("InspectorPanel", () => {
     expect(document.querySelector(".inspector-analysis")).toBeInTheDocument();
   });
 
+  it("groups linkage and chart jumps into separate collapsible sections", async () => {
+    const selectedDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "bar-1", x: 0, y: 0, w: 6, h: 5 }],
+      components: [{
+        id: "bar-1", type: "bar", title: "销售额", props: { color: "#1677ff", showLegend: true },
+      }],
+    });
+    const store = createEditorStore(selectedDashboard);
+    store.getState().select("bar-1");
+    render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
+
+    await userEvent.click(screen.getByRole("tab", { name: "分析" }));
+    expect(screen.getByText("联动")).toBeInTheDocument();
+    expect(screen.getByText("跳转")).toBeInTheDocument();
+    expect(screen.getByText("日期筛选")).toBeVisible();
+    expect(screen.getByText("筛选条件配置")).toBeVisible();
+    expect(screen.queryByText("请先在“字段”页绑定数据源，再配置图表跳转。")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("跳转"));
+    await waitFor(() => expect(screen.getByText("图表跳转")).toBeVisible());
+    await waitFor(() => expect(screen.getByText("请先在“字段”页绑定数据源，再配置图表跳转。")).toBeVisible());
+  });
+
   it("opens the standalone KPI insight configuration in a bottom drawer", async () => {
     const selectedDashboard = DashboardSchema.parse({
       ...dashboard,
@@ -179,7 +203,10 @@ describe("InspectorPanel", () => {
     await userEvent.clear(screen.getByRole("textbox", { name: "看板信息栏标题" }));
     await userEvent.type(screen.getByRole("textbox", { name: "看板信息栏标题" }), "小米旗舰店经营看板");
     expect(store.getState().history.present.components[0]!.props.headline).toBe("小米旗舰店经营看板");
-    expect(screen.getByText("双击右侧字段或拖入此处添加；已添加字段可在右侧单击移除。")).toBeInTheDocument();
+    expect(screen.getByLabelText("全局筛选条件状态")).toHaveTextContent("未配置");
+    expect(screen.queryByLabelText("全局日期筛选状态")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "编辑全局日期筛选" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "编辑全局筛选条件" })).toBeInTheDocument();
   });
 
   it("removes a legacy KPI insight dimension binding", async () => {
@@ -226,13 +253,15 @@ describe("InspectorPanel", () => {
 
     await userEvent.click(screen.getByRole("tab", { name: "分析" }));
     await userEvent.click(screen.getByText("数据交互"));
-    await userEvent.click(await screen.findByRole("switch", { name: "启用日期筛选" }));
+    const dateFilterStatus = await screen.findByLabelText("日期筛选配置状态");
+    expect(within(dateFilterStatus).getByText("未配置")).toBeInTheDocument();
+    await userEvent.click(await screen.findByRole("button", { name: "业务日期" }));
 
     expect(store.getState().history.present.components[0]!.binding?.dateFilter).toEqual({
       fieldKey: "businessDate", defaultPreset: "all", allowCustom: true, timezone: "Asia/Shanghai",
     });
-    expect(screen.getByText("范围")).toBeInTheDocument();
-    expect(screen.getByText("从右侧点击或拖入日期字段")).toBeInTheDocument();
-    expect(screen.queryByLabelText("日期筛选字段")).not.toBeInTheDocument();
+    expect(within(screen.getByLabelText("日期筛选配置状态")).getByText("已配置")).toBeInTheDocument();
+    expect(screen.getByLabelText("日期筛选帮助")).toBeInTheDocument();
+    expect(screen.queryByText("启用日期筛选")).not.toBeInTheDocument();
   });
 });

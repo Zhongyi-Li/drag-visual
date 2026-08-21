@@ -1,6 +1,7 @@
 import type {
   ComponentInstance,
   ComponentDisplayAnnotations,
+  ComponentInteraction,
   Dashboard,
   DataBinding,
   GridItem,
@@ -56,6 +57,12 @@ export interface ComponentDisplayAnnotationsUpdateCommand {
   readonly nextDisplayAnnotations: ComponentDisplayAnnotations | undefined;
 }
 
+export interface ComponentInteractionUpdateCommand {
+  readonly type: "component.interaction.update";
+  readonly componentId: string;
+  readonly nextInteraction: ComponentInteraction | undefined;
+}
+
 export interface ComponentBindingUpdateCommand {
   readonly type: "component.binding.update";
   readonly componentId: string;
@@ -87,6 +94,7 @@ export type EditorCommand =
   | ComponentTitleUpdateCommand
   | ComponentSubtitleUpdateCommand
   | ComponentDisplayAnnotationsUpdateCommand
+  | ComponentInteractionUpdateCommand
   | ComponentBindingUpdateCommand
   | DashboardThemeUpdateCommand
   | DashboardNameUpdateCommand

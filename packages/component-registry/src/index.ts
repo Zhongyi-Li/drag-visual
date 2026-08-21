@@ -10,6 +10,7 @@ import { gaugeDefinition } from "./definitions/gauge.js";
 import { heatmapDefinition } from "./definitions/heatmap.js";
 import { horizontalBarDefinition } from "./definitions/horizontalBar.js";
 import { kpiDefinition } from "./definitions/kpi.js";
+import { metricAlertDefinition } from "./definitions/metricAlert.js";
 import { kpiInsightDefinition } from "./definitions/kpiInsight.js";
 import { lineDefinition } from "./definitions/line.js";
 import { liquidDefinition } from "./definitions/liquid.js";
@@ -19,7 +20,7 @@ import { multidimensionalDefinition } from "./definitions/multidimensional.js";
 import { pieDefinition } from "./definitions/pie.js";
 import { roseDefinition } from "./definitions/rose.js";
 import { progressBarDefinition } from "./definitions/progressBar.js";
-import { progressIndicatorDefinition } from "./definitions/progressIndicator.js";
+import { goalTaskProgressDefinition } from "./definitions/goalTaskProgress.js";
 import { targetProgressDefinition } from "./definitions/targetProgress.js";
 import { rankingDefinition } from "./definitions/ranking.js";
 import { radarDefinition } from "./definitions/radar.js";
@@ -47,6 +48,7 @@ export { gaugeDefinition } from "./definitions/gauge.js";
 export { heatmapDefinition } from "./definitions/heatmap.js";
 export { horizontalBarDefinition } from "./definitions/horizontalBar.js";
 export { kpiDefinition } from "./definitions/kpi.js";
+export { metricAlertDefinition } from "./definitions/metricAlert.js";
 export { kpiInsightDefinition } from "./definitions/kpiInsight.js";
 export { lineDefinition } from "./definitions/line.js";
 export { liquidDefinition } from "./definitions/liquid.js";
@@ -56,7 +58,7 @@ export { multidimensionalDefinition } from "./definitions/multidimensional.js";
 export { pieDefinition } from "./definitions/pie.js";
 export { roseDefinition } from "./definitions/rose.js";
 export { progressBarDefinition } from "./definitions/progressBar.js";
-export { progressIndicatorDefinition } from "./definitions/progressIndicator.js";
+export { goalTaskProgressDefinition } from "./definitions/goalTaskProgress.js";
 export { targetProgressDefinition } from "./definitions/targetProgress.js";
 export { rankingDefinition } from "./definitions/ranking.js";
 export { radarDefinition } from "./definitions/radar.js";
@@ -107,12 +109,13 @@ export const createDefaultRegistry = (): ComponentRegistry =>
     .register(radarDefinition)
     .register(treemapDefinition)
     .register(kpiDefinition)
+    .register(metricAlertDefinition)
     .register(kpiInsightDefinition)
     .register(metricTrendDefinition)
     .register(metricBreakdownDefinition)
     .register(flipNumberDefinition)
     .register(progressBarDefinition)
-    .register(progressIndicatorDefinition)
+    .register(goalTaskProgressDefinition)
     .register(targetProgressDefinition)
     .register(gaugeDefinition)
     .register(liquidDefinition)

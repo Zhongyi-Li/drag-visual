@@ -15,6 +15,9 @@ dayjs.locale("zh-cn");
 
 export const shouldRetryRequest = (failureCount: number, error: Error): boolean => {
   if (error instanceof ApiError && error.status >= 400 && error.status < 500) return false;
+  // A dataset source that cannot be reached will not recover during the same
+  // render. Retrying immediately only duplicates slow MySQL connection attempts.
+  if (error instanceof ApiError && (error.code === "DATASET_UPSTREAM_ERROR" || error.code === "DATASET_TIMEOUT")) return false;
   return failureCount < 1;
 };
 

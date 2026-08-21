@@ -2041,7 +2041,7 @@ export const buildTargetProgressModel = (
   };
 };
 
-type ProgressIndicatorMetricSetting = {
+type GoalTaskProgressMetricSetting = {
   readonly measureKey: string;
   readonly targetKey: string | null;
   readonly targetValue: number | null;
@@ -2051,11 +2051,54 @@ type ProgressIndicatorMetricSetting = {
   readonly includeInScore: boolean;
 };
 
-const progressIndicatorColors = ["#2f6bff", "#ff7a18", "#13b5a6", "#8b5cf6", "#e34d59", "#4f86f7"];
+const goalTaskProgressColors = ["#2f6bff", "#ff7a18", "#13b5a6", "#8b5cf6", "#e34d59", "#4f86f7"];
 
-const progressIndicatorSettings = (component: ComponentInstance): readonly ProgressIndicatorMetricSetting[] => {
-  const measures = fieldKeys(component, "measure");
-  const targets = fieldKeys(component, "target");
+type GoalTaskMetricKind = "gmv" | "sales" | "turnover" | "other";
+
+const goalTaskFieldText = (field: Pick<DatasetField, "key" | "label">): string =>
+  `${field.key} ${field.label}`.toLowerCase().replace(/[\s_()（）\-]/g, "");
+
+const goalTaskMetricKind = (field: Pick<DatasetField, "key" | "label">): GoalTaskMetricKind => {
+  const text = goalTaskFieldText(field);
+  if (/gmv|成交额|交易额/.test(text)) return "gmv";
+  if (/销量|销售量|salequantity|quantity/.test(text)) return "sales";
+  if (/周转|turnover/.test(text)) return "turnover";
+  return "other";
+};
+
+const isGoalTaskTargetField = (field: Pick<DatasetField, "key" | "label">): boolean =>
+  /目标|target|quota|plan/.test(goalTaskFieldText(field));
+
+const isGoalTaskDerivedField = (field: Pick<DatasetField, "key" | "label">): boolean =>
+  /完成率|completion|评分|score|权重|weight|毛利|grossprofit/.test(goalTaskFieldText(field));
+
+const goalTaskAutoMeasureFields = (fields: readonly DatasetField[]): readonly DatasetField[] => {
+  const candidates = fields.filter((field) => field.type === "number" && !isGoalTaskTargetField(field) && !isGoalTaskDerivedField(field));
+  return [...candidates].sort((left, right) => {
+    const rank = (field: DatasetField) => ({ gmv: 0, sales: 1, turnover: 2, other: 3 }[goalTaskMetricKind(field)]);
+    return rank(left) - rank(right) || left.label.localeCompare(right.label, "zh-CN");
+  }).slice(0, 6);
+};
+
+const goalTaskAutoTarget = (measure: DatasetField, targets: readonly DatasetField[]): string | null => {
+  const kind = goalTaskMetricKind(measure);
+  const match = targets.find((target) => goalTaskMetricKind(target) === kind);
+  return match?.key ?? null;
+};
+
+const goalTaskDefaultWeight = (kind: GoalTaskMetricKind, index: number): number =>
+  kind === "gmv" ? 30 : kind === "sales" ? 55 : kind === "turnover" ? 15 : index === 0 ? 100 : 0;
+
+const goalTaskProgressSettings = (component: ComponentInstance, fields: readonly DatasetField[]): readonly GoalTaskProgressMetricSetting[] => {
+  const boundMeasures = fieldKeys(component, "measure");
+  const boundTargets = fieldKeys(component, "target");
+  const discoveredMeasures = goalTaskAutoMeasureFields(fields).map((field) => field.key);
+  const discoveredTargets = fields.filter((field) => field.type === "number" && isGoalTaskTargetField(field)).map((field) => field.key);
+  // Existing dashboards may have been configured when the component only
+  // exposed one metric slot. Keep those bindings, then enrich them with the
+  // recognizable business metrics so the complete target table is visible.
+  const measures = [...new Set([...boundMeasures, ...discoveredMeasures])];
+  const targets = [...new Set([...boundTargets, ...discoveredTargets])];
   const rawSettings = Array.isArray(component.props.metricSettings) ? component.props.metricSettings : [];
   const settingsByMeasure = new Map(
     rawSettings.flatMap((value) => {
@@ -2067,10 +2110,11 @@ const progressIndicatorSettings = (component: ComponentInstance): readonly Progr
   );
   return measures.slice(0, 6).map((measureKey, index) => {
     const setting = settingsByMeasure.get(measureKey);
+    const measure = fields.find((field) => field.key === measureKey);
     const targetCandidate = setting?.targetKey;
     const targetKey = typeof targetCandidate === "string" && targets.includes(targetCandidate)
       ? targetCandidate
-      : targets[index] ?? null;
+      : measure === undefined ? targets[index] ?? null : goalTaskAutoTarget(measure, fields.filter((field) => targets.includes(field.key))) ?? targets[index] ?? null;
     return {
       measureKey,
       targetKey,
@@ -2079,8 +2123,8 @@ const progressIndicatorSettings = (component: ComponentInstance): readonly Progr
         : null,
       label: typeof setting?.label === "string" ? setting.label : "",
       color: typeof setting?.color === "string" && /^#[0-9A-Fa-f]{6}$/.test(setting.color)
-        ? setting.color : progressIndicatorColors[index % progressIndicatorColors.length]!,
-      weight: typeof setting?.weight === "number" && Number.isFinite(setting.weight) ? Math.max(0, Math.min(100, setting.weight)) : 0,
+        ? setting.color : goalTaskProgressColors[index % goalTaskProgressColors.length]!,
+      weight: typeof setting?.weight === "number" && Number.isFinite(setting.weight) ? Math.max(0, Math.min(100, setting.weight)) : goalTaskDefaultWeight(measure === undefined ? "other" : goalTaskMetricKind(measure), index),
       includeInScore: setting?.includeInScore !== false,
     };
   });
@@ -2091,21 +2135,47 @@ const aggregateNullableNumbers = (rows: readonly Row[], fieldKey: string, aggreg
   return values.length === 0 ? null : aggregateNumbers(values, aggregation);
 };
 
-const progressIndicatorMetricModels = (
+const goalTaskProgressEmployeeOverrides = (component: ComponentInstance, employeeKey: string | undefined): ReadonlyMap<string, { readonly targetValue: number | null; readonly monthlyTargetValue: number | null; readonly annualTargetValue: number | null; readonly weight: number | null }> => {
+  if (employeeKey === undefined || !Array.isArray(component.props.employeeSettings)) return new Map();
+  const employee = component.props.employeeSettings.find((value) => value !== null && typeof value === "object" && (value as { employeeKey?: unknown }).employeeKey === employeeKey) as { readonly metrics?: unknown } | undefined;
+  if (!Array.isArray(employee?.metrics)) return new Map();
+  return new Map(employee.metrics.flatMap((value) => {
+    if (value === null || typeof value !== "object") return [];
+    const metric = value as Record<string, unknown>;
+    if (typeof metric.measureKey !== "string" || metric.measureKey.length === 0) return [];
+    return [[metric.measureKey, {
+      targetValue: typeof metric.targetValue === "number" && Number.isFinite(metric.targetValue) && metric.targetValue >= 0 ? metric.targetValue : null,
+      monthlyTargetValue: typeof metric.monthlyTargetValue === "number" && Number.isFinite(metric.monthlyTargetValue) && metric.monthlyTargetValue >= 0 ? metric.monthlyTargetValue : null,
+      annualTargetValue: typeof metric.annualTargetValue === "number" && Number.isFinite(metric.annualTargetValue) && metric.annualTargetValue >= 0 ? metric.annualTargetValue : null,
+      weight: typeof metric.weight === "number" && Number.isFinite(metric.weight) ? Math.max(0, Math.min(100, metric.weight)) : null,
+    }] as const];
+  }));
+};
+
+const goalTaskProgressMetricModels = (
   component: ComponentInstance,
   rows: readonly Row[],
   fields: readonly DatasetField[],
+  employeeKey?: string,
 ) => {
   const labels = fieldLabelMap(fields);
   const fallbackAggregation = propString(component, "aggregation", "sum") as CrosstabAggregation;
-  return progressIndicatorSettings(component).map((setting) => {
+  const employeeOverrides = goalTaskProgressEmployeeOverrides(component, employeeKey);
+  const periodMode = component.props.periodMode === "year" ? "year" : "month";
+  return goalTaskProgressSettings(component, fields).map((setting) => {
+    const override = employeeOverrides.get(setting.measureKey);
     const value = aggregateNullableNumbers(rows, setting.measureKey, metricAggregationFor(component, "measure", setting.measureKey, fallbackAggregation));
     const sourceTarget = setting.targetKey === null
       ? null
       : aggregateNullableNumbers(rows, setting.targetKey, metricAggregationFor(component, "target", setting.targetKey, "max"));
-    const target = setting.targetValue ?? sourceTarget;
+    const targetOverride = periodMode === "year"
+      ? override?.annualTargetValue ?? override?.targetValue
+      : override?.monthlyTargetValue ?? override?.targetValue;
+    const target = targetOverride ?? setting.targetValue ?? sourceTarget;
+    const metricField = fields.find((field) => field.key === setting.measureKey);
     return {
       ...setting,
+      weight: override?.weight ?? setting.weight,
       label: setting.label.trim() || labels.get(setting.measureKey) || setting.measureKey,
       value,
       target,
@@ -2114,11 +2184,12 @@ const progressIndicatorMetricModels = (
       isQuantity: isQuantityMetric(setting.measureKey, fields),
       targetIsCurrency: setting.targetKey !== null && isCurrencyMetric(setting.targetKey, fields),
       targetIsQuantity: setting.targetKey !== null && isQuantityMetric(setting.targetKey, fields),
+      kind: metricField === undefined ? "other" as const : goalTaskMetricKind(metricField),
     };
   });
 };
 
-const progressIndicatorScore = (metrics: readonly { readonly progress: number | null; readonly weight: number; readonly includeInScore: boolean }[]): number | null => {
+const goalTaskProgressScore = (metrics: readonly { readonly progress: number | null; readonly weight: number; readonly includeInScore: boolean }[]): number | null => {
   const scored = metrics.filter((metric) => metric.includeInScore && metric.progress !== null);
   if (scored.length === 0) return null;
   const totalWeight = scored.reduce((total, metric) => total + metric.weight, 0);
@@ -2126,14 +2197,24 @@ const progressIndicatorScore = (metrics: readonly { readonly progress: number | 
   return scored.reduce((total, metric) => total + Math.min(metric.progress ?? 0, 1.2) * metric.weight, 0) / totalWeight;
 };
 
-export const buildProgressIndicatorModel = (
+export const buildGoalTaskProgressModel = (
   component: ComponentInstance,
   rows: readonly Row[],
   fields: readonly DatasetField[] = [],
 ) => {
-  const employeeKey = fieldKeys(component, "employeeDimension")[0] ?? null;
+  const boundEmployeeKey = fieldKeys(component, "employeeDimension")[0];
+  const detectedEmployeeKey = fields.find((field) => field.type === "string" && /员工|运营|人员|负责人|姓名|employee|owner|assignee|name/.test(goalTaskFieldText(field)))?.key;
+  const boundEmployeeField = boundEmployeeKey === undefined ? undefined : fields.find((field) => field.key === boundEmployeeKey);
+  const boundFieldIsStatus = boundEmployeeField !== undefined && /状态|status|阶段|stage/.test(goalTaskFieldText(boundEmployeeField));
+  // Older target-task boards could bind the generated status column as the
+  // employee dimension. Prefer a clear employee/name field in that case so
+  // the table always remains an employee progress view.
+  const employeeKey: string | null = boundFieldIsStatus
+    ? detectedEmployeeKey ?? boundEmployeeKey ?? null
+    : boundEmployeeKey ?? detectedEmployeeKey ?? fields.find((field) => field.type === "string")?.key ?? null;
   const employeeField = employeeKey === null ? undefined : fields.find((field) => field.key === employeeKey);
-  const metrics = progressIndicatorMetricModels(component, rows, fields);
+  const metrics = goalTaskProgressMetricModels(component, rows, fields);
+  const grossProfitField = fields.find((field) => field.type === "number" && /毛利|grossprofit/.test(goalTaskFieldText(field)));
   const groups = new Map<string, Row[]>();
   if (employeeKey !== null) {
     rows.forEach((row) => {
@@ -2144,12 +2225,13 @@ export const buildProgressIndicatorModel = (
     });
   }
   const employees = [...groups.entries()].map(([label, groupRows]) => {
-    const employeeMetrics = progressIndicatorMetricModels(component, groupRows, fields);
+    const employeeMetrics = goalTaskProgressMetricModels(component, groupRows, fields, label);
     return {
       key: label,
       label,
       metrics: employeeMetrics,
-      score: progressIndicatorScore(employeeMetrics),
+      score: goalTaskProgressScore(employeeMetrics),
+      grossProfit: grossProfitField === undefined ? null : aggregateNullableNumbers(groupRows, grossProfitField.key, "sum"),
       completion: employeeMetrics.filter((metric) => metric.progress !== null).length === 0
         ? null
         : employeeMetrics.filter((metric) => metric.progress !== null).reduce((total, metric) => total + (metric.progress ?? 0), 0)
@@ -2159,11 +2241,13 @@ export const buildProgressIndicatorModel = (
 
   return {
     employeeLabel: employeeKey === null ? "员工" : fieldLabelMap(fields).get(employeeKey) ?? employeeKey,
-    periodLabel: propString(component, "periodLabel", "本月").trim() || "本月",
+    periodLabel: `${Math.max(2000, Math.min(2100, Math.trunc(typeof component.props.periodYear === "number" ? component.props.periodYear : 2026)))}年${Math.max(1, Math.min(12, Math.trunc(typeof component.props.periodMonth === "number" ? component.props.periodMonth : 8)))}月`,
     metrics,
-    score: progressIndicatorScore(metrics),
+    score: goalTaskProgressScore(metrics),
     employees,
     weights: metrics.filter((metric) => metric.includeInScore).map((metric) => ({ label: metric.label, weight: metric.weight })),
+    grossProfitLabel: grossProfitField?.label ?? "毛利",
+    grossProfitIsCurrency: grossProfitField === undefined ? false : isCurrencyMetric(grossProfitField.key, fields),
   };
 };
 
@@ -2224,11 +2308,39 @@ export const buildKpiBoardModel = (
   };
 };
 
-export const buildTableModel = (component: ComponentInstance, rows: readonly Row[], fields: readonly DatasetField[] = []) => {
+const tableAggregation = (value: unknown): CrosstabAggregation =>
+  value === "avg" || value === "count" || value === "max" || value === "min" ? value : "sum";
+
+export const buildTableModel = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  fields: readonly DatasetField[] = [],
+  rowsAreAggregated = false,
+) => {
   const labels = new Map(fields.map((field) => [field.key, field.label]));
+  const columnKeys = fieldKeys(component, "columns");
+  const aggregateRows = component.type === "table" && component.props.aggregateRows === true;
+  const numericColumns = columnKeys.filter((key) => fields.find((field) => field.key === key)?.type === "number");
+  const dimensionColumns = columnKeys.filter((key) => !numericColumns.includes(key));
+  const groupedRows = !aggregateRows || rowsAreAggregated
+    ? rows
+    : Array.from(rows.reduce((groups, row) => {
+      const groupKey = JSON.stringify(dimensionColumns.map((key) => row[key] ?? null));
+      const group = groups.get(groupKey);
+      if (group === undefined) groups.set(groupKey, [row]);
+      else group.push(row);
+      return groups;
+    }, new Map<string, Row[]>()).values()).map((group) => {
+      const aggregate = { ...group[0] } as Record<string, unknown>;
+      for (const key of numericColumns) {
+        const values = group.flatMap((row) => typeof row[key] === "number" && Number.isFinite(row[key] as number) ? [row[key] as number] : []);
+        aggregate[key] = aggregateNumbers(values, tableAggregation(component.props.aggregation));
+      }
+      return aggregate;
+    });
   return {
-    columns: fieldKeys(component, "columns").map((key) => ({ key, label: labels.get(key) ?? key })),
-    rows: rows.slice(0, 100),
+    columns: columnKeys.map((key) => ({ key, label: labels.get(key) ?? key })),
+    rows: groupedRows.slice(0, 100),
   };
 };
 
@@ -2329,6 +2441,8 @@ export const buildHeatmapModel = (component: ComponentInstance, rows: readonly R
   }));
 
   return {
+    rowDimension,
+    columnDimension,
     rowHeader: labels.get(rowDimension) ?? rowDimension,
     columnHeader: labels.get(columnDimension) ?? columnDimension,
     measureLabel: labels.get(measure) ?? measure,

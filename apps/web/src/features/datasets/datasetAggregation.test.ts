@@ -68,6 +68,35 @@ describe("buildDatasetAggregation", () => {
     expect(buildDatasetAggregation(kpi)).toBeUndefined();
   });
 
+  it("aggregates table numeric columns by the remaining columns when configured", () => {
+    const table = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1",
+        type: "table",
+        props: { aggregateRows: true, aggregation: "sum", pageSize: 20, striped: false },
+        binding: {
+          datasetId: "sales",
+          slots: {
+            columns: [
+              { fieldKey: "productName" },
+              { fieldKey: "supplyPrice", aggregation: "sum" },
+              { fieldKey: "saleCostPrice", aggregation: "sum" },
+            ],
+          },
+        },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(table)).toEqual({
+      groupBy: ["productName"],
+      measures: [
+        { fieldKey: "supplyPrice", aggregation: "sum" },
+        { fieldKey: "saleCostPrice", aggregation: "sum" },
+      ],
+    });
+  });
+
   it("uses an individually selected aggregation for trend analysis", () => {
     const trend = DashboardSchema.parse({
       ...baseDashboard,

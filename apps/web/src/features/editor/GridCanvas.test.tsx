@@ -82,7 +82,7 @@ describe("GridCanvas", () => {
     expect(received?.width).toBe(900);
     expect(received?.gridConfig).toEqual({ cols: 12, rowHeight: 44, margin: [12, 12], containerPadding: [12, 12] });
     expect(received?.layout).toEqual([{ i: "bar-1", x: 0, y: 0, w: 6, h: 5, minW: 2, minH: 2 }]);
-    expect(received?.compactor).toMatchObject({ type: null, allowOverlap: false });
+    expect(received?.compactor).toMatchObject({ type: null, allowOverlap: true });
     expect(received?.compactor).not.toMatchObject({ preventCollision: true });
     expect(received?.dragConfig).toMatchObject({ enabled: true, cancel: ".analysis-group-canvas, .analysis-group-canvas *, .component-frame__menu-trigger, .component-frame__title-button, .component-frame__title-input, .react-resizable-handle" });
     expect(received?.dragConfig).not.toHaveProperty("bounded");
@@ -169,7 +169,7 @@ describe("GridCanvas", () => {
     });
   });
 
-  it("uses deterministic shadow layout instead of RGL collision push while dragging", () => {
+  it("moves the hit chart into the source slot in the drag shadow", () => {
     let received: GridRendererProps | undefined;
     const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };
     renderCanvas(<GridCanvas store={createEditorStore(stacked)} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={FakeGrid} />);
@@ -181,8 +181,89 @@ describe("GridCanvas", () => {
       { i: "multi-1", x: 6, y: 0, w: 6, h: 4, moved: true },
     ], 12);
 
-    expect(compacted?.find((item) => item.i === "trend-1")).toMatchObject({ y: 4 });
+    expect(compacted?.find((item) => item.i === "trend-1")).toMatchObject({ y: 5 });
     expect(compacted?.find((item) => item.i === "multi-1")).toMatchObject({ y: 0 });
+  });
+
+  it("keeps the chart grabbed at drag start as the swap source", () => {
+    const reorderable = DashboardSchema.parse({
+      ...populated,
+      layout: [
+        { i: "bar-1", x: 0, y: 0, w: 12, h: 5 },
+        { i: "bar-2", x: 0, y: 5, w: 12, h: 5 },
+      ],
+      components: [
+        ...populated.components,
+        { id: "bar-2", type: "bar", title: "目标图表", props: { color: "#1677ff", showLegend: true } },
+      ],
+    });
+    let received: GridRendererProps | undefined;
+    const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };
+    renderCanvas(<GridCanvas store={createEditorStore(reorderable)} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={FakeGrid} />);
+
+    act(() => received?.onDragStart?.([], null, { i: "bar-1", x: 0, y: 0, w: 12, h: 5 }, null, new Event("pointerdown"), null));
+    const shadow = received?.compactor?.compact([
+      { i: "bar-1", x: 0, y: 5, w: 12, h: 5, moved: false },
+      { i: "bar-2", x: 0, y: 5, w: 12, h: 5, moved: true },
+    ], 12);
+
+    expect(shadow).toEqual([
+      expect.objectContaining({ i: "bar-1", x: 0, y: 5 }),
+      expect.objectContaining({ i: "bar-2", x: 0, y: 0 }),
+    ]);
+  });
+
+  it("persists the reordered chart positions when dropped into an occupied upper slot", () => {
+    const store = createEditorStore(stacked);
+    const dispatch = vi.spyOn(store.getState(), "dispatch");
+    let received: GridRendererProps | undefined;
+    const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };
+    renderCanvas(<GridCanvas store={store} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={FakeGrid} />);
+
+    act(() => received?.onDragStart?.([], null, { i: "multi-1", x: 0, y: 5, w: 6, h: 4 }, null, new Event("pointerdown"), null));
+    act(() => received?.onDragStop?.([], null, { i: "multi-1", x: 0, y: 0, w: 6, h: 4 }, null, new Event("pointerup"), null));
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "layout.change",
+      updates: [
+        { i: "trend-1", x: 0, y: 5, w: 12, h: 5 },
+        { i: "multi-1", x: 0, y: 0, w: 6, h: 4 },
+      ],
+    });
+    expect(store.getState().history.present.layout).toEqual([
+      { i: "trend-1", x: 0, y: 5, w: 12, h: 5 },
+      { i: "multi-1", x: 0, y: 0, w: 6, h: 4 },
+    ]);
+  });
+
+  it("moves the hit chart into the source slot when a chart is dragged downward", () => {
+    const reorderable = DashboardSchema.parse({
+      ...populated,
+      layout: [
+        { i: "bar-1", x: 0, y: 0, w: 12, h: 5 },
+        { i: "bar-2", x: 0, y: 5, w: 12, h: 5 },
+      ],
+      components: [
+        ...populated.components,
+        { id: "bar-2", type: "bar", title: "目标图表", props: { color: "#1677ff", showLegend: true } },
+      ],
+    });
+    const store = createEditorStore(reorderable);
+    const dispatch = vi.spyOn(store.getState(), "dispatch");
+    let received: GridRendererProps | undefined;
+    const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };
+    renderCanvas(<GridCanvas store={store} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={FakeGrid} />);
+
+    act(() => received?.onDragStart?.([], null, { i: "bar-1", x: 0, y: 0, w: 12, h: 5 }, null, new Event("pointerdown"), null));
+    act(() => received?.onDragStop?.([], null, { i: "bar-1", x: 0, y: 5, w: 12, h: 5 }, null, new Event("pointerup"), null));
+
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "layout.change",
+      updates: [
+        { i: "bar-1", x: 0, y: 5, w: 12, h: 5 },
+        { i: "bar-2", x: 0, y: 0, w: 12, h: 5 },
+      ],
+    });
   });
 
   it("does not persist temporary drag displacement when the dragged component returns to its original slot", () => {

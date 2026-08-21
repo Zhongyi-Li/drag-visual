@@ -12,6 +12,8 @@ interface Props {
   readonly fields: readonly DatasetField[];
   readonly datasetId?: string | undefined;
   readonly localFieldOptions?: Readonly<Record<string, readonly string[]>> | undefined;
+  /** Allows host surfaces to express their own visual hierarchy without changing filter behavior. */
+  readonly className?: string | undefined;
   /** Describes the owning surface for assistive technology. */
   readonly ariaLabel?: string | undefined;
   /** Keeps repeated controls distinguishable when multiple filter bars exist. */
@@ -49,7 +51,7 @@ const operatorLabel = (operator: "eq" | "neq" | "gt" | "gte" | "lt" | "lte"): st
   eq: "等于", neq: "不等于", gt: "大于", gte: "大于等于", lt: "小于", lte: "小于等于",
 })[operator];
 
-export const ChartQueryFilterBar = ({ filters, fields, datasetId, localFieldOptions, ariaLabel = "图表查询条件", controlLabelPrefix = "图表查询", loading = false, onApply }: Props) => {
+export const ChartQueryFilterBar = ({ filters, fields, datasetId, localFieldOptions, className, ariaLabel = "图表查询条件", controlLabelPrefix = "图表查询", loading = false, onApply }: Props) => {
   const [draft, setDraft] = useState<ChartQueryFilterControl[]>(() => copyFilters(filters));
   const filtersKey = JSON.stringify(filters);
   useEffect(() => setDraft(copyFilters(filters)), [filtersKey]);
@@ -61,7 +63,7 @@ export const ChartQueryFilterBar = ({ filters, fields, datasetId, localFieldOpti
     })),
   });
   if (filters.length === 0) return null;
-  return <div className="chart-query-filter-bar" aria-label={ariaLabel}>
+  return <div className={`chart-query-filter-bar${className === undefined ? "" : ` ${className}`}`} aria-label={ariaLabel}>
     <div className="chart-query-filter-bar__fields">
       {draft.map((filter, index) => <div className="chart-query-filter-bar__condition" key={`${filter.fieldKey}-${index}`}>
         <span className="chart-query-filter-bar__label">{labelFor(filter, fields)}</span>
@@ -79,7 +81,7 @@ export const ChartQueryFilterBar = ({ filters, fields, datasetId, localFieldOpti
           <InputNumber aria-label={`${controlLabelPrefix}值${index + 1}`} value={filter.value} onChange={(value) => setDraft((items) => items.map((item, current) => current !== index ? item : { ...filter, value: typeof value === "number" ? value : null }))} />
         </> : filter.kind === "fieldValue" ? <>
           <span className="chart-query-filter-bar__operator">等于</span>
-          <Select aria-label={`${controlLabelPrefix}值${index + 1}`} showSearch optionFilterProp="label" placeholder="选择或搜索" value={String(filter.values[0] ?? "") || null} options={(localFieldOptions?.[filter.fieldKey] ?? optionQueries[index]?.data ?? []).map((value) => ({ value, label: value }))} onChange={(value: string) => setDraft((items) => items.map((item, current) => current !== index ? item : { ...filter, values: [value] }))} />
+          <Select allowClear aria-label={`${controlLabelPrefix}值${index + 1}`} showSearch optionFilterProp="label" placeholder="选择或搜索" value={String(filter.values[0] ?? "") || null} options={(localFieldOptions?.[filter.fieldKey] ?? optionQueries[index]?.data ?? []).map((value) => ({ value, label: value }))} onChange={(value: string | undefined) => setDraft((items) => items.map((item, current) => current !== index ? item : { ...filter, values: [value ?? ""] }))} />
         </> : <>
           <span className="chart-query-filter-bar__operator">{filter.operator === "notContains" ? "不包含" : "包含"}</span>
           <Input aria-label={`${controlLabelPrefix}值${index + 1}`} value={filter.value} onChange={(event) => setDraft((items) => items.map((item, current) => current !== index ? item : { ...filter, value: event.target.value }))} />

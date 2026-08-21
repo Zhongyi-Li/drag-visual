@@ -8,6 +8,11 @@ describe("application retry policy", () => {
     expect(shouldRetryRequest(0, new ApiError(400, "BAD_REQUEST", "bad"))).toBe(false);
   });
 
+  it("does not retry an unavailable dataset source", () => {
+    expect(shouldRetryRequest(0, new ApiError(502, "DATASET_UPSTREAM_ERROR", "upstream failed"))).toBe(false);
+    expect(shouldRetryRequest(0, new ApiError(504, "DATASET_TIMEOUT", "timed out"))).toBe(false);
+  });
+
   it("retries a 5xx API error and network error once at most", () => {
     expect(shouldRetryRequest(0, new ApiError(500, "INTERNAL_ERROR", "failed"))).toBe(true);
     expect(shouldRetryRequest(1, new ApiError(500, "INTERNAL_ERROR", "failed"))).toBe(false);

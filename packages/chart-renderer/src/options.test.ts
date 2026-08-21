@@ -29,7 +29,7 @@ import {
   buildKpiBoardModel,
   buildKpiModel,
   buildProgressBarModel,
-  buildProgressIndicatorModel,
+  buildGoalTaskProgressModel,
   buildTargetProgressModel,
   buildTableModel,
   buildTrendModel,
@@ -67,11 +67,11 @@ describe("component option builders", () => {
       { key: "quantity", label: "销量", type: "number", nullable: false },
       { key: "quantityTarget", label: "销量目标", type: "number", nullable: false },
     ];
-    const model = buildProgressIndicatorModel(component({
-      type: "progressIndicator",
+    const model = buildGoalTaskProgressModel(component({
+      type: "goalTaskProgress",
       title: "进度与指标",
       props: {
-        aggregation: "sum", decimals: 1, periodLabel: "2026年7月", showEmployeeRanking: true, maxEmployees: 8,
+        aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 7, maxEmployees: 8, employeeSettings: [],
         metricSettings: [
           { measureKey: "sales", targetKey: "salesTarget", label: "销售额", color: "#2f6bff", weight: 60, includeInScore: true },
           { measureKey: "quantity", targetKey: "quantityTarget", label: "销量", color: "#ff7a18", weight: 40, includeInScore: true },
@@ -96,6 +96,54 @@ describe("component option builders", () => {
     expect(model.employees[0]?.score).toBeCloseTo(0.56);
     expect(model.employees[1]?.score).toBeCloseTo(0.28);
     expect(model.weights).toEqual([{ label: "销售额", weight: 60 }, { label: "销量", weight: 40 }]);
+  });
+
+  it("automatically discovers the business target metrics when bindings have not been configured", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "statisticMonth", label: "统计月份", type: "date", nullable: false },
+      { key: "employee", label: "员工", type: "string", nullable: false },
+      { key: "gmvActual", label: "GMV实际（欧元）", type: "number", nullable: false },
+      { key: "gmvTarget", label: "GMV目标（欧元）", type: "number", nullable: false },
+      { key: "salesActual", label: "销量实际", type: "number", nullable: false },
+      { key: "salesTarget", label: "销量目标", type: "number", nullable: false },
+      { key: "grossProfit", label: "毛利（欧元）", type: "number", nullable: false },
+      { key: "turnoverDays", label: "周转天数", type: "number", nullable: false },
+      { key: "turnoverTarget", label: "周转天数目标", type: "number", nullable: false },
+    ];
+    const model = buildGoalTaskProgressModel(component({
+      type: "goalTaskProgress",
+      props: { aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, maxEmployees: 8, employeeSettings: [], metricSettings: [] },
+      binding: { datasetId: "targets", slots: {} },
+    }), [{
+      statisticMonth: new Date("2026-08-01"), employee: "王雨晨", gmvActual: 329102, gmvTarget: 1_000_000,
+      salesActual: 1413, salesTarget: 2000, grossProfit: 54342, turnoverDays: 418, turnoverTarget: 1000,
+    }], fields);
+
+    expect(model.employees).toHaveLength(1);
+    expect(model.employees[0]?.metrics.map((metric) => metric.kind)).toEqual(["gmv", "sales", "turnover"]);
+    expect(model.employees[0]?.metrics.map((metric) => metric.target)).toEqual([1_000_000, 2000, 1000]);
+    expect(model.employees[0]?.metrics.map((metric) => metric.weight)).toEqual([30, 55, 15]);
+    expect(model.employees[0]?.grossProfit).toBe(54342);
+  });
+
+  it("uses the detected employee field instead of an accidentally bound status field", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "employee", label: "员工", type: "string", nullable: false },
+      { key: "status", label: "状态", type: "string", nullable: false },
+      { key: "gmvActual", label: "GMV实际（欧元）", type: "number", nullable: false },
+      { key: "gmvTarget", label: "GMV目标（欧元）", type: "number", nullable: false },
+    ];
+    const model = buildGoalTaskProgressModel(component({
+      type: "goalTaskProgress",
+      props: { aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, maxEmployees: 8, employeeSettings: [], metricSettings: [] },
+      binding: { datasetId: "targets", slots: { employeeDimension: { fieldKey: "status" } } },
+    }), [
+      { employee: "王雨晨", status: "需关注", gmvActual: 329102, gmvTarget: 1_000_000 },
+      { employee: "林晓峰", status: "推进中", gmvActual: 621500, gmvTarget: 750000 },
+    ], fields);
+
+    expect(model.employeeLabel).toBe("员工");
+    expect(model.employees.map((employee) => employee.label)).toEqual(["林晓峰", "王雨晨"]);
   });
 
   it("builds a sorted horizontal bar chart and a dual-axis bar-line chart", () => {
@@ -212,7 +260,7 @@ describe("component option builders", () => {
     expect(option.xAxis.data).toEqual(["旗舰款", "基础款"]);
     expect(option.series[0]).toMatchObject({ data: [350_000, 120_000] });
     expect(option.yAxis[0]).toMatchObject({ min: 0 });
-    expect(option.yAxis[1].min).toBeGreaterThan(0);
+    expect(option.yAxis[1]?.min).toBeGreaterThan(0);
   });
 
   it("tilts long category labels for bar, line, and bar-line charts", () => {

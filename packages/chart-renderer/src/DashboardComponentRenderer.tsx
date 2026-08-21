@@ -1,11 +1,11 @@
-import { DashboardGlobalFilterConfig, type ComponentInstance, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetField } from "@drag-visual/contracts";
-import { Button, DatePicker, Input, InputNumber, Modal, Segmented, Select } from "antd";
+import { DashboardGlobalFilterConfig, type ChartJumpRule, type ComponentInstance, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetField } from "@drag-visual/contracts";
+import { Button, DatePicker, Input, InputNumber, Modal, Segmented, Select, Slider } from "antd";
 import zhCN from "antd/es/date-picker/locale/zh_CN.js";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/zh-cn.js";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 
-import { EChart } from "./EChart.js";
+import { EChart, type EChartPointClick } from "./EChart.js";
 import {
   buildBarOption,
   buildBarLineOption,
@@ -34,7 +34,7 @@ import {
   buildRankingModel,
   buildRingBarOption,
   buildProgressBarModel,
-  buildProgressIndicatorModel,
+  buildGoalTaskProgressModel,
   buildTargetProgressModel,
   buildTableModel,
   buildTrendModel,
@@ -67,6 +67,8 @@ interface Props {
   readonly onDashboardFiltersApply?: (() => boolean) | undefined;
   /** Editor-only bridge for persisting interactive custom-component settings. */
   readonly onComponentPropsChange?: ((props: ComponentInstance["props"]) => void) | undefined;
+  /** Viewer bridge for point-click navigation configured in the analysis panel. */
+  readonly onChartJump?: ((rule: ChartJumpRule, values: Row) => void) | undefined;
 }
 
 type Row = Readonly<Record<string, unknown>>;
@@ -823,6 +825,45 @@ const kpiProgressBarStyle: CSSProperties = {
   height: "100%",
 };
 
+const metricAlertShellStyle: CSSProperties = {
+  alignItems: "center",
+  background: "#fff9f0",
+  border: "1px solid #ffd8a8",
+  borderRadius: 7,
+  boxSizing: "border-box",
+  color: "#1f2937",
+  cursor: "pointer",
+  display: "grid",
+  gap: 16,
+  gridTemplateColumns: "minmax(0, 1fr) auto",
+  height: "100%",
+  minHeight: 0,
+  outline: "none",
+  overflow: "hidden",
+  padding: "14px 16px",
+  textAlign: "left",
+  transition: "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+  width: "100%",
+};
+
+const metricAlertShellActiveStyle: CSSProperties = { ...metricAlertShellStyle, boxShadow: "0 0 0 3px rgba(255, 122, 69, 0.12)" };
+const metricAlertCopyStyle: CSSProperties = { minWidth: 0 };
+const metricAlertHeadlineStyle: CSSProperties = { alignItems: "center", color: "#1f2937", display: "flex", fontSize: 15, fontWeight: 700, gap: 8, lineHeight: 1.45, minWidth: 0 };
+const metricAlertBadgeStyle: CSSProperties = { background: "#ff721b", borderRadius: 12, color: "#fff", flex: "0 0 auto", fontSize: 12, fontWeight: 700, lineHeight: "22px", maxWidth: 150, overflow: "hidden", padding: "0 9px", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const metricAlertHeadlineTextStyle: CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const metricAlertMessageStyle: CSSProperties = { color: "#526176", fontSize: 12, lineHeight: 1.55, margin: "3px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const metricAlertActionStyle: CSSProperties = { background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, color: "#475569", flex: "0 0 auto", fontFamily: "inherit", fontSize: 12, height: 32, padding: "0 12px", whiteSpace: "nowrap" };
+const metricAlertDetailStyle: CSSProperties = { color: "#475569", fontSize: 14, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" };
+const metricAlertDetailListStyle: CSSProperties = { background: "#fffaf5", border: "1px solid #ffe1be", borderRadius: 8, display: "grid", gap: 8, marginTop: 18, padding: 14 };
+const metricAlertDetailRowStyle: CSSProperties = { alignItems: "baseline", display: "grid", gap: 12, gridTemplateColumns: "88px minmax(0, 1fr)" };
+const metricAlertDetailKeyStyle: CSSProperties = { color: "#8c6d46", fontSize: 12, fontWeight: 600 };
+const metricAlertDetailValueStyle: CSSProperties = { color: "#1f2937", fontSize: 13, minWidth: 0, overflowWrap: "anywhere" };
+const metricAlertTableWrapStyle: CSSProperties = { border: "1px solid #ffe1be", borderRadius: 8, flex: "1 1 auto", marginTop: 18, minHeight: 0, overflowX: "auto", overflowY: "auto", overscrollBehavior: "contain" };
+const metricAlertTableStyle: CSSProperties = { borderCollapse: "collapse", fontSize: 13, minWidth: "100%", width: "100%" };
+const metricAlertTableHeadCellStyle: CSSProperties = { background: "#fff8ef", borderBottom: "1px solid #ffe1be", color: "#8c6d46", fontSize: 12, fontWeight: 600, padding: "10px 12px", position: "sticky", textAlign: "left", top: 0, whiteSpace: "nowrap", zIndex: 1 };
+const metricAlertTableCellStyle: CSSProperties = { borderBottom: "1px solid #fff0dc", color: "#1f2937", padding: "10px 12px", textAlign: "left" };
+const metricAlertDetailContentStyle: CSSProperties = { display: "flex", flexDirection: "column", height: "68vh", maxHeight: 560, minHeight: 0, overflow: "hidden" };
+
 const insightShellStyle: CSSProperties = {
   ...kpiShellStyle,
   gap: 7,
@@ -1044,7 +1085,7 @@ const targetProgressPercentStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const progressIndicatorShellStyle: CSSProperties = {
+const goalTaskProgressShellStyle: CSSProperties = {
   boxSizing: "border-box",
   display: "flex",
   flex: "1 1 auto",
@@ -1055,64 +1096,7 @@ const progressIndicatorShellStyle: CSSProperties = {
   padding: "12px 16px 16px",
 };
 
-const progressIndicatorSummaryStyle: CSSProperties = {
-  alignItems: "baseline",
-  display: "flex",
-  gap: 8,
-  justifyContent: "space-between",
-  minWidth: 0,
-};
-
-const progressIndicatorContentStyle: CSSProperties = {
-  display: "grid",
-  flex: "1 1 auto",
-  gap: 18,
-  gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-  minHeight: 0,
-};
-
-const progressIndicatorMetricListStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: 12,
-  minWidth: 0,
-};
-
-const progressIndicatorMetricStyle: CSSProperties = {
-  borderBottom: "1px solid #edf2f7",
-  display: "grid",
-  gap: 7,
-  paddingBottom: 12,
-};
-
-const progressIndicatorMetricHeaderStyle: CSSProperties = {
-  alignItems: "baseline",
-  color: "#172033",
-  display: "flex",
-  fontSize: 13,
-  gap: 10,
-  justifyContent: "space-between",
-  minWidth: 0,
-};
-
-const progressIndicatorMetricMetaStyle: CSSProperties = {
-  color: "#64748b",
-  display: "flex",
-  flexWrap: "wrap",
-  fontSize: 12,
-  gap: "3px 12px",
-  lineHeight: 1.4,
-};
-
-const progressIndicatorTrackStyle: CSSProperties = {
-  background: "#edf1f5",
-  borderRadius: 999,
-  height: 10,
-  overflow: "hidden",
-  width: "100%",
-};
-
-const progressIndicatorTableStyle: CSSProperties = {
+const goalTaskProgressTableStyle: CSSProperties = {
   alignContent: "start",
   border: "1px solid #e5ebf3",
   borderRadius: 6,
@@ -1121,78 +1105,111 @@ const progressIndicatorTableStyle: CSSProperties = {
   overflow: "hidden",
 };
 
-const progressIndicatorTableHeadingStyle: CSSProperties = {
-  background: "#f8faff",
-  color: "#64748b",
-  display: "grid",
-  fontSize: 11,
-  fontWeight: 600,
-  gap: 10,
-  gridTemplateColumns: "minmax(92px, 1.1fr) 52px repeat(var(--metric-count), minmax(72px, 0.8fr))",
-  padding: "9px 12px",
-};
-
-const progressIndicatorEmployeeRowStyle: CSSProperties = {
-  alignItems: "center",
-  appearance: "none",
-  background: "#fff",
-  border: 0,
-  borderTop: "1px solid #edf2f7",
-  color: "#172033",
-  cursor: "pointer",
-  display: "grid",
-  fontFamily: "inherit",
-  fontSize: 12,
-  gap: 10,
-  gridTemplateColumns: "minmax(92px, 1.1fr) 52px repeat(var(--metric-count), minmax(72px, 0.8fr))",
-  padding: "10px 12px",
-  textAlign: "left",
-  width: "100%",
-};
-
-const ProgressIndicatorSurface = ({ component, rows, fields, onComponentPropsChange }: { readonly component: ComponentInstance; readonly rows: readonly Row[]; readonly fields: readonly DatasetField[]; readonly onComponentPropsChange?: ((props: ComponentInstance["props"]) => void) | undefined }) => {
-  const model = buildProgressIndicatorModel(component, rows, fields);
+const GoalTaskProgressSurface = ({ component, rows, fields, onComponentPropsChange }: { readonly component: ComponentInstance; readonly rows: readonly Row[]; readonly fields: readonly DatasetField[]; readonly onComponentPropsChange?: ((props: ComponentInstance["props"]) => void) | undefined }) => {
+  const initialYear = Math.max(2000, Math.min(2100, Math.trunc(numberProp(component, "periodYear", 2026))));
+  const initialMonth = Math.max(1, Math.min(12, Math.trunc(numberProp(component, "periodMonth", 8))));
+  const [year, setYear] = useState(initialYear);
+  const [month, setMonth] = useState(initialMonth);
+  const [periodMode, setPeriodMode] = useState<"month" | "year">(component.props.periodMode === "year" ? "year" : "month");
+  const dateKey = bindingFieldKeys(component, "dateDimension")[0]
+    ?? fields.find((field) => field.type === "date" || /日期|月份|month|date/.test(`${field.key} ${field.label}`.toLowerCase()))?.key;
+  const selectedRows = dateKey === undefined ? rows : rows.filter((row) => {
+    const value = row[dateKey];
+    const parsed = value instanceof Date ? dayjs(value) : typeof value === "string" || typeof value === "number" ? dayjs(value) : null;
+    return parsed !== null && parsed.isValid() && parsed.year() === year && (periodMode === "year" || parsed.month() + 1 === month);
+  });
+  const model = buildGoalTaskProgressModel({ ...component, props: { ...component.props, periodYear: year, periodMonth: month, periodMode } }, selectedRows, fields);
   const decimals = Math.max(0, Math.min(4, Math.trunc(numberProp(component, "decimals", 1))));
-  const showEmployeeRanking = component.props.showEmployeeRanking !== false;
-  const maximumEmployees = Math.max(3, Math.min(20, Math.trunc(numberProp(component, "maxEmployees", 8))));
+  const maximumEmployees = Math.max(3, Math.min(50, Math.trunc(numberProp(component, "maxEmployees", 12))));
   const [activeEmployee, setActiveEmployee] = useState<string | null>(null);
-  const [periodMode, setPeriodMode] = useState<"月度" | "年度">("月度");
   const [targetConfigOpen, setTargetConfigOpen] = useState(false);
   const [weightConfigOpen, setWeightConfigOpen] = useState(false);
-  const [targetDrafts, setTargetDrafts] = useState<Record<string, number | null>>({});
+  const [targetDrafts, setTargetDrafts] = useState<Record<string, { monthly: number | null; annual: number | null }>>({});
   const [weightDrafts, setWeightDrafts] = useState<Record<string, number>>({});
-  const metricsCount = Math.max(1, model.metrics.length);
-  const metricSettings = Array.isArray(component.props.metricSettings) ? component.props.metricSettings : [];
-  const saveSettings = (changes: Record<string, { targetValue?: number | null; weight?: number }>) => {
-    if (onComponentPropsChange === undefined) return;
-    onComponentPropsChange({ ...component.props, metricSettings: model.metrics.map((metric) => {
-      const saved = metricSettings.find((setting) => setting !== null && typeof setting === "object" && (setting as { measureKey?: unknown }).measureKey === metric.measureKey) as Record<string, unknown> | undefined;
+  const selectedEmployee = model.employees.find((employee) => employee.key === activeEmployee) ?? model.employees[0];
+  const saveSettings = (changes: Record<string, { monthlyTargetValue?: number | null; annualTargetValue?: number | null; weight?: number }>) => {
+    if (onComponentPropsChange === undefined || selectedEmployee === undefined) return;
+    const existingSettings = Array.isArray(component.props.employeeSettings) ? component.props.employeeSettings : [];
+    const currentEmployeeSettings = existingSettings.find((setting) => setting !== null && typeof setting === "object" && (setting as { employeeKey?: unknown }).employeeKey === selectedEmployee.key) as { readonly metrics?: unknown } | undefined;
+    const existingMetrics = new Map(Array.isArray(currentEmployeeSettings?.metrics)
+      ? currentEmployeeSettings.metrics.flatMap((metric) => metric !== null && typeof metric === "object" && typeof (metric as { measureKey?: unknown }).measureKey === "string"
+        ? [[(metric as { measureKey: string }).measureKey, metric as Record<string, unknown>] as const] : [])
+      : []);
+    const otherEmployees = existingSettings.filter((setting) => setting !== null && typeof setting === "object" && (setting as { employeeKey?: unknown }).employeeKey !== selectedEmployee.key);
+    onComponentPropsChange({ ...component.props, employeeSettings: [...otherEmployees, { employeeKey: selectedEmployee.key, metrics: selectedEmployee.metrics.map((metric) => {
       const change = changes[metric.measureKey];
-      return { measureKey: metric.measureKey, targetKey: metric.targetKey, targetValue: change?.targetValue ?? (typeof saved?.targetValue === "number" ? saved.targetValue : null), label: metric.label, color: metric.color, weight: change?.weight ?? metric.weight, includeInScore: metric.includeInScore };
-    }) });
+      const previous = existingMetrics.get(metric.measureKey);
+      return {
+        measureKey: metric.measureKey,
+        targetValue: typeof previous?.targetValue === "number" ? previous.targetValue : metric.target,
+        monthlyTargetValue: change?.monthlyTargetValue ?? (typeof previous?.monthlyTargetValue === "number" ? previous.monthlyTargetValue : metric.target),
+        annualTargetValue: change?.annualTargetValue ?? (typeof previous?.annualTargetValue === "number" ? previous.annualTargetValue : null),
+        weight: change?.weight ?? (typeof previous?.weight === "number" ? previous.weight : metric.weight),
+      };
+    }) }] });
   };
 
-  const metricCell = (metric: typeof model.metrics[number]) => {
-    const percent = metric.progress === null ? null : metric.progress * 100;
-    const width = Math.max(0, Math.min(100, percent ?? 0));
-    const warning = percent !== null && percent < 70;
-    return <div key={metric.measureKey} style={{ display: "grid", gap: 5, minWidth: 0 }}>
-      <div style={{ color: "#172033", fontSize: 13, fontVariantNumeric: "tabular-nums", fontWeight: 650, whiteSpace: "nowrap" }}>{formatCurrencyMetricNumber(metric.value, metric.isCurrency, metric.isQuantity)} <span style={{ color: "#94a3b8", fontWeight: 400 }}>/ {formatCurrencyMetricNumber(metric.target, metric.targetIsCurrency, metric.targetIsQuantity)}</span></div>
-      <div style={{ alignItems: "center", display: "flex", gap: 7 }}><span aria-label={`${metric.label}完成进度`} style={{ background: "#eaf0f6", borderRadius: 999, flex: 1, height: 7, overflow: "hidden" }}><span style={{ background: warning ? "#ff7a18" : metric.color, borderRadius: 999, display: "block", height: "100%", minWidth: width > 0 ? 5 : 0, width: `${width}%` }} /></span><strong style={{ color: warning ? "#e65f00" : "#2f6bee", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>{percent === null ? "—" : `${percent.toFixed(decimals)}%`}</strong></div>
-    </div>;
+  const formatMetric = (metric: typeof model.metrics[number], value: number | null, isTarget = false) => {
+    if (metric.kind === "turnover") return value === null ? "—" : `${value.toFixed(0)} 天`;
+    return formatCurrencyMetricNumber(value, isTarget ? metric.targetIsCurrency : metric.isCurrency, isTarget ? metric.targetIsQuantity : metric.isQuantity);
   };
 
-  return <section aria-label={`${component.title ?? "目标任务进度表"}图表`} data-testid="progress-indicator-surface" style={{ ...progressIndicatorShellStyle, gap: 10, padding: "14px 16px 16px" }}>
-    <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}><span style={{ color: "#64748b", fontSize: 12 }}>当前周期：<strong style={{ color: "#2f6bee" }}>{model.periodLabel}</strong></span><Segmented size="small" options={["月度", "年度"]} value={periodMode} onChange={(value) => setPeriodMode(value as "月度" | "年度")} />{onComponentPropsChange !== undefined && <><Button size="small" onClick={() => setTargetConfigOpen(true)}>配置目标</Button><Button size="small" type="primary" onClick={() => setWeightConfigOpen(true)}>评分权重</Button></>}</div>
-    {showEmployeeRanking && <div style={{ ...progressIndicatorTableStyle, flex: "1 1 auto", borderRadius: 8 }}>
+  const changePeriod = (nextYear: number, nextMonth: number) => {
+    setYear(nextYear); setMonth(nextMonth);
+    onComponentPropsChange?.({ ...component.props, periodYear: nextYear, periodMonth: nextMonth, periodMode });
+  };
+  const changePeriodMode = (nextMode: "month" | "year") => {
+    setPeriodMode(nextMode);
+    onComponentPropsChange?.({ ...component.props, periodYear: year, periodMonth: month, periodMode: nextMode });
+  };
+  const selectEmployeeForConfig = (employeeKey: string) => {
+    setActiveEmployee(employeeKey);
+    const employee = model.employees.find((candidate) => candidate.key === employeeKey);
+    const savedMetrics = new Map(
+      (Array.isArray(component.props.employeeSettings) ? component.props.employeeSettings : []).flatMap((setting) => {
+        if (setting === null || typeof setting !== "object" || (setting as { employeeKey?: unknown }).employeeKey !== employeeKey) return [];
+        const metrics = (setting as { metrics?: unknown }).metrics;
+        return Array.isArray(metrics)
+          ? metrics.flatMap((metric) => metric !== null && typeof metric === "object" && typeof (metric as { measureKey?: unknown }).measureKey === "string"
+            ? [[(metric as { measureKey: string }).measureKey, metric as Record<string, unknown>] as const] : [])
+          : [];
+      }),
+    );
+    setTargetDrafts(Object.fromEntries((employee?.metrics ?? []).map((metric) => [metric.measureKey, {
+      monthly: typeof savedMetrics.get(metric.measureKey)?.monthlyTargetValue === "number" ? savedMetrics.get(metric.measureKey)?.monthlyTargetValue as number : metric.target,
+      annual: typeof savedMetrics.get(metric.measureKey)?.annualTargetValue === "number"
+        ? savedMetrics.get(metric.measureKey)?.annualTargetValue as number
+        : metric.kind === "gmv" || metric.kind === "sales" ? (metric.target === null ? null : metric.target * 12) : null,
+    }])));
+    setWeightDrafts(Object.fromEntries((employee?.metrics ?? []).map((metric) => [metric.measureKey, metric.weight])));
+  };
+  const weightTotal = (selectedEmployee?.metrics ?? []).reduce((total, metric) => total + (weightDrafts[metric.measureKey] ?? metric.weight), 0);
+  const metricByKind = (employee: typeof model.employees[number], kind: "gmv" | "sales" | "turnover") => employee.metrics.find((metric) => metric.kind === kind);
+  const metricLabel = (metric: typeof model.metrics[number]) => metric.kind === "gmv" ? "GMV" : metric.kind === "sales" ? "销量" : metric.kind === "turnover" ? "周转天数" : metric.label;
+  const targetDraftFor = (metric: typeof model.metrics[number]) => targetDrafts[metric.measureKey] ?? { monthly: metric.target, annual: null };
+  const updateTargetDraft = (metric: typeof model.metrics[number], changes: Partial<{ monthly: number | null; annual: number | null }>) => {
+    setTargetDrafts((current) => ({ ...current, [metric.measureKey]: { ...targetDraftFor(metric), ...current[metric.measureKey], ...changes } }));
+  };
+  const tableColumns = "minmax(88px, .8fr) 56px minmax(152px, 1.2fr) minmax(132px, 1fr) minmax(108px, .8fr) minmax(96px, .72fr) minmax(96px, .72fr) minmax(92px, .72fr)";
+  return <section aria-label={`${component.title ?? "目标任务进度"}图表`} data-testid="goal-task-progress-surface" style={{ ...goalTaskProgressShellStyle, gap: 12, padding: "14px 16px 16px" }}>
+    <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}><div style={{ display: "grid", gap: 2 }}><strong style={{ color: "#172033", fontSize: 15 }}>{periodMode === "year" ? "年度目标进度" : "月度目标进度"}</strong><span style={{ color: "#718096", fontSize: 12 }}>按员工查看 GMV、销量、毛利、完成率与评分</span></div><div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8 }}><Segmented aria-label="统计周期" size="small" value={periodMode} options={[{ label: "月度", value: "month" }, { label: "年度", value: "year" }]} onChange={(value) => changePeriodMode(value as "month" | "year")} /><Select aria-label="选择年份" size="small" value={year} style={{ width: 92 }} options={Array.from({ length: 7 }, (_, index) => ({ value: 2024 + index, label: `${2024 + index}年` }))} onChange={(value: number) => changePeriod(value, month)} />{periodMode === "month" && <Select aria-label="选择月份" size="small" value={month} style={{ width: 76 }} options={Array.from({ length: 12 }, (_, index) => ({ value: index + 1, label: `${index + 1}月` }))} onChange={(value: number) => changePeriod(year, value)} />}<Button size="small" onClick={() => { selectEmployeeForConfig(activeEmployee ?? model.employees[0]?.key ?? ""); setTargetConfigOpen(true); }}>自定义目标</Button><Button size="small" type="primary" onClick={() => { selectEmployeeForConfig(activeEmployee ?? model.employees[0]?.key ?? ""); setWeightConfigOpen(true); }}>评分权重设置</Button></div></div>
+    {dateKey === undefined && <span style={{ color: "#8a98aa", fontSize: 12 }}>未找到日期字段，年/月选择将仅用于目标配置；可在数据绑定中指定日期字段。</span>}
+    <div style={{ ...goalTaskProgressTableStyle, flex: "1 1 auto", borderRadius: 8 }}>
       {model.employees.length === 0 ? <div style={{ color: "#94a3b8", fontSize: 12, padding: 18 }}>绑定员工维度后可查看运营人员的目标任务进度。</div> : <>
-        <div aria-hidden="true" style={{ background: "#f7f9fc", color: "#64748b", display: "grid", fontSize: 12, fontWeight: 650, gap: 14, gridTemplateColumns: `minmax(90px, .9fr) 56px repeat(${metricsCount}, minmax(150px, 1fr))`, padding: "10px 14px" }}><span>{model.employeeLabel}</span><span>评分</span>{model.metrics.map((metric) => <span key={metric.measureKey}>{metric.label}（实际 / 目标 / 完成）</span>)}</div>
-        {model.employees.slice(0, maximumEmployees).map((employee) => <button key={employee.key} type="button" aria-pressed={activeEmployee === employee.key} onClick={() => setActiveEmployee((current) => current === employee.key ? null : employee.key)} style={{ alignItems: "center", background: activeEmployee === employee.key ? "#f0f5ff" : "#fff", border: 0, borderTop: "1px solid #edf2f7", color: "#172033", cursor: "pointer", display: "grid", fontFamily: "inherit", gap: 14, gridTemplateColumns: `minmax(90px, .9fr) 56px repeat(${metricsCount}, minmax(150px, 1fr))`, padding: "13px 14px", textAlign: "left", width: "100%" }}><strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{employee.label}</strong><span style={{ color: employee.score !== null && employee.score < .7 ? "#e34d59" : "#2f6bee", fontSize: 18, fontVariantNumeric: "tabular-nums", fontWeight: 750 }}>{employee.score === null ? "—" : (employee.score * 100).toFixed(0)}</span>{employee.metrics.map(metricCell)}</button>)}
-        <div style={{ alignItems: "center", borderTop: "1px solid #e7edf5", color: "#64748b", display: "flex", flexWrap: "wrap", fontSize: 12, gap: 10, padding: "10px 14px" }}><strong style={{ color: "#475569" }}>评分权重：</strong>{model.weights.map((metric) => <span key={metric.label} style={{ background: "#f5f8fe", borderRadius: 4, padding: "3px 7px" }}>{metric.label} {metric.weight}%</span>)}<span style={{ marginLeft: "auto" }}>{periodMode}视图</span></div>
+        <div aria-hidden="true" style={{ background: "#f7f9fc", color: "#64748b", display: "grid", fontSize: 12, fontWeight: 650, gap: 14, gridTemplateColumns: tableColumns, minWidth: 900, padding: "10px 14px" }}><span>{model.employeeLabel}</span><span>评分</span><span>GMV（实际 / 目标）</span><span>销量（实际 / 目标）</span><span>{model.grossProfitLabel}</span><span>GMV完成率</span><span>销量完成率</span><span>周转天数</span></div>
+        {model.employees.slice(0, maximumEmployees).map((employee) => {
+          const gmv = metricByKind(employee, "gmv");
+          const sales = metricByKind(employee, "sales");
+          const turnover = metricByKind(employee, "turnover");
+          const score = employee.score === null ? null : employee.score * 100;
+          const rate = (metric: typeof gmv) => metric?.progress === null || metric === undefined ? "—" : `${(metric.progress * 100).toFixed(decimals)}%`;
+          return <button key={employee.key} type="button" aria-pressed={activeEmployee === employee.key} onClick={() => setActiveEmployee((current) => current === employee.key ? null : employee.key)} style={{ alignItems: "center", background: activeEmployee === employee.key ? "#f0f5ff" : "#fff", border: 0, borderTop: "1px solid #edf2f7", color: "#172033", cursor: "pointer", display: "grid", fontFamily: "inherit", gap: 14, gridTemplateColumns: tableColumns, minWidth: 900, padding: "13px 14px", textAlign: "left", width: "100%" }}><strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{employee.label}</strong><span style={{ color: score !== null && score < 70 ? "#e34d59" : "#2f6bee", fontSize: 18, fontVariantNumeric: "tabular-nums", fontWeight: 750 }}>{score === null ? "—" : score.toFixed(0)}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{gmv === undefined ? "—" : <>{formatMetric(gmv, gmv.value)} <span style={{ color: "#94a3b8" }}>/ {formatMetric(gmv, gmv.target, true)}</span></>}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{sales === undefined ? "—" : <>{formatMetric(sales, sales.value)} <span style={{ color: "#94a3b8" }}>/ {formatMetric(sales, sales.target, true)}</span></>}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{formatCurrencyMetricNumber(employee.grossProfit, model.grossProfitIsCurrency, false)}</span><strong style={{ color: gmv?.progress !== null && gmv?.progress !== undefined && gmv.progress < .7 ? "#e65f00" : "#2f6bee" }}>{rate(gmv)}</strong><strong style={{ color: sales?.progress !== null && sales?.progress !== undefined && sales.progress < .7 ? "#e65f00" : "#2f6bee" }}>{rate(sales)}</strong><span style={{ fontVariantNumeric: "tabular-nums" }}>{turnover === undefined ? "—" : formatMetric(turnover, turnover.value)}</span></button>;
+        })}
+        <div style={{ alignItems: "center", borderTop: "1px solid #e7edf5", color: "#64748b", display: "flex", flexWrap: "wrap", fontSize: 12, gap: 10, padding: "10px 14px" }}><strong style={{ color: "#475569" }}>评分权重：</strong>{(selectedEmployee?.metrics ?? model.metrics).map((metric) => <span key={metric.measureKey} style={{ background: "#f5f8fe", borderRadius: 4, padding: "3px 7px" }}>{metric.label} {metric.weight}%</span>)}<span style={{ marginLeft: "auto" }}>{model.periodLabel}</span></div>
       </>}
-    </div>}
-    <Modal title="目标配置" open={targetConfigOpen} okText="保存目标" cancelText="取消" onCancel={() => setTargetConfigOpen(false)} onOk={() => { saveSettings(Object.fromEntries(Object.entries(targetDrafts).map(([key, value]) => [key, { targetValue: value }]))); setTargetConfigOpen(false); }}><p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>为当前组件的每项指标设置统一目标；已绑定的目标字段会作为默认值。</p>{model.metrics.map((metric) => <label key={metric.measureKey} style={{ alignItems: "center", display: "grid", gap: 12, gridTemplateColumns: "96px 1fr", marginBottom: 14 }}><strong>{metric.label}</strong><InputNumber style={{ width: "100%" }} min={0} value={targetDrafts[metric.measureKey] ?? metric.target} onChange={(value) => setTargetDrafts((current) => ({ ...current, [metric.measureKey]: value }))} /></label>)}</Modal>
-    <Modal title="评分权重配置" open={weightConfigOpen} okText="保存配置" cancelText="取消" onCancel={() => setWeightConfigOpen(false)} onOk={() => { saveSettings(Object.fromEntries(Object.entries(weightDrafts).map(([key, value]) => [key, { weight: value }]))); setWeightConfigOpen(false); }}><p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>可调整各指标对综合评分的贡献，建议合计为 100%。</p>{model.metrics.map((metric) => <label key={metric.measureKey} style={{ alignItems: "center", display: "grid", gap: 12, gridTemplateColumns: "96px 1fr 34px", marginBottom: 14 }}><strong>{metric.label}</strong><InputNumber style={{ width: "100%" }} min={0} max={100} value={weightDrafts[metric.measureKey] ?? metric.weight} onChange={(value) => setWeightDrafts((current) => ({ ...current, [metric.measureKey]: value ?? 0 }))} /><span>%</span></label>)}</Modal>
+    </div>
+    <Modal aria-label="目标配置" title="目标配置" open={targetConfigOpen} okText="保存目标" cancelText="取消" onCancel={() => setTargetConfigOpen(false)} onOk={() => { saveSettings(Object.fromEntries((selectedEmployee?.metrics ?? []).map((metric) => [metric.measureKey, { monthlyTargetValue: targetDraftFor(metric).monthly, annualTargetValue: targetDraftFor(metric).annual }]))); setTargetConfigOpen(false); }}><p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>选择运营后维护月度、年度目标；保存后列表中的实际、目标与完成率会同步更新。</p><Select aria-label="配置运营" value={selectedEmployee?.key ?? null} style={{ marginBottom: 16, width: "100%" }} options={model.employees.map((employee) => ({ value: employee.key, label: employee.label }))} onChange={selectEmployeeForConfig} />{selectedEmployee?.metrics.map((metric) => metric.kind === "gmv" || metric.kind === "sales" ? <div key={metric.measureKey} style={{ display: "grid", gap: 10, gridTemplateColumns: "112px 1fr 1fr", marginBottom: 14 }}><strong style={{ alignSelf: "center" }}>{metricLabel(metric)}</strong><label style={{ color: "#64748b", fontSize: 12 }}>月度目标<InputNumber aria-label={`月度${metricLabel(metric)}目标`} style={{ marginTop: 4, width: "100%" }} min={0} value={targetDraftFor(metric).monthly} onChange={(value) => updateTargetDraft(metric, { monthly: value })} /></label><label style={{ color: "#64748b", fontSize: 12 }}>年度目标<InputNumber aria-label={`年度${metricLabel(metric)}目标`} style={{ marginTop: 4, width: "100%" }} min={0} value={targetDraftFor(metric).annual} onChange={(value) => updateTargetDraft(metric, { annual: value })} /></label></div> : <label key={metric.measureKey} style={{ alignItems: "center", display: "grid", gap: 12, gridTemplateColumns: "112px 1fr", marginBottom: 14 }}><strong>{metricLabel(metric)}目标</strong><InputNumber aria-label={`${metricLabel(metric)}目标`} style={{ width: "100%" }} min={0} value={targetDraftFor(metric).monthly} onChange={(value) => updateTargetDraft(metric, { monthly: value })} /></label>)}</Modal>
+    <Modal aria-label="评分权重配置" title="评分权重配置" open={weightConfigOpen} okText="保存配置" cancelText="取消" okButtonProps={{ disabled: weightTotal !== 100 }} onCancel={() => setWeightConfigOpen(false)} onOk={() => { saveSettings(Object.fromEntries(Object.entries(weightDrafts).map(([key, value]) => [key, { weight: value }]))); setWeightConfigOpen(false); }}><p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>每位员工可独立设置 GMV、销量和周转天数的评分权重，合计为 100% 后方可保存。</p><Select aria-label="配置运营" value={selectedEmployee?.key ?? null} style={{ marginBottom: 16, width: "100%" }} options={model.employees.map((employee) => ({ value: employee.key, label: employee.label }))} onChange={selectEmployeeForConfig} />{selectedEmployee?.metrics.map((metric) => <div key={metric.measureKey} style={{ alignItems: "center", display: "grid", gap: 12, gridTemplateColumns: "112px 1fr 44px", marginBottom: 16 }}><strong>{metricLabel(metric)}贡献</strong><Slider aria-label={`${metricLabel(metric)}贡献`} min={0} max={100} value={weightDrafts[metric.measureKey] ?? metric.weight} onChange={(value) => setWeightDrafts((current) => ({ ...current, [metric.measureKey]: typeof value === "number" ? value : 0 }))} /><span style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{weightDrafts[metric.measureKey] ?? metric.weight}%</span></div>)}<div style={{ background: weightTotal === 100 ? "#f1f8f5" : "#fff7ed", borderRadius: 6, color: weightTotal === 100 ? "#267a4b" : "#b45309", fontSize: 13, padding: "10px 12px" }}>当前合计：{weightTotal}%（{(selectedEmployee?.metrics ?? []).map((metric) => `${metricLabel(metric)} ${weightDrafts[metric.measureKey] ?? metric.weight}%`).join("｜")}）</div></Modal>
   </section>;
 };
 
@@ -1887,7 +1904,7 @@ const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
   if (component.type === "flipNumber") return <FlipNumberDemo />;
   if (component.type === "progressBar") return <ProgressDemo />;
   if (component.type === "targetProgress") return <ProgressDemo />;
-  if (component.type === "progressIndicator") return <ProgressDemo />;
+  if (component.type === "goalTaskProgress") return <ProgressDemo />;
   if (component.type === "trend") {
     return <LineDemo area />;
   }
@@ -2010,6 +2027,130 @@ const formatCurrencyNumber = (value: number | null | undefined, decimals: number
 const formatKpiValue = (value: number | null | undefined, decimals: number, isCurrency: boolean): string => {
   if (value === null || value === undefined) return "—";
   return isCurrency && Math.abs(value) > 1_000 ? formatCurrencyInWan(value) : value.toFixed(decimals);
+};
+
+type MetricAlertOperator = "gt" | "gte" | "lt" | "lte" | "eq" | "neq";
+
+const metricAlertOperator = (value: unknown): MetricAlertOperator =>
+  value === "gt" || value === "gte" || value === "lt" || value === "lte" || value === "eq" || value === "neq" ? value : "gte";
+
+const metricAlertOperatorLabel = (operator: MetricAlertOperator): string => ({
+  gt: "大于", gte: "大于等于", lt: "小于", lte: "小于等于", eq: "等于", neq: "不等于",
+})[operator];
+
+const metricAlertMatches = (value: number | null, operator: MetricAlertOperator, threshold: number): boolean => {
+  if (value === null) return false;
+  if (operator === "gt") return value > threshold;
+  if (operator === "gte") return value >= threshold;
+  if (operator === "lt") return value < threshold;
+  if (operator === "lte") return value <= threshold;
+  if (operator === "eq") return value === threshold;
+  return value !== threshold;
+};
+
+const metricAlertTemplate = (template: string, variables: Readonly<Record<string, string>>): string =>
+  template.replace(/\{\{(metric|value|threshold|operator|label|scope|dimension|dimensionLabel|count)\}\}/g, (_token, key: string) => variables[key] ?? "");
+
+type MetricAlertGroup = Readonly<{ key: string; value: number | null }>;
+
+const buildMetricAlertGroups = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  dimensionKey: string,
+  measureKey: string,
+  aggregation: string,
+): readonly MetricAlertGroup[] => {
+  const groupedRows = new Map<string, Row[]>();
+
+  for (const row of rows) {
+    const key = dimensionKey ? String(row[dimensionKey] ?? "未填写") : "全部范围";
+    const group = groupedRows.get(key);
+    if (group) group.push(row);
+    else groupedRows.set(key, [row]);
+  }
+
+  return [...groupedRows].map(([key, groupRows]) => ({
+    key,
+    value: buildKpiModelForFields(component, groupRows, measureKey, undefined, undefined, aggregation).value,
+  }));
+};
+
+const MetricAlertSurface = ({ component, fields, rows }: { readonly component: ComponentInstance; readonly fields: readonly DatasetField[]; readonly rows: readonly Row[] }) => {
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const dimensionKey = bindingFieldKeys(component, "dimension")[0] ?? "";
+  const measureKey = bindingFieldKeys(component, "measure")[0] ?? "";
+  const aggregation = stringProp(component, "aggregation", "sum");
+  const threshold = numberProp(component, "threshold", 0);
+  const operator = metricAlertOperator(component.props.operator);
+  const dimensionLabel = (fields.find((field) => field.key === dimensionKey)?.label ?? dimensionKey) || "维度";
+  const metric = (fields.find((field) => field.key === measureKey)?.label ?? measureKey) || "预警指标";
+  const decimals = Math.max(0, Math.min(6, Math.trunc(numberProp(component, "decimals", 0))));
+  const groups = buildMetricAlertGroups(component, rows, dimensionKey, measureKey, aggregation);
+  const triggeredGroups = groups.filter((group) => metricAlertMatches(group.value, operator, threshold));
+  const primaryGroup = triggeredGroups[0];
+  const value = formatCurrencyNumber(primaryGroup?.value ?? null, decimals, isCurrencyMetric(measureKey, fields), isQuantityMetric(measureKey, fields));
+  const thresholdDisplay = formatCurrencyNumber(threshold, decimals, isCurrencyMetric(measureKey, fields), isQuantityMetric(measureKey, fields));
+  const operatorLabel = metricAlertOperatorLabel(operator);
+  const baseVariables = {
+    metric,
+    value,
+    threshold: thresholdDisplay,
+    operator: operatorLabel,
+    scope: stringProp(component, "scopeText", "全部范围") || "全部范围",
+    dimension: triggeredGroups.map((group) => group.key).join("、") || "—",
+    dimensionLabel,
+    count: String(triggeredGroups.length),
+  };
+  const label = metricAlertTemplate(stringProp(component, "alertLabel", "指标预警 {{count}} 项"), baseVariables);
+  const variables = { ...baseVariables, label };
+  const headline = metricAlertTemplate(stringProp(component, "headlineTemplate", "{{metric}}触发预警"), variables);
+  const message = metricAlertTemplate(stringProp(component, "messageTemplate", "{{scope}}｜共 {{count}} 个{{dimensionLabel}}命中预警。"), variables);
+  const detail = metricAlertTemplate(stringProp(component, "detailTemplate", "{{dimension}}的{{metric}}当前值为 {{value}}。预警条件：{{metric}} {{operator}} {{threshold}}。"), variables);
+
+  if (triggeredGroups.length === 0) return null;
+
+  return <>
+    <section
+      aria-label={`${label}，点击查看详情`}
+      data-testid="metric-alert-surface"
+      role="button"
+      style={metricAlertShellActiveStyle}
+      tabIndex={0}
+      onClick={() => setDetailsOpen(true)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setDetailsOpen(true);
+        }
+      }}
+    >
+      <div style={metricAlertCopyStyle}>
+        <div style={metricAlertHeadlineStyle}>
+          <span style={metricAlertBadgeStyle}>{label}</span>
+          <span style={metricAlertHeadlineTextStyle}>{headline}</span>
+        </div>
+        <p style={metricAlertMessageStyle}>{message}</p>
+      </div>
+      <button aria-label={`查看${metric}预警详情`} style={metricAlertActionStyle} type="button" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>查看风险</button>
+    </section>
+    <Modal footer={null} open={detailsOpen} title={`${label}详情`} onCancel={() => setDetailsOpen(false)}>
+      <div aria-label="预警详情内容" data-testid="metric-alert-detail-content" style={metricAlertDetailContentStyle}>
+        <p style={metricAlertDetailStyle}>{detail}</p>
+        <div style={metricAlertDetailListStyle}>
+          <div style={metricAlertDetailRowStyle}><span style={metricAlertDetailKeyStyle}>预警维度</span><span style={metricAlertDetailValueStyle}>{dimensionLabel}</span></div>
+          <div style={metricAlertDetailRowStyle}><span style={metricAlertDetailKeyStyle}>预警指标</span><span style={metricAlertDetailValueStyle}>{metric}</span></div>
+          <div style={metricAlertDetailRowStyle}><span style={metricAlertDetailKeyStyle}>触发条件</span><span style={metricAlertDetailValueStyle}>{operatorLabel} {thresholdDisplay}</span></div>
+          <div style={metricAlertDetailRowStyle}><span style={metricAlertDetailKeyStyle}>适用范围</span><span style={metricAlertDetailValueStyle}>{variables.scope}</span></div>
+        </div>
+        <div aria-label="命中预警项，可纵向滚动" data-testid="metric-alert-triggered-table-scroll" style={metricAlertTableWrapStyle} tabIndex={0}>
+          <table style={metricAlertTableStyle}>
+            <thead><tr><th style={metricAlertTableHeadCellStyle}>{dimensionLabel}</th><th style={metricAlertTableHeadCellStyle}>{metric}</th><th style={metricAlertTableHeadCellStyle}>预警条件</th></tr></thead>
+            <tbody>{triggeredGroups.map((group) => <tr key={group.key}><td style={metricAlertTableCellStyle}>{group.key}</td><td style={metricAlertTableCellStyle}>{formatCurrencyNumber(group.value, decimals, isCurrencyMetric(measureKey, fields), isQuantityMetric(measureKey, fields))}</td><td style={metricAlertTableCellStyle}>{operatorLabel} {thresholdDisplay}</td></tr>)}</tbody>
+          </table>
+        </div>
+      </div>
+    </Modal>
+  </>;
 };
 
 const currencyAffixes = (prefix: string, suffix: string, isCurrency: boolean, isQuantity = false): { readonly prefix: string; readonly suffix: string } => ({
@@ -2176,6 +2317,7 @@ interface ResponsiveBarChartProps {
   readonly rows: readonly Row[];
   readonly rowsAreAggregated: boolean;
   readonly ariaLabel: string;
+  readonly onPointClick?: ((point: EChartPointClick) => void) | undefined;
 }
 
 const responsiveBarChartStyle: CSSProperties = {
@@ -2187,7 +2329,7 @@ const responsiveBarChartStyle: CSSProperties = {
   minWidth: 0,
 };
 
-const ResponsiveBarChart = ({ component, fields, rows, rowsAreAggregated, ariaLabel }: ResponsiveBarChartProps) => {
+const ResponsiveBarChart = ({ component, fields, rows, rowsAreAggregated, ariaLabel, onPointClick }: ResponsiveBarChartProps) => {
   const container = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | undefined>();
 
@@ -2210,7 +2352,7 @@ const ResponsiveBarChart = ({ component, fields, rows, rowsAreAggregated, ariaLa
 
   return (
     <div ref={container} style={responsiveBarChartStyle}>
-      <EChart option={buildBarOption(component, rows, fields, rowsAreAggregated, height)} ariaLabel={ariaLabel} />
+      <EChart option={buildBarOption(component, rows, fields, rowsAreAggregated, height)} ariaLabel={ariaLabel} onPointClick={onPointClick} />
     </div>
   );
 };
@@ -2224,11 +2366,13 @@ const BarLineChart = ({
   fields,
   rows,
   rowsAreAggregated,
+  onPointClick,
 }: {
   readonly component: ComponentInstance;
   readonly fields: readonly DatasetField[];
   readonly rows: readonly Row[];
   readonly rowsAreAggregated: boolean;
+  readonly onPointClick?: ((point: EChartPointClick) => void) | undefined;
 }) => {
   const [displayMode, setDisplayMode] = useState<BarLineDisplayMode>("combined");
   return (
@@ -2254,6 +2398,7 @@ const BarLineChart = ({
         key={displayMode}
         option={buildBarLineOption(component, rows, fields, rowsAreAggregated, displayMode)}
         ariaLabel={`${component.title ?? "柱状折线组合图"}图表`}
+        onPointClick={onPointClick}
       />
     </div>
   );
@@ -2275,6 +2420,7 @@ export const DashboardComponentRenderer = ({
   dashboardFiltersLoading,
   onDashboardFiltersApply,
   onComponentPropsChange,
+  onChartJump,
 }: Props) => {
   const [tablePage, setTablePage] = useState(1);
   const [activeMetricTrendMeasure, setActiveMetricTrendMeasure] = useState<string | null>(null);
@@ -2285,6 +2431,29 @@ export const DashboardComponentRenderer = ({
   const isSunburst = component.type === "sunburst" || (component.type === "pie" && titleIncludes(component, "旭日"));
   const isRadar = component.type === "radar" || (component.type === "pie" && titleIncludes(component, "雷达"));
   const isTreemap = component.type === "treemap" || (component.type === "pie" && titleIncludes(component, "矩形"));
+  const jumpRules = component.interaction?.jumpRules ?? [];
+  const jumpRuleForMetric = (fieldKey: string): ChartJumpRule | undefined => {
+    const field = fields.find((candidate) => candidate.key === fieldKey);
+    return jumpRules.find((rule) => rule.triggerFieldKey === fieldKey || rule.triggerFieldKey === field?.key)
+      ?? (jumpRules.length === 1 ? jumpRules[0] : undefined);
+  };
+  const rowForChartPoint = (point: EChartPointClick): Row => {
+    if (typeof point.name === "string") {
+      const dimensionSlotKeys = ["dimension", "dimensions", "rowDimension", "columnDimension", "timeDimension", "dateDimension"];
+      const dimensionKeys = dimensionSlotKeys.flatMap((slot) => bindingFieldKeys(component, slot as keyof BindingSlots));
+      const matched = rows.find((row) => dimensionKeys.some((key) => String(row[key]) === point.name));
+      if (matched !== undefined) return matched;
+    }
+    return typeof point.dataIndex === "number" ? rows[point.dataIndex] ?? {} : {};
+  };
+  const handleChartPointClick = jumpRules.length === 0 || onChartJump === undefined ? undefined : (point: EChartPointClick) => {
+    const matchingRule = jumpRules.find((rule) => {
+      const field = fields.find((candidate) => candidate.key === rule.triggerFieldKey);
+      return point.seriesName === rule.triggerFieldKey || point.name === rule.triggerFieldKey || point.seriesName === field?.label || point.name === field?.label;
+    }) ?? (jumpRules.length === 1 ? jumpRules[0] : undefined);
+    if (matchingRule === undefined) return;
+    onChartJump(matchingRule, rowForChartPoint(point));
+  };
   if (component.type === "dashboardHeader") return <DashboardHeaderSurface component={component} rows={rows} dashboardFilterValues={dashboardFilterValues} dashboardFilterOptions={dashboardFilterOptions} onDashboardFilterChange={onDashboardFilterChange} dashboardFiltersLoading={dashboardFiltersLoading} onDashboardFiltersApply={onDashboardFiltersApply} />;
   if (component.type === "analysisGroup") {
     const description = stringProp(component, "description", "用于组织同一业务主题下的多个图表与明细。");
@@ -2302,6 +2471,7 @@ export const DashboardComponentRenderer = ({
     const demo = buildEmptyDataDemo(component);
     if (demo !== null) return renderEmptyDataDemo(demo);
   }
+  if (component.type === "metricAlert") return <MetricAlertSurface component={component} fields={fields} rows={rows} />;
   if (component.type === "bar" || component.type === "stackedBar" || component.type === "percentBar") {
     const fallbackTitle = component.type === "stackedBar"
       ? "堆积柱图"
@@ -2315,14 +2485,15 @@ export const DashboardComponentRenderer = ({
         rows={rows}
         rowsAreAggregated={rowsAreAggregated}
         ariaLabel={`${component.title ?? fallbackTitle}图表`}
+        onPointClick={handleChartPointClick}
       />
     );
   }
   if (component.type === "horizontalBar") {
-    return <EChart option={buildHorizontalBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "条形图"}图表`} />;
+    return <EChart option={buildHorizontalBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "条形图"}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "barLine") {
-    return <BarLineChart component={component} fields={fields} rows={rows} rowsAreAggregated={rowsAreAggregated} />;
+    return <BarLineChart component={component} fields={fields} rows={rows} rowsAreAggregated={rowsAreAggregated} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "line" || component.type === "area" || component.type === "stackedArea" || component.type === "percentArea") {
     const fallbackTitle = component.type === "area"
@@ -2332,7 +2503,7 @@ export const DashboardComponentRenderer = ({
         : component.type === "percentArea"
           ? "百分比堆积面积图"
           : "折线图";
-    return <EChart option={buildLineOption(component, rows, fields)} ariaLabel={`${component.title ?? fallbackTitle}图表`} />;
+    return <EChart option={buildLineOption(component, rows, fields)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "trend") {
     const model = buildTrendModel(component, rows, fields);
@@ -2369,7 +2540,7 @@ export const DashboardComponentRenderer = ({
             </div>
           )}
           <div style={trendChartStyle}>
-            <EChart option={buildTrendOption(component, model)} ariaLabel={`${component.title ?? "趋势分析"}趋势图表`} />
+            <EChart option={buildTrendOption(component, model)} ariaLabel={`${component.title ?? "趋势分析"}趋势图表`} onPointClick={handleChartPointClick} />
           </div>
         </div>
       </DataSurface>
@@ -2417,7 +2588,7 @@ export const DashboardComponentRenderer = ({
             </div>
           </div>
           <div style={metricTrendChartStyle}>
-            <EChart key={activeMeasureKey ?? "empty"} option={buildMetricTrendOption(component, model, activeMeasureKey)} ariaLabel={`${component.title ?? "指标趋势"}趋势图表`} />
+            <EChart key={activeMeasureKey ?? "empty"} option={buildMetricTrendOption(component, model, activeMeasureKey)} ariaLabel={`${component.title ?? "指标趋势"}趋势图表`} onPointClick={handleChartPointClick} />
           </div>
         </div>
       </DataSurface>
@@ -2482,7 +2653,7 @@ export const DashboardComponentRenderer = ({
           </div>
         )}
         <div style={sunburstChartStyle}>
-          <EChart option={buildRadarOption(component, rows, fields)} ariaLabel={`${component.title ?? "雷达图"}图表`} />
+          <EChart option={buildRadarOption(component, rows, fields)} ariaLabel={`${component.title ?? "雷达图"}图表`} onPointClick={handleChartPointClick} />
         </div>
       </div>
     );
@@ -2506,7 +2677,7 @@ export const DashboardComponentRenderer = ({
             {measures.map((measure) => <option key={measure} value={measure}>{labels.get(measure) ?? measure}</option>)}
           </select>
         )}
-        <EChart option={buildTreemapOption(component, rows, fields, activeMeasureKey)} ariaLabel={`${component.title ?? "矩形树图"} ${activeMeasureLabel}图表`} />
+        <EChart option={buildTreemapOption(component, rows, fields, activeMeasureKey)} ariaLabel={`${component.title ?? "矩形树图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
       </div>
     );
   }
@@ -2546,17 +2717,17 @@ export const DashboardComponentRenderer = ({
           </div>
         )}
         <div style={sunburstChartStyle}>
-          <EChart option={buildSunburstOption(component, rows, fields, activeMeasureKey)} ariaLabel={`${component.title ?? "旭日图"} ${activeMeasureLabel}图表`} />
+          <EChart option={buildSunburstOption(component, rows, fields, activeMeasureKey)} ariaLabel={`${component.title ?? "旭日图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
         </div>
       </div>
     );
   }
   if (component.type === "pie" || component.type === "donut" || component.type === "rose") {
     const fallbackTitle = component.type === "rose" ? "玫瑰图" : component.type === "donut" ? "环形图" : "饼图";
-    return <EChart option={buildPieOption(component, rows, fields)} ariaLabel={`${component.title ?? fallbackTitle}图表`} />;
+    return <EChart option={buildPieOption(component, rows, fields)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "ringBar") {
-    return <EChart option={buildRingBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "环形柱图"}图表`} />;
+    return <EChart option={buildRingBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "环形柱图"}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "ranking") {
     const model = buildRankingModel(component, rows, fields);
@@ -2675,12 +2846,12 @@ export const DashboardComponentRenderer = ({
       </section>
     );
   }
-  if (component.type === "progressIndicator") return <ProgressIndicatorSurface component={component} rows={rows} fields={fields} onComponentPropsChange={onComponentPropsChange} />;
+  if (component.type === "goalTaskProgress") return <GoalTaskProgressSurface component={component} rows={rows} fields={fields} onComponentPropsChange={onComponentPropsChange} />;
   if (component.type === "gauge" || isLegacyGaugeKpi(component)) {
     const models = buildGaugeModels(component, rows, fields);
     if (models.length === 1 && models[0]?.label === undefined) {
       const model = buildGaugeModel(component, rows, fields);
-      return <EChart option={buildGaugeOption(component, model)} ariaLabel={`${component.title ?? "仪表盘"}图表`} />;
+      return <EChart option={buildGaugeOption(component, model)} ariaLabel={`${component.title ?? "仪表盘"}图表`} onPointClick={handleChartPointClick} />;
     }
     return (
       <section data-testid="gauge-chart-grid" style={metricChartGridStyle}>
@@ -2689,6 +2860,7 @@ export const DashboardComponentRenderer = ({
             <EChart
               option={buildGaugeOption(component, model, label ?? model.label)}
               ariaLabel={`${component.title ?? "仪表盘"}${label === undefined ? "" : ` ${label}`}图表`}
+              onPointClick={handleChartPointClick}
             />
           </div>
         ))}
@@ -2813,7 +2985,7 @@ export const DashboardComponentRenderer = ({
   }
   if (component.type === "table") {
     const pageSize = Math.max(1, Math.min(100, numberProp(component, "pageSize", 20)));
-    const model = buildTableModel(component, rows, fields);
+    const model = buildTableModel(component, rows, fields, rowsAreAggregated);
     const totalPages = Math.max(1, Math.ceil(model.rows.length / pageSize));
     const currentPage = Math.min(tablePage, totalPages);
     const pagedRows = model.rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -2932,6 +3104,14 @@ export const DashboardComponentRenderer = ({
   }
   if (component.type === "heatmap") {
     const model = buildHeatmapModel(component, rows, fields);
+    const heatmapJumpRule = jumpRuleForMetric(model.measureKey);
+    const handleHeatmapCellClick = heatmapJumpRule === undefined || onChartJump === undefined ? undefined : (row: typeof model.rows[number], cell: typeof model.rows[number]["cells"][number]) => {
+      onChartJump(heatmapJumpRule, {
+        [model.rowDimension]: row.label,
+        [model.columnDimension]: cell.columnLabel,
+        [model.measureKey]: cell.value,
+      });
+    };
     return (
       <DataSurface
         testId="heatmap-surface"
@@ -2979,10 +3159,22 @@ export const DashboardComponentRenderer = ({
                     <td
                       key={cell.columnKey}
                       aria-label={`${row.label} ${cell.columnLabel} ${model.measureLabel} ${formatCrosstabMetric(cell.value, model.measureIsCurrency, model.measureIsQuantity)}`}
+                      {...(handleHeatmapCellClick === undefined ? {} : {
+                        role: "button",
+                        tabIndex: 0,
+                        onClick: () => handleHeatmapCellClick(row, cell),
+                        onKeyDown: (event: React.KeyboardEvent<HTMLTableCellElement>) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleHeatmapCellClick(row, cell);
+                          }
+                        },
+                      })}
                       style={{
                         ...heatmapCellBaseStyle,
                         background: heatmapCellFill(cell.intensity),
                         color: cell.intensity > 0.7 ? "#fff" : "#0f172a",
+                        cursor: handleHeatmapCellClick === undefined ? undefined : "pointer",
                       }}
                     >
                       {model.showValues ? formatCrosstabMetric(cell.value, model.measureIsCurrency, model.measureIsQuantity) : ""}

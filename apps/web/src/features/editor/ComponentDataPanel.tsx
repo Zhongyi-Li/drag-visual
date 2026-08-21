@@ -50,14 +50,16 @@ const slotPriority = (
     }
     return slot.key === "dimension" ? 100 : 0;
   }
-  if (selected.type === "progressIndicator") {
+  if (selected.type === "goalTaskProgress") {
     if (field.type === "number") {
       const semanticName = `${field.key} ${field.label}`.toLowerCase();
       const looksLikeTarget = /目标|target/.test(semanticName);
       if (slot.key === "target") return looksLikeTarget ? 120 : 35;
       if (slot.key === "measure") return looksLikeTarget ? 45 : 115;
+      if (slot.key === "employeeDimension") return 90;
       return 0;
     }
+    if ((field.type === "date" || field.type === "string") && slot.key === "dateDimension") return 95;
     return field.type === "string" ? (slot.key === "employeeDimension" ? 105 : 0) : 0;
   }
   if ((selected.type === "progressBar" || selected.type === "gauge" || selected.type === "liquid") && field.type === "number") {
@@ -159,9 +161,10 @@ export const ComponentDataPanel = ({
   };
 
   const bindField = (field: DatasetField, target?: ComponentDefinition["dataSlots"][number]) => {
-    if (selected === null || definition === null || selected.binding === undefined) return;
-    if (selected.type === "dashboardHeader") {
-      const currentProps = { ...definition.createDefaults(), ...selected.props } as Record<string, unknown>;
+    const currentSelected = selected === null ? null : store.getState().history.present.components.find((component) => component.id === selected.id) ?? selected;
+    if (currentSelected === null || definition === null || currentSelected.binding === undefined) return;
+    if (currentSelected.type === "dashboardHeader") {
+      const currentProps = { ...definition.createDefaults(), ...currentSelected.props } as Record<string, unknown>;
       if (field.type === "number") return;
       const globalFilters = Array.isArray(currentProps.globalFilters)
         ? currentProps.globalFilters.filter((item): item is { id: string; fieldKey: string; label: string; controlType: "dateRange" | "select" | "input"; targets: unknown[] } => typeof item === "object" && item !== null && !Array.isArray(item) && typeof (item as Record<string, unknown>).id === "string" && typeof (item as Record<string, unknown>).fieldKey === "string" && typeof (item as Record<string, unknown>).label === "string" && ((item as Record<string, unknown>).controlType === "dateRange" || (item as Record<string, unknown>).controlType === "select" || (item as Record<string, unknown>).controlType === "input") && Array.isArray((item as Record<string, unknown>).targets))
@@ -170,15 +173,15 @@ export const ComponentDataPanel = ({
       if (exists) return;
       const nextFilters = [...globalFilters, { id: `filter-${field.key}`, fieldKey: field.key, label: field.label, controlType: field.type === "date" ? "dateRange" : "select", targets: [] }];
       const parsed = definition.propsSchema.safeParse({ ...currentProps, globalFilters: nextFilters });
-      if (parsed.success) store.getState().dispatch({ type: "component.props.update", componentId: selected.id, nextProps: parsed.data });
+      if (parsed.success) store.getState().dispatch({ type: "component.props.update", componentId: currentSelected.id, nextProps: parsed.data });
       return;
     }
     const compatibleSlots = definition.dataSlots.filter((slot) => slot.acceptedTypes.includes(field.type));
     const slot = target && target.acceptedTypes.includes(field.type)
       ? target
-      : compatibleSlots.sort((left, right) => slotPriority(right, field, selected) - slotPriority(left, field, selected))[0];
+      : compatibleSlots.sort((left, right) => slotPriority(right, field, currentSelected) - slotPriority(left, field, currentSelected))[0];
     if (slot === undefined) return;
-    const nextSlots = cloneSlots(selected.binding.slots);
+    const nextSlots = cloneSlots(currentSelected.binding.slots);
     const current = nextSlots[slot.key];
     if (slot.multiple) {
       const values = current === undefined ? [] : Array.isArray(current) ? current : [current];
@@ -189,8 +192,8 @@ export const ComponentDataPanel = ({
     }
     store.getState().dispatch({
       type: "component.binding.update",
-      componentId: selected.id,
-      nextBinding: DataBinding.parse({ ...selected.binding, slots: nextSlots }),
+      componentId: currentSelected.id,
+      nextBinding: DataBinding.parse({ ...currentSelected.binding, slots: nextSlots }),
     });
   };
   const removeHeaderFilter = (fieldKey: string) => {
@@ -204,17 +207,19 @@ export const ComponentDataPanel = ({
   };
 
   const setDateFilterField = (field: DatasetField) => {
-    if (selected === null || selected.binding?.dateFilter === undefined || field.type !== "date") return;
+    const currentSelected = selected === null ? null : store.getState().history.present.components.find((component) => component.id === selected.id) ?? selected;
+    if (currentSelected === null || currentSelected.binding === undefined || field.type !== "date") return;
     store.getState().dispatch({
       type: "component.binding.update",
-      componentId: selected.id,
+      componentId: currentSelected.id,
       nextBinding: DataBinding.parse({
-        ...selected.binding,
-        dateFilter: { ...selected.binding.dateFilter, fieldKey: field.key },
+        ...currentSelected.binding,
+        dateFilter: currentSelected.binding.dateFilter === undefined
+          ? { fieldKey: field.key, defaultPreset: "all", allowCustom: true, timezone: "Asia/Shanghai" }
+          : { ...currentSelected.binding.dateFilter, fieldKey: field.key },
       }),
     });
   };
-  const dateFilterEnabled = selected?.binding?.dateFilter !== undefined;
   const isDashboardHeader = selected?.type === "dashboardHeader";
   const headerFilterFields = isDashboardHeader && Array.isArray(selected?.props.globalFilters)
     ? selected.props.globalFilters.filter((item): item is { fieldKey: string } => typeof item === "object" && item !== null && !Array.isArray(item) && typeof (item as Record<string, unknown>).fieldKey === "string")
@@ -285,15 +290,15 @@ export const ComponentDataPanel = ({
                       <h3>{group}</h3>
                       {isDashboardHeader && group === "日期" && <span>双击或拖拽添加日期筛选</span>}
                       {isDashboardHeader && group === "维度" && <span>双击或拖拽添加维度筛选</span>}
-                      {!isDashboardHeader && group === "日期" && dateFilterEnabled && <span>点击设为筛选字段</span>}
+                      {!isDashboardHeader && group === "日期" && <span>点击设为日期筛选字段</span>}
                     </div>
                     {entries.map((field) => (
                       <button
-                        aria-pressed={isDashboardHeader ? headerFilterFields.some((item) => item.fieldKey === field.key) : field.type === "date" && dateFilterEnabled ? selected?.binding?.dateFilter?.fieldKey === field.key : undefined}
-                        className={`component-data-field component-data-field--${fieldGroup(field)}${isDashboardHeader || field.type === "date" && dateFilterEnabled ? " component-data-field--filter-selectable" : ""}${isDashboardHeader ? headerFilterFields.some((item) => item.fieldKey === field.key) ? " component-data-field--filter-selected" : "" : selected?.binding?.dateFilter?.fieldKey === field.key ? " component-data-field--filter-selected" : ""}`}
+                        aria-pressed={isDashboardHeader ? headerFilterFields.some((item) => item.fieldKey === field.key) : field.type === "date" ? selected?.binding?.dateFilter?.fieldKey === field.key : undefined}
+                        className={`component-data-field component-data-field--${fieldGroup(field)}${isDashboardHeader || field.type === "date" ? " component-data-field--filter-selectable" : ""}${isDashboardHeader ? headerFilterFields.some((item) => item.fieldKey === field.key) ? " component-data-field--filter-selected" : "" : selected?.binding?.dateFilter?.fieldKey === field.key ? " component-data-field--filter-selected" : ""}`}
                         draggable
                         key={field.key}
-                        title={isDashboardHeader ? headerFilterFields.some((item) => item.fieldKey === field.key) ? `点击移除筛选器：${field.label}` : field.type === "date" ? `双击或拖拽添加日期筛选：${field.label}` : field.type === "number" ? `${field.label}（数值字段不能作为维度筛选）` : `双击或拖拽添加维度筛选：${field.label}` : field.type === "date" && dateFilterEnabled ? `点击设为筛选字段：${field.label}` : `${field.label}（${field.key}）`}
+                        title={isDashboardHeader ? headerFilterFields.some((item) => item.fieldKey === field.key) ? `点击移除筛选器：${field.label}` : field.type === "date" ? `双击或拖拽添加日期筛选：${field.label}` : field.type === "number" ? `${field.label}（数值字段不能作为维度筛选）` : `双击或拖拽添加维度筛选：${field.label}` : field.type === "date" ? `点击设为日期筛选字段：${field.label}` : `${field.label}（${field.key}）`}
                         type="button"
                         onClick={() => isDashboardHeader ? headerFilterFields.some((item) => item.fieldKey === field.key) && removeHeaderFilter(field.key) : setDateFilterField(field)}
                         onDoubleClick={() => bindField(field)}

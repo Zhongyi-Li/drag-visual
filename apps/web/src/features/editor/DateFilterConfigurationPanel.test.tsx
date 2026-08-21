@@ -48,13 +48,36 @@ describe("DateFilterConfigurationPanel", () => {
     render(<AppProviders><DateFilterConfigurationPanel store={store} component={component} /></AppProviders>);
 
     const dropZone = await screen.findByLabelText("筛选字段拖放区域");
+    expect(screen.getByText("已配置")).toBeInTheDocument();
+    expect(screen.getByText("订单时间")).toBeInTheDocument();
+    expect(screen.queryByRole("switch", { name: "启用日期筛选" })).not.toBeInTheDocument();
     const dataTransfer = {
-      types: [FIELD_DRAG_TYPE],
+      types: { 0: FIELD_DRAG_TYPE, length: 1 },
       getData: vi.fn(() => "paymentTime"),
     };
     fireEvent.dragEnter(dropZone, { dataTransfer });
+    expect(fireEvent.dragOver(dropZone, { dataTransfer })).toBe(false);
     fireEvent.drop(dropZone, { dataTransfer });
 
     await waitFor(() => expect(store.getState().history.present.components[0]!.binding?.dateFilter?.fieldKey).toBe("paymentTime"));
+    expect(screen.getByText("支付时间")).toBeInTheDocument();
+  });
+
+  it("creates a date-filter configuration when a date field is dropped", async () => {
+    const unconfiguredDashboard = DashboardSchema.parse({
+      ...dashboard,
+      components: [{
+        ...dashboard.components[0]!,
+        binding: { datasetId: "sales", slots: {} },
+      }],
+    });
+    const store = createEditorStore(unconfiguredDashboard);
+    const component = store.getState().history.present.components[0]!;
+    render(<AppProviders><DateFilterConfigurationPanel store={store} component={component} /></AppProviders>);
+
+    const dropZone = await screen.findByLabelText("筛选字段拖放区域");
+    fireEvent.drop(dropZone, { dataTransfer: { types: [FIELD_DRAG_TYPE], getData: vi.fn(() => "paymentTime") } });
+
+    await waitFor(() => expect(store.getState().history.present.components[0]!.binding?.dateFilter).toMatchObject({ fieldKey: "paymentTime", defaultPreset: "all" }));
   });
 });
