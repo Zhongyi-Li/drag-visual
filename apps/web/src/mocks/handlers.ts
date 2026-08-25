@@ -25,6 +25,7 @@ const PUBLISHED_STORAGE_KEY = "drag-visual:mock-published";
 const encoder = new TextEncoder();
 const drafts = new Map<string, unknown>();
 const published = new Map<string, Dashboard>();
+let mockAuthUser: { id: string; username: string; displayName: string | null; avatarUrl: string | null } | null = null;
 
 const errors = {
   DASHBOARD_SCHEMA_INVALID: "Dashboard schema is invalid",
@@ -238,6 +239,30 @@ const validDatasetResult = (value: unknown): value is DatasetQueryResult => {
 };
 
 export const handlers: RequestHandler[] = [
+  http.get("*/api/auth/me", () => mockAuthUser === null
+    ? HttpResponse.json({ code: "UNAUTHORIZED", message: "请先登录" }, { status: 401 })
+    : HttpResponse.json({ user: mockAuthUser })),
+
+  http.post("*/api/auth/:action", async ({ params, request }) => {
+    const action = String(params.action ?? "");
+    if (action === "logout") {
+      mockAuthUser = null;
+      return HttpResponse.json({ loggedOut: true });
+    }
+    if (action !== "login" && action !== "register") return undefined;
+    try {
+      const body = await readJson(request);
+      const username = typeof body === "object" && body !== null && "username" in body
+        ? (body as { username?: unknown }).username
+        : undefined;
+      if (typeof username !== "string" || username.trim().length < 4) throw new Error("invalid-credentials");
+      mockAuthUser = { id: "mock-user", username: username.trim(), displayName: null, avatarUrl: null };
+      return HttpResponse.json({ user: mockAuthUser });
+    } catch {
+      return HttpResponse.json({ code: "INVALID_CREDENTIALS", message: "账号格式不正确" }, { status: 400 });
+    }
+  }),
+
   http.post("*/__mock/scenario", async ({ request }) => {
     try {
       const body = await readJson(request, null);
@@ -486,6 +511,7 @@ export const handlers: RequestHandler[] = [
 export const resetMockStore = (): void => {
   drafts.clear();
   published.clear();
+  mockAuthUser = null;
   clearStorageMap(DRAFTS_STORAGE_KEY);
   clearStorageMap(PUBLISHED_STORAGE_KEY);
   resetMockScenario();

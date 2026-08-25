@@ -46,7 +46,7 @@ export const AuthRoute = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const submitLabel = mode === "login" ? "登录" : "创建账号";
-  const helper = useMemo(() => mode === "login" ? "登录后即可进入 ZHBi 数据工作台" : "使用账号和密码创建你的 ZHBi 工作台入口", [mode]);
+  const helper = useMemo(() => mode === "login" ? "登录后即可进入 SloganBi 数据工作台" : "使用账号和密码创建你的 SloganBi 工作台入口", [mode]);
 
   const switchMode = (nextMode: AuthMode) => {
     if (submitting || mode === nextMode) return;
@@ -97,13 +97,14 @@ export const AuthRoute = () => {
   return (
     <main className="auth-page">
       <header className="auth-page__header">
-        <div className="auth-page__brand" aria-label="ZHBi"><span>ZH</span><span>Bi</span></div>
+        <img className="auth-page__brand" src="/images/sloganbi-logo.png" alt="SloganBi" />
       </header>
       <div className="auth-page__backdrop" aria-hidden="true" />
-      <section className="auth-page__gateway" aria-label="ZHBi 账号入口">
+      <section className="auth-page__gateway" aria-label="SloganBi 账号入口">
         <aside className="auth-page__intro">
-          <h1>进入你的数据工作台</h1>
-          <p>ZHBi 帮助企业汇通数据、洞察趋势、驱动决策，让数据真正创造业务价值。</p>
+          <p className="auth-page__eyebrow">SMART BUSINESS INTELLIGENCE</p>
+          <h1>让每个决策都有<br />数据依据</h1>
+          <p>SloganBi 帮助团队连通数据、洞察趋势，让每一次业务选择都更笃定。</p>
           <ul>
             {featureItems.map(([title, description, icon]) => (
               <li key={title}>

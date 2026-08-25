@@ -342,6 +342,26 @@ it("forwards a configured metric click with the matching point row", () => {
   expect(onChartJump).toHaveBeenCalledWith(rule, { region: "华东", revenue: 12800 });
 });
 
+it("forwards a configured KPI insight metric click", () => {
+  const onChartJump = vi.fn();
+  const rule = {
+    id: "jump-supply-price", triggerFieldKey: "supplyPrice", targetDashboardId: "detail-dashboard", openMode: "newTab" as const,
+    parameterMappings: [{ sourceFieldKey: "product", targetFilterId: "product-filter" }],
+  };
+  render(<DashboardComponentRenderer
+    component={{
+      id: "kpi-insight-jump", type: "kpiInsight", title: "指标洞察", props: { aggregation: "sum", prefix: "", suffix: "", decimals: 0, displayName: "", insightRows: [], metricSettings: [] }, interaction: { jumpRules: [rule] },
+      binding: { datasetId: "inventory", slots: { measure: [{ fieldKey: "supplyPrice", aggregation: "sum" }] } },
+    }}
+    fields={[{ key: "product", label: "商品名称", type: "string", nullable: false }, { key: "supplyPrice", label: "供货价", type: "number", nullable: false }]}
+    rows={[{ product: "小米电视 A32", supplyPrice: 725.76 }]}
+    onChartJump={onChartJump}
+  />);
+
+  fireEvent.click(screen.getByRole("button", { name: "供货价指标，点击跳转" }));
+  expect(onChartJump).toHaveBeenCalledWith(rule, { product: "小米电视 A32", supplyPrice: 725.76 });
+});
+
 it("forwards a configured heatmap cell click", () => {
   const onChartJump = vi.fn();
   const rule = {
@@ -1045,6 +1065,42 @@ it("aggregates repeated detail-table dimensions when row aggregation is enabled"
 
   expect(screen.getAllByText("小米电视机 A32")).toHaveLength(1);
   expect(screen.getByText("5")).toBeTruthy();
+  expect(screen.getAllByText("2 行").length).toBeGreaterThan(0);
+});
+
+it("keeps product names separate when an average aggregation temporarily receives raw rows", () => {
+  const component: ComponentInstance = {
+    id: "table-average-aggregation",
+    type: "table",
+    title: "商品均价",
+    props: { aggregateRows: true, aggregation: "avg", pageSize: 20, striped: false },
+    binding: {
+      datasetId: "inventory",
+      slots: {
+        columns: [
+          { fieldKey: "product" },
+          { fieldKey: "supplyPrice", aggregation: "avg" },
+        ],
+      },
+    },
+  };
+  render(<DashboardComponentRenderer
+    component={component}
+    rowsAreAggregated
+    fields={[
+      { key: "product", label: "商品名称", type: "string", nullable: false },
+      { key: "supplyPrice", label: "供货价", type: "number", nullable: false },
+    ]}
+    rows={[
+      { product: "小米电视 S mini 55", supplyPrice: 600 },
+      { product: "小米电视 S mini 55", supplyPrice: 800 },
+      { product: "小米电视机 A32", supplyPrice: 400 },
+    ]}
+  />);
+
+  expect(screen.getAllByText("小米电视 S mini 55")).toHaveLength(1);
+  expect(screen.getAllByText("小米电视机 A32")).toHaveLength(1);
+  expect(screen.getByText("700 ¥")).toBeTruthy();
   expect(screen.getAllByText("2 行").length).toBeGreaterThan(0);
 });
 

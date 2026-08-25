@@ -190,6 +190,9 @@ importers:
 
   packages/chart-renderer:
     dependencies:
+      '@ant-design/icons':
+        specifier: ^6.3.2
+        version: 6.3.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@drag-visual/contracts':
         specifier: workspace:*
         version: link:../contracts

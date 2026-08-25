@@ -8,7 +8,11 @@ import type {
 import { Inject, Injectable } from "@nestjs/common";
 
 import type { DatasetRepository } from "./dataset.repository.js";
-import { RetailOrderDatasetRepository, StorageTurnoverDatasetRepository } from "./retail-order-dataset.repository.js";
+import {
+  OrderProfitReportDatasetRepository,
+  RetailOrderDatasetRepository,
+  StorageTurnoverDatasetRepository,
+} from "./retail-order-dataset.repository.js";
 import { UploadedDatasetRepository } from "./uploaded-dataset.repository.js";
 
 @Injectable()
@@ -18,22 +22,28 @@ export class DatasetCatalogRepository implements DatasetRepository {
     private readonly retailOrders: RetailOrderDatasetRepository,
     @Inject(StorageTurnoverDatasetRepository)
     private readonly storageTurnover: StorageTurnoverDatasetRepository,
+    @Inject(OrderProfitReportDatasetRepository)
+    private readonly orderProfitReport: OrderProfitReportDatasetRepository,
     @Inject(UploadedDatasetRepository)
     private readonly uploadedDatasets: UploadedDatasetRepository,
   ) {}
 
   async list(ownerId?: string): Promise<readonly DatasetSummary[]> {
-    const [retail, storageTurnover, uploaded] = await Promise.all([
+    const [retail, storageTurnover, orderProfitReport, uploaded] = await Promise.all([
       this.retailOrders.list(),
       this.storageTurnover.list(),
+      this.orderProfitReport.list(),
       this.uploadedDatasets.list(ownerId),
     ]);
-    return [...retail, ...storageTurnover, ...uploaded];
+    return [...retail, ...storageTurnover, ...orderProfitReport, ...uploaded];
   }
 
   async getSchema(id: string, ownerId?: string): Promise<Dataset | null> {
     const catalog = await this.retailOrders.getSchema(id);
-    return catalog ?? await this.storageTurnover.getSchema(id) ?? this.uploadedDatasets.getSchema(id, ownerId);
+    return catalog
+      ?? await this.storageTurnover.getSchema(id)
+      ?? await this.orderProfitReport.getSchema(id)
+      ?? this.uploadedDatasets.getSchema(id, ownerId);
   }
 
   async query(
@@ -42,11 +52,17 @@ export class DatasetCatalogRepository implements DatasetRepository {
     ownerId?: string,
   ): Promise<DatasetQueryResult | null> {
     const catalog = await this.retailOrders.query(id, request);
-    return catalog ?? await this.storageTurnover.query(id, request) ?? this.uploadedDatasets.query(id, request, ownerId);
+    return catalog
+      ?? await this.storageTurnover.query(id, request)
+      ?? await this.orderProfitReport.query(id, request)
+      ?? this.uploadedDatasets.query(id, request, ownerId);
   }
 
   async getFieldOptions(id: string, fieldKey: string, search: string | undefined, limit: number, ownerId?: string): Promise<DatasetFieldOptions | null> {
     const catalog = await this.retailOrders.getFieldOptions(id, fieldKey, search, limit);
-    return catalog ?? await this.storageTurnover.getFieldOptions(id, fieldKey, search, limit) ?? this.uploadedDatasets.getFieldOptions(id, fieldKey, search, limit, ownerId);
+    return catalog
+      ?? await this.storageTurnover.getFieldOptions(id, fieldKey, search, limit)
+      ?? await this.orderProfitReport.getFieldOptions(id, fieldKey, search, limit)
+      ?? this.uploadedDatasets.getFieldOptions(id, fieldKey, search, limit, ownerId);
   }
 }

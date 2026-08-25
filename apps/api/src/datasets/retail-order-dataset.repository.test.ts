@@ -3,6 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { DatasetUpstreamError } from "./dataset.errors.js";
 import {
+  ORDER_PROFIT_REPORT_DATASET_ID,
+  OrderProfitReportDatasetRepository,
   RETAIL_ORDER_DATASET_ID,
   RetailOrderDatasetRepository,
   STORAGE_TURNOVER_DATASET_ID,
@@ -21,6 +23,12 @@ const mysqlTableComment = [{ tableComment: "零售发货单（业务表）" }] a
 const storageTurnoverColumns = [
   { sourceKey: "id", label: "主键ID", dataType: "bigint", nullable: "NO" },
   { sourceKey: "turnover_days", label: "周转天数", dataType: "int", nullable: "YES" },
+] as RowDataPacket[];
+const orderProfitReportColumns = [
+  { sourceKey: "id", label: "主键", dataType: "bigint", nullable: "NO" },
+  { sourceKey: "store_name", label: "店铺名称", dataType: "varchar", nullable: "NO" },
+  { sourceKey: "order_time", label: "下单时间", dataType: "datetime", nullable: "YES" },
+  { sourceKey: "estimated_profit", label: "预估利润", dataType: "decimal", nullable: "YES" },
 ] as RowDataPacket[];
 
 const mysqlPool = (execute: ReturnType<typeof vi.fn>): Pool => ({ execute } as unknown as Pool);
@@ -215,5 +223,28 @@ describe("RetailOrderDatasetRepository", () => {
     );
     expect(result).toMatchObject({ datasetName: "库存周转天数清洗表", rows: [{ id: 9, turnoverDays: 17 }] });
     expect(result.columns).toContainEqual(expect.objectContaining({ key: "turnoverDays", type: "number" }));
+  });
+
+  it("exposes the order profit report using its table comment as the dataset name", async () => {
+    const execute = vi.fn()
+      .mockResolvedValueOnce([orderProfitReportColumns, []])
+      .mockResolvedValueOnce([[{ tableComment: "订单利润报表" }], []])
+      .mockResolvedValueOnce([[{ total: 1 }], []])
+      .mockResolvedValueOnce([[
+        { id: 12, store_name: "SloganBi", order_time: "2026-08-25 10:00:00", estimated_profit: 88.5 },
+      ], []]);
+    const repository = new OrderProfitReportDatasetRepository(mysqlPool(execute));
+
+    const result = await new DatasetService(repository).query(ORDER_PROFIT_REPORT_DATASET_ID, { parameters: { limit: 10 } });
+
+    expect(execute).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("FROM `os`.`os_order_profit_report` ORDER BY `order_time` DESC LIMIT 10"),
+    );
+    expect(result).toMatchObject({
+      datasetName: "订单利润报表",
+      rows: [{ id: 12, storeName: "SloganBi", orderTime: "2026-08-25 10:00:00", estimatedProfit: 88.5 }],
+    });
+    expect(result.columns).toContainEqual(expect.objectContaining({ key: "estimatedProfit", label: "预估利润", type: "number" }));
   });
 });

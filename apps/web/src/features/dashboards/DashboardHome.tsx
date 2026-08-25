@@ -1,9 +1,10 @@
 import {
   BarChartOutlined,
+  ClockCircleOutlined,
   DeleteOutlined,
+  DownOutlined,
   EditOutlined,
   FileTextOutlined,
-  FolderAddOutlined,
   GlobalOutlined,
   MoreOutlined,
   PlusOutlined,
@@ -18,11 +19,11 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Avatar, Button, Dropdown, Input, Modal, Space, Spin, Tag, Typography } from "antd";
 import type { Dashboard } from "@drag-visual/contracts";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { createDashboard, deleteDashboard, listDashboards, publishDashboard, unpublishDashboard } from "./dashboardApi.js";
-import { clearAuthSession, readAuthSession } from "../auth/authSession.js";
+import { clearAuthSession, readAuthSession, subscribeAuthSession } from "../auth/authSession.js";
 import { logout } from "../auth/authApi.js";
 import { AccountSettingsModal } from "../auth/AccountSettingsModal.js";
 import { appPath } from "../../app/appPath.js";
@@ -43,10 +44,12 @@ export const DashboardHome = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [keyword, setKeyword] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "published" | "draft">("all");
+  const [sortMode, setSortMode] = useState<"recent" | "name">("recent");
   const [dashboardToDelete, setDashboardToDelete] = useState<Dashboard | null>(null);
   const [accountSettingsOpen, setAccountSettingsOpen] = useState(false);
-  const account = readAuthSession()?.user;
-  const accountName = account?.username ?? "当前用户";
+  const account = useSyncExternalStore(subscribeAuthSession, readAuthSession, readAuthSession)?.user;
+  const accountName = account?.displayName?.trim() || account?.username || "当前用户";
   const dashboardQuery = useQuery({
     queryKey: ["dashboards"],
     queryFn: () => listDashboards(),
@@ -74,12 +77,28 @@ export const DashboardHome = () => {
     },
   });
 
+  const allDashboards = dashboardQuery.data ?? [];
+
+  const featuredDashboard = useMemo(() => [...allDashboards]
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())[0], [allDashboards]);
+
   const dashboards = useMemo(() => {
     const normalizedKeyword = keyword.trim().toLocaleLowerCase();
-    if (!normalizedKeyword) return dashboardQuery.data ?? [];
-    return (dashboardQuery.data ?? []).filter((dashboard) =>
-      dashboard.name.toLocaleLowerCase().includes(normalizedKeyword));
-  }, [dashboardQuery.data, keyword]);
+    return allDashboards
+      .filter((dashboard) => !normalizedKeyword || dashboard.name.toLocaleLowerCase().includes(normalizedKeyword))
+      .filter((dashboard) => statusFilter === "all"
+        || (statusFilter === "published" && dashboard.publishedAt)
+        || (statusFilter === "draft" && !dashboard.publishedAt))
+      .sort((left, right) => sortMode === "name"
+        ? left.name.localeCompare(right.name, "zh-CN")
+        : new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+  }, [allDashboards, keyword, sortMode, statusFilter]);
+
+  const allDashboardCount = allDashboards.length;
+  const publishedDashboardCount = allDashboards.filter((dashboard) => dashboard.publishedAt).length;
+  // “最近编辑” is a shortcut, not a list item removed from the selected directory.
+  // Keeping the full filtered set below makes the visible count unambiguous.
+  const dashboardDirectory = dashboards;
 
   const create = () => createMutation.mutate();
   const refresh = () => void dashboardQuery.refetch();
@@ -96,9 +115,16 @@ export const DashboardHome = () => {
   return (
     <div className="dashboard-home">
       <header className="dashboard-home__header">
-        <div className="dashboard-home__brand" aria-label="ZHBi">
-          <span>ZH</span><span className="dashboard-home__brand-bi">Bi</span>
-        </div>
+        <img className="dashboard-home__brand" src={appPath("images/sloganbi-logo.png")} alt="SloganBi" />
+        <Input
+          className="dashboard-home__header-search"
+          aria-label="搜索看板"
+          allowClear
+          prefix={<SearchOutlined aria-hidden="true" />}
+          placeholder="搜索仪表板（名称、关键词）"
+          value={keyword}
+          onChange={(event) => setKeyword(event.target.value)}
+        />
         <div className="dashboard-home__header-actions">
           <Dropdown
             trigger={["hover", "click"]}
@@ -121,27 +147,14 @@ export const DashboardHome = () => {
       </header>
 
       <main className="dashboard-home__main">
-        <nav className="dashboard-home__breadcrumbs" aria-label="面包屑">
-          <span>工作台</span><span aria-hidden="true">/</span><span>ZHBi 看板中心</span>
-        </nav>
-
         <section className="dashboard-home__workspace" aria-label="仪表板列表">
           <div className="dashboard-home__toolbar">
-            <Space size={14} wrap>
-              <Text type="secondary">我的看板</Text>
-              <Input
-                className="dashboard-home__search"
-                aria-label="搜索看板"
-                allowClear
-                prefix={<SearchOutlined aria-hidden="true" />}
-                placeholder="搜索看板"
-                value={keyword}
-                onChange={(event) => setKeyword(event.target.value)}
-              />
-            </Space>
+            <div className="dashboard-home__heading">
+              <h1>看板中心</h1>
+              <p>继续分析，助力决策。</p>
+            </div>
             <Space size={10} wrap>
-              <Text className="dashboard-home__count" type="secondary">{dashboardQuery.data?.length ?? 0} 个看板</Text>
-              <Button icon={<FolderAddOutlined />} disabled title="文件夹管理将在后续版本提供">新建文件夹</Button>
+              <Text className="dashboard-home__count" type="secondary">{allDashboardCount} 个看板</Text>
               <Button
                 type="primary"
                 aria-label={createMutation.isPending ? "正在创建看板" : "新建看板"}
@@ -170,8 +183,69 @@ export const DashboardHome = () => {
           {dashboardQuery.isLoading ? (
             <div className="dashboard-home__loading"><Spin size="small" /><Text type="secondary">正在加载看板</Text></div>
           ) : dashboards.length > 0 ? (
-            <div className="dashboard-home__grid" role="list">
-              {dashboards.map((dashboard) => {
+            <>
+              {featuredDashboard ? <section className="dashboard-home__recent" aria-label="最近编辑">
+                <div className="dashboard-home__recent-preview" aria-hidden="true">
+                  <iframe
+                    className="dashboard-home__recent-preview-frame"
+                    src={appPath(`preview/${featuredDashboard.id}?embed=1`)}
+                    title={`${featuredDashboard.name} 最近编辑缩略图`}
+                    loading="lazy"
+                    tabIndex={-1}
+                  />
+                </div>
+                <div className="dashboard-home__recent-copy">
+                  <span className="dashboard-home__recent-label"><ClockCircleOutlined aria-hidden="true" /> 最近编辑</span>
+                  <div className="dashboard-home__recent-title-row">
+                    <h2>{featuredDashboard.name}</h2>
+                    {featuredDashboard.publishedAt ? <Tag color="green" variant="filled">已公开</Tag> : <Tag className="dashboard-home__draft-tag" variant="filled">编辑中</Tag>}
+                  </div>
+                  <p>{featuredDashboard.components.length} 个组件 · 修改于 {formatUpdatedAt(featuredDashboard.updatedAt)}</p>
+                </div>
+                <Button
+                  className="dashboard-home__recent-action"
+                  type="primary"
+                  onClick={() => navigate(`/editor/${featuredDashboard.id}`)}
+                >
+                  继续编辑
+                </Button>
+              </section> : null}
+
+              <div className="dashboard-home__directory-toolbar">
+                <div className="dashboard-home__filters" role="tablist" aria-label="看板状态筛选">
+                  {([
+                    ["all", `全部 ${allDashboardCount}`],
+                    ["published", `已发布 ${publishedDashboardCount}`],
+                    ["draft", `草稿 ${allDashboardCount - publishedDashboardCount}`],
+                  ] as const).map(([value, label]) => <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={statusFilter === value}
+                    className={statusFilter === value ? "is-active" : ""}
+                    onClick={() => setStatusFilter(value)}
+                  >
+                    {label}
+                  </button>)}
+                </div>
+                <Dropdown
+                  trigger={["click"]}
+                  menu={{
+                    selectedKeys: [sortMode],
+                    items: [
+                      { key: "recent", label: "最近编辑", onClick: () => setSortMode("recent") },
+                      { key: "name", label: "名称排序", onClick: () => setSortMode("name") },
+                    ],
+                  }}
+                >
+                  <Button className="dashboard-home__sort" type="text" icon={<DownOutlined />} iconPlacement="end">
+                    {sortMode === "recent" ? "最近编辑" : "名称排序"}
+                  </Button>
+                </Dropdown>
+              </div>
+
+              <div className="dashboard-home__grid" role="list">
+              {dashboardDirectory.map((dashboard) => {
                 const isPublished = dashboard.publishedAt !== undefined && dashboard.publishedAt !== null;
                 return <article
                   className="dashboard-home__tile"
@@ -274,7 +348,8 @@ export const DashboardHome = () => {
                   </div>
                 </article>;
               })}
-            </div>
+              </div>
+            </>
           ) : (
             <div className="dashboard-home__empty" role="status">
               <span className="dashboard-home__empty-icon"><FileTextOutlined aria-hidden="true" /></span>

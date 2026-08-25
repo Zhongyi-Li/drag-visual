@@ -20,8 +20,10 @@ import {
   DatasetQueryInvalidError,
 } from "./dataset.errors.js";
 import {
+  ORDER_PROFIT_REPORT_DATASET_ID,
   RETAIL_ORDER_DATASET_ID,
   STORAGE_TURNOVER_DATASET_ID,
+  validateOrderProfitReportResultLimit,
   validateRetailOrderResultLimit,
   validateStorageTurnoverResultLimit,
 } from "./retail-order-dataset.repository.js";
@@ -82,7 +84,8 @@ export class DatasetService {
     this.validateFilters(dataset.fields, filters);
     this.validateAggregation(dataset.fields, request.aggregation);
     if ((id === RETAIL_ORDER_DATASET_ID && !validateRetailOrderResultLimit(request.parameters))
-      || (id === STORAGE_TURNOVER_DATASET_ID && !validateStorageTurnoverResultLimit(request.parameters))) {
+      || (id === STORAGE_TURNOVER_DATASET_ID && !validateStorageTurnoverResultLimit(request.parameters))
+      || (id === ORDER_PROFIT_REPORT_DATASET_ID && !validateOrderProfitReportResultLimit(request.parameters))) {
       throw new DatasetQueryInvalidError();
     }
     const { globalFilters: _globalFilters, componentFilters: _componentFilters, ...repositoryRequest } = request;

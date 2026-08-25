@@ -45,6 +45,7 @@ it("highlights a triggered metric alert and resolves its live copy variables in 
   expect(screen.getByText("库存风险 2 项")).toBeTruthy();
   expect(screen.getByText("库存周转与滞销风险偏高")).toBeTruthy();
   expect(screen.getByText("全部店铺｜全部员工｜华东店、华南店等 2 个店铺命中预警。")).toBeTruthy();
+  expect(screen.getByText("预览查看")).toBeTruthy();
 
   fireEvent.click(screen.getByTestId("metric-alert-surface"));
 

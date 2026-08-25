@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Input, List, Modal, Space, Tabs, Typography } from "antd";
+import { Alert, Button, Input, List, Modal, Space, Tabs, Typography, message } from "antd";
 import { useEffect, useState } from "react";
 
 import { ApiError } from "../../api/ApiError.js";
@@ -24,6 +24,7 @@ const time = (value: string): string => new Intl.DateTimeFormat("zh-CN", { dateS
 
 export const AccountSettingsModal = ({ open, onClose }: AccountSettingsModalProps) => {
   const queryClient = useQueryClient();
+  const [messageApi, messageContext] = message.useMessage();
   const profile = useQuery({ queryKey: ["account", "profile"], queryFn: getProfile, enabled: open });
   const sessions = useQuery({ queryKey: ["account", "sessions"], queryFn: listLoginSessions, enabled: open });
   const [displayName, setDisplayName] = useState("");
@@ -42,6 +43,7 @@ export const AccountSettingsModal = ({ open, onClose }: AccountSettingsModalProp
     onSuccess: (result) => {
       saveAuthSession(updateSessionUser(result));
       void queryClient.invalidateQueries({ queryKey: ["account", "profile"] });
+      messageApi.success("个人资料已保存");
     },
   });
   const passwordMutation = useMutation({
@@ -50,6 +52,7 @@ export const AccountSettingsModal = ({ open, onClose }: AccountSettingsModalProp
       setCurrentPassword("");
       setNextPassword("");
       void queryClient.invalidateQueries({ queryKey: ["account", "sessions"] });
+      messageApi.success("密码已修改，其他设备已下线");
     },
   });
   const revokeMutation = useMutation({
@@ -63,6 +66,7 @@ export const AccountSettingsModal = ({ open, onClose }: AccountSettingsModalProp
 
   return (
     <Modal title="账号设置" open={open} footer={<Button onClick={onClose}>关闭</Button>} onCancel={onClose} width={640} destroyOnHidden>
+      {messageContext}
       {profile.isError ? <Alert type="error" showIcon message="无法加载账号信息" description={errorMessage(profile.error, "请稍后重试。")} /> : null}
       <Tabs
         items={[

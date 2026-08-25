@@ -100,6 +100,120 @@ final result: passed
 
 ---
 
+# Dashboard home command-center implementation QA
+
+## Comparison target
+
+- Source visual truth: `/Users/ethan/.codex/generated_images/01a03167-eb52-7e52-9d74-128c341996f9/exec-c963bc3e-2987-4839-a146-3881c8d2cb2d.png` (the user-selected third design direction).
+- Implementation route: `http://localhost:5173/`.
+- Intended viewport/state: desktop dashboard home with an authenticated account and populated board list.
+
+## Verification status
+
+- The implementation updates the existing dashboard home without changing the API contract: a most-recent dashboard band, active status filters, recent/name sorting, compact two-column board directory, real embedded dashboard thumbnails, and the existing create/edit/overflow actions.
+- TypeScript check passed.
+- Focused `DashboardHome` test suite passed: 10 tests.
+- Browser-rendered dashboard-home capture and source/implementation visual comparison are blocked because the available local browser session is at the application login screen and no authenticated session or test credentials were supplied.
+
+## Required fidelity surfaces pending browser validation
+
+- Typography: verify the title, recent-dashboard band, filter labels, and compact row metadata at desktop scale.
+- Layout rhythm: verify the recent band and two-column directory fit the viewport without clipping.
+- Colors/tokens: verify the restrained SloganBi blue, status tags, and neutral surfaces against the selected visual.
+- Image quality: verify the existing live iframe dashboard thumbnails load at the intended crops.
+- Copy/content: verify populated dashboard names, dates, counts, and published/draft states.
+
+## Implementation checklist
+
+- [x] Apply the selected command-center hierarchy to the dashboard home.
+- [x] Preserve search, create, card navigation, publish controls, and account controls.
+- [x] Add working status filter and sort controls.
+- [x] Pass static type and focused behavior checks.
+- [ ] Capture the authenticated desktop page, compare it with the selected reference, and resolve any P0/P1/P2 visual differences.
+
+final result: blocked
+
+---
+
+# Latest QA — SloganBi 登录页与看板中心
+
+**Comparison target**
+
+- Source visual truth: `/Users/ethan/.codex/generated_images/01a02382-c9b6-72f0-8608-0c5b9fb8ac85/exec-1cb2a0bc-8cea-43f5-b78d-04fbc8bc6d07.png`（用户选择的方案 1）。
+- Implementation captures: `/private/tmp/sloganbi-login-implementation.png` 与 `/private/tmp/sloganbi-dashboard-implementation.png`。
+- Full-view comparison evidence: `/private/tmp/sloganbi-design-qa-comparison.png`；同一比较输入依次包含选定视觉稿、真实登录页与真实看板中心。
+- Viewport and normalization: 源图为 1487 × 1058 px；登录页实施为 1280 × 804 px，看板中心实施为 1280 × 720 px；浏览器密度为 1。源图将两页放在一个展示画布内，实施按真实路由分别呈现，因此按页面结构、品牌、色彩和关键控件层级对照，而非把展示板强行拼成单页。
+
+**Evidence**
+
+- 实际浏览器登录使用本地 mock 账号 `slogan_demo` 后进入看板中心；品牌 Logo、标题、账号/密码输入、记住我、登录按钮、看板搜索和新建仪表板入口均可见且可操作。
+- 搜索“不存在的看板”后显示空状态；搜索“未命名”后返回 2 个看板。既有 `DashboardHome` 定向测试及 mock handler 测试共 40 项通过，Web TypeScript 检查和 `git diff --check` 通过。
+- 浏览器控制台仅保留既有 Ant Design `Alert.message` 弃用警告；本次页面没有运行时错误。
+
+**Focused-region comparison**
+
+- Logo、登录表单和看板头部在比较图中均以可辨识尺寸呈现。品牌改用真实生成的 `sloganbi-logo.png` 资产；没有以 CSS、字符或手绘 SVG 代替所选的品牌图形。
+- 选定稿的看板缩略图来自含真实指标数据的概念内容；本地 mock 中的草稿看板没有组件，因此 iframe 预览为空白。卡片框架、标题、状态、操作和网格关系均由真实产品组件渲染。
+
+**Findings**
+
+- No actionable P0/P1/P2 differences. 登录页沿用方案 1 的冷白、蓝紫数据背景、深靛标题和醒目蓝色主操作；看板中心保留同一 Logo、顶部搜索、宽松标题区和低边界噪声的卡片网格。
+- [P3] 如需让本地演示与概念稿的缩略图内容完全一致，可再为 mock 看板预置带图表组件的数据；这不影响生产中 iframe 对真实看板内容的呈现。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: Inter / PingFang SC / Microsoft YaHei 字体栈；登录标题采用高权重深靛层级，表单与帮助信息保持 14–15px 可读密度；看板标题、搜索和卡片元信息的层级清晰。
+- Spacing and layout rhythm: 80px 品牌头部、登录页双栏 26px 圆角承载面、看板 72px 顶栏、48px 主内容上边距和 20px 卡片间距与所选方向一致。
+- Colors and visual tokens: 冷白与浅蓝背景、`#245af1` 主操作、靛蓝文字、细灰分割线与源图的蓝紫信号系统一致；对比度满足正文与操作可读性。
+- Image quality and asset fidelity: 使用生成的透明 SloganBi Logo PNG，尺寸与清晰度适合顶部品牌位置；登录背景复用已有的真实数据网格图，而非 CSS 绘制替代品。
+- Copy and content: 所有 ZHBi 对用户可见的品牌文案已改为 SloganBi；登录和看板中心的功能性文案保留中文 BI 语境。
+
+**Comparison history**
+
+- Iteration 1: 登录视觉、看板头部、搜索和卡片网格已浏览器验证；发现本地 mock 登录不具备会话处理，无法进入看板中心。
+- Fix: 为现有 MSW mock 补充局部登录、注册、会话恢复和登出响应；重新启动 mock 预览后，登录、搜索和看板访问均通过。
+- Iteration 2: 使用真实路由捕获登录页和已登录看板中心，并与所选视觉放入同一比较输入；无 P0/P1/P2 待修复项。
+
+**Implementation checklist**
+
+1. 在登录页输入任意符合规则的 mock 账号与密码并登录。
+2. 在看板中心搜索“未命名”，确认结果卡片保留；搜索一个不存在的名称，确认空状态出现。
+3. 点击“新建仪表板”，确认进入已有编辑流程。
+
+**Follow-up polish**
+
+- [P3] 为演示数据添加 2–3 个含图表的示例看板，以展示缩略图的完整信息密度。
+
+final result: passed
+
+---
+
+# 指标预警：预览查看文字入口 QA
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-7fe6b2aa-f1ab-42c9-9901-6998c72cd3d5.png`，目标为暖棕色“预览查看”文字入口与右箭头图标。
+- Implementation: `packages/chart-renderer/src/DashboardComponentRenderer.tsx` 中的 `MetricAlertSurface`。
+- Intended state: 预警已触发，右侧入口可打开原有的风险详情弹窗。
+
+**Evidence**
+
+- 入口已从白底描边的“查看风险”按钮改为透明背景、暖棕色 14px/600 的“预览查看”文字与 Ant Design `RightOutlined` 图标；原有点击与键盘入口不变。
+- `pnpm --filter @drag-visual/chart-renderer typecheck` 通过；`MetricAlert.test.tsx` 3/3 通过，包含新文案断言与原有详情打开交互。
+- 本轮未得到用户指定的浏览器会话，不能捕获已登录看板中的实施截图并与参考图放入同一视觉比较输入。
+
+**Findings**
+
+- [P3] 需要在真实预警条的最终宽度下确认文字入口与右侧边缘的精确间距；实现已采用与参考相符的轻量文字入口层级。
+
+**Comparison history**
+
+- Iteration 1: 完成代码与交互验证；浏览器并排视觉检查受未指定浏览器会话阻塞。
+
+final result: blocked
+
+---
+
 # Latest QA — 指标预警变量区背景与帮助图标修正
 
 **Comparison target**

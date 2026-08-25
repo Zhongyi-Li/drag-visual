@@ -20,6 +20,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.2",
     "@drag-visual/contracts": "workspace:*",
     "antd": "^6.5.0",
     "dayjs": "^1.11.21",

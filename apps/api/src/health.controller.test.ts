@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { AppModule } from "./app.module.js";
 import {
+  OrderProfitReportDatasetRepository,
   RetailOrderDatasetRepository,
   StorageTurnoverDatasetRepository,
 } from "./datasets/retail-order-dataset.repository.js";
@@ -40,10 +41,12 @@ describe("HealthController", () => {
     const datasets = module.get(DatasetService);
     const retailOrders = module.get(RetailOrderDatasetRepository);
     const storageTurnover = module.get(StorageTurnoverDatasetRepository);
+    const orderProfitReport = module.get(OrderProfitReportDatasetRepository);
 
     expect(datasets).toBeInstanceOf(DatasetService);
     expect(retailOrders).toBeInstanceOf(RetailOrderDatasetRepository);
     expect(storageTurnover).toBeInstanceOf(StorageTurnoverDatasetRepository);
+    expect(orderProfitReport).toBeInstanceOf(OrderProfitReportDatasetRepository);
 
     await module.close();
   });

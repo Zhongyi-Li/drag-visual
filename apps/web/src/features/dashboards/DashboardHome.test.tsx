@@ -51,6 +51,15 @@ describe("DashboardHome", () => {
     expect(window.localStorage.getItem("zhbi.auth.session")).toBeNull();
   });
 
+  it("updates the header account name when the saved session has a display name", async () => {
+    renderHome();
+    expect(screen.getByRole("button", { name: "打开 hello_user 的账号菜单" })).toBeInTheDocument();
+
+    saveAuthSession({ user: { id: "test-user", username: "hello_user", displayName: "Yi God", avatarUrl: null } });
+
+    expect(await screen.findByRole("button", { name: "打开 Yi God 的账号菜单" })).toBeInTheDocument();
+  });
+
   it("creates the default dashboard with pending state then navigates", async () => {
     let body: unknown;
     server.use(http.post("http://localhost/dashboards", async ({ request }) => {

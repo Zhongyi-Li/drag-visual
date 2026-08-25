@@ -17,6 +17,7 @@ import type { DatasetRepository } from "./dataset.repository.js";
 
 export const RETAIL_ORDER_DATASET_ID = "retail-delivery-orders";
 export const STORAGE_TURNOVER_DATASET_ID = "storage-turnover";
+export const ORDER_PROFIT_REPORT_DATASET_ID = "order-profit-report";
 const RETAIL_ORDER_DATABASE = "os";
 const DEFAULT_RESULT_LIMIT = 1_000;
 const MAX_RESULT_LIMIT = 5_000;
@@ -40,6 +41,13 @@ const STORAGE_TURNOVER_DATASET: MysqlTableDatasetConfig = {
   table: "os_storage_turnover",
   schemaVersion: "storage-turnover-v1",
   sortColumn: "id",
+};
+
+const ORDER_PROFIT_REPORT_DATASET: MysqlTableDatasetConfig = {
+  id: ORDER_PROFIT_REPORT_DATASET_ID,
+  table: "os_order_profit_report",
+  schemaVersion: "order-profit-report-v1",
+  sortColumn: "order_time",
 };
 
 interface MysqlColumnRow extends RowDataPacket {
@@ -91,6 +99,7 @@ export const validateRetailOrderResultLimit = (parameters: Record<string, unknow
 };
 
 export const validateStorageTurnoverResultLimit = validateRetailOrderResultLimit;
+export const validateOrderProfitReportResultLimit = validateRetailOrderResultLimit;
 
 const toCamelCase = (value: string): string => value.replace(/_([a-z0-9])/g, (_, character: string) => character.toUpperCase());
 
@@ -438,4 +447,9 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
 @Injectable()
 export class StorageTurnoverDatasetRepository extends RetailOrderDatasetRepository {
   protected override readonly config: MysqlTableDatasetConfig = STORAGE_TURNOVER_DATASET;
+}
+
+@Injectable()
+export class OrderProfitReportDatasetRepository extends RetailOrderDatasetRepository {
+  protected override readonly config: MysqlTableDatasetConfig = ORDER_PROFIT_REPORT_DATASET;
 }

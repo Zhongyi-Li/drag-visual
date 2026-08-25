@@ -7,7 +7,11 @@ import { DatasetUploadController } from "./dataset-upload.controller.js";
 import { DatasetUploadService } from "./dataset-upload.service.js";
 import { DatasetCatalogRepository } from "./dataset-catalog.repository.js";
 import { DATASET_REPOSITORY } from "./dataset.repository.js";
-import { RetailOrderDatasetRepository, StorageTurnoverDatasetRepository } from "./retail-order-dataset.repository.js";
+import {
+  OrderProfitReportDatasetRepository,
+  RetailOrderDatasetRepository,
+  StorageTurnoverDatasetRepository,
+} from "./retail-order-dataset.repository.js";
 import { DatasetService } from "./dataset.service.js";
 import { UploadedDatasetRepository } from "./uploaded-dataset.repository.js";
 
@@ -18,6 +22,7 @@ import { UploadedDatasetRepository } from "./uploaded-dataset.repository.js";
     PrismaService,
     RetailOrderDatasetRepository,
     StorageTurnoverDatasetRepository,
+    OrderProfitReportDatasetRepository,
     UploadedDatasetRepository,
     DatasetCatalogRepository,
     DatasetService,

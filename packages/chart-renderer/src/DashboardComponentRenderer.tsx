@@ -1,4 +1,5 @@
 import { DashboardGlobalFilterConfig, type ChartJumpRule, type ComponentInstance, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetField } from "@drag-visual/contracts";
+import { RightOutlined } from "@ant-design/icons";
 import { Button, DatePicker, Input, InputNumber, Modal, Segmented, Select, Slider } from "antd";
 import zhCN from "antd/es/date-picker/locale/zh_CN.js";
 import dayjs, { type Dayjs } from "dayjs";
@@ -852,7 +853,7 @@ const metricAlertHeadlineStyle: CSSProperties = { alignItems: "center", color: "
 const metricAlertBadgeStyle: CSSProperties = { background: "#ff721b", borderRadius: 12, color: "#fff", flex: "0 0 auto", fontSize: 12, fontWeight: 700, lineHeight: "22px", maxWidth: 150, overflow: "hidden", padding: "0 9px", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const metricAlertHeadlineTextStyle: CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const metricAlertMessageStyle: CSSProperties = { color: "#526176", fontSize: 12, lineHeight: 1.55, margin: "3px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
-const metricAlertActionStyle: CSSProperties = { background: "#fff", border: "1px solid #cbd5e1", borderRadius: 6, color: "#475569", flex: "0 0 auto", fontFamily: "inherit", fontSize: 12, height: 32, padding: "0 12px", whiteSpace: "nowrap" };
+const metricAlertActionStyle: CSSProperties = { alignItems: "center", appearance: "none", background: "transparent", border: 0, color: "#af7838", cursor: "pointer", display: "inline-flex", flex: "0 0 auto", fontFamily: "inherit", fontSize: 14, fontWeight: 600, gap: 8, height: 32, padding: "0 2px", whiteSpace: "nowrap" };
 const metricAlertDetailStyle: CSSProperties = { color: "#475569", fontSize: 14, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" };
 const metricAlertDetailListStyle: CSSProperties = { background: "#fffaf5", border: "1px solid #ffe1be", borderRadius: 8, display: "grid", gap: 8, marginTop: 18, padding: 14 };
 const metricAlertDetailRowStyle: CSSProperties = { alignItems: "baseline", display: "grid", gap: 12, gridTemplateColumns: "88px minmax(0, 1fr)" };
@@ -2131,7 +2132,7 @@ const MetricAlertSurface = ({ component, fields, rows }: { readonly component: C
         </div>
         <p style={metricAlertMessageStyle}>{message}</p>
       </div>
-      <button aria-label={`查看${metric}预警详情`} style={metricAlertActionStyle} type="button" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}>查看风险</button>
+      <button aria-label={`查看${metric}预警详情`} style={metricAlertActionStyle} type="button" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}><span>预览查看</span><RightOutlined aria-hidden="true" style={{ fontSize: 13 }} /></button>
     </section>
     <Modal footer={null} open={detailsOpen} title={`${label}详情`} onCancel={() => setDetailsOpen(false)}>
       <div aria-label="预警详情内容" data-testid="metric-alert-detail-content" style={metricAlertDetailContentStyle}>
@@ -2453,6 +2454,11 @@ export const DashboardComponentRenderer = ({
     }) ?? (jumpRules.length === 1 ? jumpRules[0] : undefined);
     if (matchingRule === undefined) return;
     onChartJump(matchingRule, rowForChartPoint(point));
+  };
+  const handleMetricJump = (fieldKey: string) => {
+    const matchingRule = jumpRuleForMetric(fieldKey);
+    if (matchingRule === undefined || onChartJump === undefined) return;
+    onChartJump(matchingRule, rows[0] ?? {});
   };
   if (component.type === "dashboardHeader") return <DashboardHeaderSurface component={component} rows={rows} dashboardFilterValues={dashboardFilterValues} dashboardFilterOptions={dashboardFilterOptions} onDashboardFilterChange={onDashboardFilterChange} dashboardFiltersLoading={dashboardFiltersLoading} onDashboardFiltersApply={onDashboardFiltersApply} />;
   if (component.type === "analysisGroup") {
@@ -2899,7 +2905,9 @@ export const DashboardComponentRenderer = ({
           );
           const formatted = formatKpiValue(model.value, decimals, measureIsCurrency);
           const displayName = fields.find((field) => field.key === measureKey)?.label || (measureKeys.length === 1 ? component.title : measureKey) || "指标洞察";
-          return <section key={measureKey} style={insightShellStyle}>
+          const jumpRule = jumpRuleForMetric(measureKey);
+          const canJump = jumpRule !== undefined && onChartJump !== undefined;
+          return <section key={measureKey} aria-label={`${displayName}指标${canJump ? "，点击跳转" : ""}`} role={canJump ? "button" : undefined} tabIndex={canJump ? 0 : undefined} onClick={canJump ? () => handleMetricJump(measureKey) : undefined} onKeyDown={canJump ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleMetricJump(measureKey); } } : undefined} style={{ ...insightShellStyle, ...(canJump ? { cursor: "pointer", outline: "none" } : {}) }}>
             <div style={insightTitleStyle} title={displayName}>{displayName}</div>
             <div aria-label={`${displayName}指标值`} style={insightValueStyle}>{affixes.prefix}{formatted}{affixes.suffix}</div>
           </section>;
@@ -2985,7 +2993,12 @@ export const DashboardComponentRenderer = ({
   }
   if (component.type === "table") {
     const pageSize = Math.max(1, Math.min(100, numberProp(component, "pageSize", 20)));
-    const model = buildTableModel(component, rows, fields, rowsAreAggregated);
+    // A table can temporarily retain raw query data while the editor has
+    // already switched on row aggregation. Always protect the rendered
+    // detail table with its own dimension grouping; grouping a server result
+    // that is already one row per dimension is a no-op, while skipping it on
+    // stale raw rows merges unrelated product names into the same display row.
+    const model = buildTableModel(component, rows, fields, component.props.aggregateRows === true ? false : rowsAreAggregated);
     const totalPages = Math.max(1, Math.ceil(model.rows.length / pageSize));
     const currentPage = Math.min(tablePage, totalPages);
     const pagedRows = model.rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
