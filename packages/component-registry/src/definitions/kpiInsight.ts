@@ -16,6 +16,7 @@ const InsightRowSchema = z.discriminatedUnion("type", [
 const MetricInsightSettingSchema = z.object({
   measureKey: z.string().min(1),
   displayName: z.string().max(40).default(""),
+  description: z.string().max(120).default(""),
   targetKey: z.string().min(1).nullable().default(null),
   comparisonKey: z.string().min(1).nullable().default(null),
   secondaryKeys: z.array(z.string().min(1)).max(20).default([]),
@@ -32,6 +33,10 @@ const KpiInsightPropsSchema = z.object({
   decimals: z.number().int().min(0).max(6),
   /** Legacy fallback for dashboards created before per-metric configuration. */
   displayName: z.string().max(40),
+  /** Supporting copy displayed directly below a single insight metric. */
+  description: z.string().max(120).default(""),
+  /** Optional shared heading when the insight is grouped by a dimension. */
+  topLabel: z.string().max(40).default(""),
   insightRows: z.array(InsightRowSchema).min(1).max(2),
   metricSettings: z.array(MetricInsightSettingSchema).max(20),
 }).strict();
@@ -47,6 +52,8 @@ export const kpiInsightDefinition: ComponentDefinition<z.infer<typeof KpiInsight
     suffix: "",
     decimals: 0,
     displayName: "",
+    description: "",
+    topLabel: "",
     insightRows: [
       { type: "comparison", prefix: "环比", tone: "auto" },
       { type: "target", prefix: "目标完成", tone: "auto" },
@@ -54,6 +61,7 @@ export const kpiInsightDefinition: ComponentDefinition<z.infer<typeof KpiInsight
     metricSettings: [],
   }),
   dataSlots: Object.freeze([
+    Object.freeze({ key: "dimension", title: "洞察维度（可选）", acceptedTypes: Object.freeze(["string", "date"] as const), required: false, multiple: false }),
     Object.freeze({ key: "measure", title: "主指标", acceptedTypes: Object.freeze(["number"] as const), required: true, multiple: true }),
   ]),
   propsSchema: KpiInsightPropsSchema,

@@ -38,5 +38,10 @@ describe("AnalysisGroupDateFilterConfigurationPanel", () => {
     expect(screen.getByText("日期筛选设置")).toBeInTheDocument();
     expect(screen.getByText("已配置")).toBeInTheDocument();
     expect(screen.getByText("未关联图表")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "近 7 天" })).toHaveAttribute("aria-pressed", "false");
+
+    fireEvent.click(screen.getByRole("button", { name: "近 7 天" }));
+    expect(store.getState().history.present.components[0]!.props.dateFilter).toMatchObject({ defaultPreset: "last7Days" });
+    expect(screen.getByRole("button", { name: "近 7 天" })).toHaveAttribute("aria-pressed", "true");
   });
 });

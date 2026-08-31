@@ -39,6 +39,291 @@ final result: blocked
 
 ---
 
+# Latest QA — 单图表日期筛选配置
+
+- Source visual truth: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-c7ec65f3-50a1-4c59-b5a6-fd92a7064238.png` 与 `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-a6eb8eeb-2348-4d00-bd68-7524f77b8fd9.png`。
+- Implementation route: 本地预览 `http://127.0.0.1:4174/editor/d49e1d9a-876d-4d6b-811a-4a7a7ab7027b`，选中“月度收入”后进入「分析」。
+
+**Findings**
+
+- [P1] 已修复：日期默认展示范围在右侧直接配置。绑定“业务日期”后，显示字段摘要、当前默认范围和“全部 / 本月 / 上月 / 自定义”四项预设，不再打开底部大抽屉，也没有“完成”按钮。
+- [P1] 已验证：点击“自定义”只在该按钮旁展开紧凑的日期范围选择器；选择完成后即时写入配置。
+- [P2] 已补齐：未绑定日期字段时显示直接操作引导，避免用户误以为需先打开配置弹窗。
+
+**Required fidelity surfaces**
+
+- Typography: 预设、字段摘要和辅助说明保持右侧配置面板的 11–12px 信息层级。
+- Spacing and layout rhythm: 默认范围组合为单张紧凑卡片，四个预设等宽排列；自定义内容采用约 286px 宽浮层。
+- Colors and visual tokens: 选中态使用浅蓝和主蓝，字段绑定状态复用既有绿色状态标签。
+- Copy and content: “默认展示”明确表意，未配置态明确指出下一步操作。
+
+**Verification**
+
+- `DateFilterConfigurationPanel.test.tsx`: 6/6 passed。
+- `@drag-visual/web typecheck`: passed。
+- 本地预览中已验证“业务日期”绑定、预设直配、紧凑自定义浮层三种状态。
+
+final result: passed
+
+---
+
+# Latest QA — 单图表筛选器紧凑化
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-81421776-96a6-4f3c-acba-f0f0aa00ef16.png`（831 × 980 px）。
+- Implementation capture: `/private/tmp/query-filters-compact-implementation.png`（1280 × 720 px，CSS viewport 1280 × 720，device scale factor 1）。
+- State: 单个柱图，已打开“图表筛选器配置”，包含一条“月份”文本筛选条件；该状态与参考图的“渠道”条件使用同一配置结构。
+
+**Evidence and comparison**
+
+- 在同一轮视觉输入中比较参考图和本地浏览器截图。实施抽屉为 680px 宽，较原 820px 规格收窄约 17%；左侧条件轨道实测 216px，右侧编辑区 464px。
+- 编辑区下拉控件实测高度 34px；新增条件、切换“下拉选择／输入框”、筛选值控件切换均在浏览器中完成。
+- `QueryFiltersPanel.test.tsx` 4/4、Web 类型检查与 `git diff --check` 均通过。控制台只见项目已有的 Ant Design Drawer 弃用提示，未见本次改动引入的运行时错误。
+
+**Findings**
+
+- No actionable P0/P1/P2 differences. 单图表场景的边界更紧凑，左侧新增按钮和条件卡片去除重阴影，右侧字段、控件类型、匹配方式和筛选值采用更低的视觉重量；复合分析筛选器仍保留原有较宽工作区。
+- [P3] 在很窄的桌面窗口中，标题说明会按既有响应式规则隐藏；主标题和完成按钮保留，不影响任务完成。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 主标题调整为 18px；区块标签 12px，条件卡标题 12px，辅助文案 10–12px，保持清晰但不抢占编辑面积。
+- Spacing and layout rhythm: 68px 头部、216px 条件轨道、20–24px 编辑内边距；控件与区块间距由 18px 收敛为 14px。
+- Colors and visual tokens: 沿用产品蓝 `#1677ff`；选中项使用低饱和浅蓝底，分隔线采用中性浅灰，移除强投影。
+- Image quality and asset fidelity: 无新增图像资产；使用现有 Ant Design 图标。
+- Copy and content: 保留“新增筛选条件”“控件类型”“匹配方式”“筛选值”等现有业务文案与筛选行为。
+
+**Comparison history**
+
+- Iteration 1: 参考状态中 820px 宽抽屉及 70px 控件选择卡，对单图表场景显得过于宽松。
+- Iteration 2: 单图表抽屉收窄至 680px，控件统一为 34px／54px 紧凑节奏，并完成浏览器截图和交互核验；无 P0/P1/P2 遗留。
+
+final result: passed
+
+---
+
+# Latest QA — 图表筛选器条件卡片图标
+
+- Source visual truth: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-f4059f0e-8772-4666-8780-47dbc3782c1a.png`（单图表筛选器配置抽屉左侧条件列表）。
+- Implementation route: `http://127.0.0.1:5173/`；浏览器实际捕获到登录页，无法进入含筛选条件卡片的同一交互状态。
+- Implemented change: `QueryFiltersPanel.tsx` 将条件卡片中代表条件操作的 `FormOutlined` 替换为 Ant Design 的 `FilterOutlined`；拖拽、卡片选中和更多操作保持不变。
+
+**Findings**
+
+- [P1] 视觉比较受登录态阻断：当前本地预览无法进入筛选器配置抽屉，不能与参考截图进行同屏核验。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 未改动。
+- Spacing and layout rhythm: 未改动图标槽位尺寸或卡片结构。
+- Colors and visual tokens: 复用现有 Ant Design 图标颜色和激活态。
+- Image quality and asset fidelity: 无图像资产变更；采用现有 Ant Design 图标库。
+- Copy and content: 未改动。
+
+**Implementation Checklist**
+
+1. 登录本地预览后，打开任一图表的“筛选条件”配置抽屉。
+2. 核对左侧条件列表展示漏斗图标，并确认选中态和更多操作正常。
+3. `pnpm exec vitest run apps/web/src/features/editor/QueryFiltersPanel.test.tsx` 已通过（4/4）。
+
+final result: blocked
+
+---
+
+# Latest QA — 大盘任务进度看板背景层级收敛
+
+- Source visual truth: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-f0f87253-d05a-4d17-a568-383789a8ed80.png`（用户提供的设计稿）。目标为一个统一的白色图表画布，仅由细分隔线区分表头、行和说明区域。
+- Before-change evidence: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-937c2697-d5a0-4240-b9cd-6ee742a48234.png`（用户提供的当前实现）。可见组件浅蓝底、白色表格、浅蓝表头和浅蓝页脚叠加，造成多层卡片感。
+- Implementation capture: `/private/tmp/drag-visual-goal-background-qa.png`（CSS viewport 600 × 776）。刷新后的真实预览停留在“正在加载目标任务进度”，无法获得更新后的完整数据态截图。
+
+**Findings**
+
+- [P1] 已修复：组件根层、表头、行和权重栏统一为白色；移除表格阴影，分隔线统一为中性 `#e8eef6`。指标标签与进度色仍保留为语义色，不再作为大面积背景层。
+- [P2] 最终真实数据态的浏览器视觉对比受预览持续加载阻断，无法完成设计稿与更新后截图的同屏比较。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 标题、表头和数值层级未改动。
+- Spacing and layout rhythm: 行高、列距与圆角未改动；移除阴影后表格不再形成额外卡片边界。
+- Colors and visual tokens: 大面积背景收敛为白色；浅蓝仅保留给信息芯片、进度轨道和选中行等语义状态。
+- Image quality and asset fidelity: 未新增或替换图像资产；继续使用现有 Ant Design 图标。
+- Copy and content: 指标、筛选和权重文案未改动。
+
+**Comparison history**
+
+- Iteration 1: 当前实现存在浅蓝根层、白表格、浅蓝表头与页脚共四类大面积底色，判为 P1 层级噪音。
+- Iteration 2: 合并为单一白色图表画布并降低分隔线对比；自动化渲染测试通过。真实预览因加载态未能完成最终同屏验证。
+
+**Implementation Checklist**
+
+1. 在预览能够加载数据后，检查表头、行、权重栏与图表空白区域是否为统一白底。
+2. 验证只保留行分隔线与状态芯片的浅色，不再出现额外蓝色卡片底。
+
+final result: blocked
+
+---
+
+# Latest QA — 全局筛选器配置工作台
+
+**Comparison target**
+
+- Selected visual direction: `/Users/ethan/.codex/generated_images/01a032ff-b827-7181-8d6e-93bd10dced40/exec-3961dae6-3ed3-4080-9486-ffd524122944.png`（方案 1：筛选条件集合、条件配置、联动图表三段式工作台）。
+- Implementation: `apps/web/src/features/editor/DashboardHeaderPanel.tsx` 的全局筛选器配置抽屉与 `apps/web/src/features/editor/editor.css`。
+- Tested state: 本地 mock 编辑器，已绑定销售数据的柱图；从“月份”字段创建全局筛选条件，并检查控件与联动清单。
+
+**Evidence**
+
+- 浏览器实际打开抽屉，确认“新增筛选条件”会列出来自已绑定图表数据源的“月份”和“业务日期”；选择“月份”后立即出现下拉／输入框控件选择、匹配方式和“柱图”联动复选项。
+- 窄屏浏览器实测：空状态由占满工作区的引导态替代原先的大面积空白；已配置状态按单列顺序展示，未发生文字溢出或布局位移。
+- `pnpm vitest run apps/web/src/features/editor/DashboardHeaderPanel.test.tsx`、`pnpm --filter @drag-visual/web typecheck` 与 `git diff --check` 均通过。
+
+**Findings**
+
+- No actionable P0/P1/P2 differences. 已保留 SloganBi 的蓝色信号色，同时以轻分隔线、信息层级和配置卡替代传统的大表单布局。
+- 交互改进：新增字段可搜索、重复字段不会再次出现；日期字段固定为日期范围，普通维度可在“下拉选择／输入框”间切换；删除与已关联数量直接反馈在当前工作区。
+
+**Required fidelity surfaces**
+
+- Typography and hierarchy: “筛选条件／配置筛选条件／联动图表”三段标题区以深靛主层级和 12px 辅助信息区分。
+- Spacing and layout: 桌面端为三列工作流；920px 以下将联动区转入第二列下方，680px 以下转为单列流式布局。
+- Colors and tokens: 主操作使用既有 `#1677ff`，选中状态为浅蓝底与蓝色左侧信号条，分隔面使用低对比中性色。
+- Copy and content: 空状态明确下一步；字段来源、匹配方式、控件行为和联动数量均为真实配置数据。
+
+**Comparison history**
+
+- Iteration 1: 空状态只显示左侧栏，剩余区域留白过多。
+- Iteration 2: 加入全工作区引导态；发现窄屏正文因 flex intrinsic sizing 被逐字折行。
+- Iteration 3: 为空态内容及文字设置完整可用宽度，再次浏览器验证后无布局问题。
+
+final result: passed
+
+---
+
+# 图表标题文本样式 QA
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-a2752ea0-7437-4edc-aedb-b1f6ab124cdb.png`（标题可见性、文字、颜色、字号、粗斜体与对齐控制）。
+- Intended implementation: 编辑器“展示方式 → 标题与卡片”内的标题设置；应用到编辑器卡片标题及预览/发布看板。
+- Browser state: 本地应用已可访问，但重定向至登录页，无法进入已认证编辑器并捕获同一交互状态。
+
+**Evidence**
+
+- `ComponentTitlePanel` 定向测试验证显示开关、18px 字号、粗体、居中对齐会完整保存。
+- 编辑器、预览/发布画布共享同一 `titleStyle` 数据，字体样式不会只停留在配置面板。
+- `pnpm --filter @drag-visual/web typecheck` 与 `git diff --check` 通过。
+
+**Findings**
+
+- [P2] 最终浏览器视觉对照受本地登录状态阻断，未能捕获已打开“标题与卡片”面板的实施截图。
+  Location: Product Design visual QA.
+  Evidence: 本地地址显示 SloganBi 登录入口，未提供可登录的本地测试会话。
+  Impact: 无法核对截图中的紧凑工具栏密度、Ant Design 控件细节和编辑器即时预览。
+  Fix: 在已登录的本地编辑器中打开任一图表的“展示方式 → 标题与卡片”，再进行同视图截图比较。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 默认保持原有 13px 常规标题；配置可在 12–32px 之间调整，并支持粗体和斜体。
+- Spacing and layout rhythm: 控件采用标题行、文本样式行的紧凑排列，避免侧栏形成大表单。
+- Colors and visual tokens: 默认标题色为产品既有 `#262626`，可由作者调整。
+- Image quality and asset fidelity: 不涉及图像资产；使用项目现有 Ant Design 图标。
+- Copy and content: 保留“显示主标题”“标题”“文本”等与参考交互一致的中文语义。
+
+**Comparison history**
+
+- Iteration 1: 数据模型、编辑/查看渲染与定向交互测试完成；真实编辑器截图因认证入口阻断。
+
+final result: blocked
+
+---
+
+# Latest QA — 蓝色大盘任务进度看板
+
+**Comparison target**
+
+- Source visual truth: `/Users/ethan/.codex/generated_images/01a040df-855a-7542-92bd-87626d58804e/exec-913c97e9-32fe-43ac-87e2-c621d7fdbf2e.png`（1983 × 793 px）。用户确认的蓝色宽屏任务进度设计，包含排名、渠道、GMV、毛利、库存周转和综合完成环。
+- Implementation capture: `/private/tmp/drag-visual-goal-task-progress-qa.png`（1280 × 720 px，浏览器 CSS viewport 1280 × 720）。状态为编辑器内已绑定 SKU、库存指标和月度目标；组件处于紧凑画布，因此通过横向滚动访问完整的六列任务信息。
+
+**Evidence**
+
+- 实现保留设计稿的浅蓝工作区、白色圆角表面、蓝/绿/橙三组进度语义、排名圆形徽标、状态标签和蓝色综合完成环。
+- 宽表在 454 CSS px 编辑器画布中测得 `scrollWidth: 960`、`clientWidth: 454`，横向滚动后可访问“毛利”“库存周转”“综合完成”列；未再裁掉不可达内容。
+- 任务周期切换、月份选择、自定义目标、评分权重以及行选中状态均在浏览器中完成实际交互核对。
+- 浏览器控制台仅发现项目已有的 Ant Design Drawer `width` 弃用提示；本组件未新增运行时错误。
+
+**Focused-region comparison**
+
+- 已分别打开设计稿与浏览器实施截图，但未能完成同一视觉输入的并排比较：浏览器安全策略拒绝打开本地 data URL 比较页。该策略限制后未再尝试绕过。
+
+**Findings**
+
+- [P2] 最终并排视觉比较受浏览器 URL 策略阻断。
+  Location: Product Design visual QA.
+  Evidence: 设计稿和实施截图均已捕捉，但浏览器拒绝 data URL 对比页。
+  Impact: 无法按设计 QA 流程确认最后一轮视觉差异。
+  Fix: 在允许并排本地图片比较的会话中重新打开两份证据，再完成最终 QA 判定。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 实现使用系统 UI 字体，标题 20px、表头 12px、数据 13–16px；紧凑画布中存在预期的横向滚动，而非缩小或截断文本。
+- Spacing and layout rhythm: 宽屏表格使用 20px 列距、14px 行内边距、14px 圆角；紧凑状态将完整表格放入可滚动轨道。
+- Colors and visual tokens: 主色 `#2563eb`，毛利绿色 `#10b981`，周转橙色 `#f97316`，背景 `#f5f9ff`，与已选蓝色方向一致。
+- Image quality and asset fidelity: 未新增图像资产；使用 Ant Design 图标表达指标含义，避免替代性手绘图形。
+- Copy and content: 保留“目标任务进度”、周期、目标、权重等现有业务文案；列名更新为 GMV、毛利、库存周转、综合完成。
+
+**Implementation Checklist**
+
+1. 绑定员工/渠道维度与 GMV、毛利、库存周转等实际指标。
+2. 通过“自定义目标”维护目标值，再在宽屏看板查看完整的六列进度。
+3. 在支持并排本地图片比较的浏览器会话中重做最终视觉 QA。
+
+**Comparison history**
+
+- Iteration 1: 紧凑编辑器画布中宽表的右侧列被 `overflow: hidden` 裁掉，属于 P2 信息不可达问题。
+- Iteration 2: 将任务表最小宽度固定为 920px，并由外层提供横向滚动；浏览器实测右侧列可访问。最终并排比较因浏览器 URL 安全策略受阻。
+
+final result: blocked
+
+---
+
+# Latest QA — 全局筛选器配置抽屉：参考稿一致性修正
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-8ec47e31-5051-4e43-9195-2666938e4980.png`（2163 × 727 px）。
+- Implementation capture: `/private/tmp/global-filter-drawer-side-implementation.png`（1920 × 820 px），浏览器 CSS viewport 为 1920 × 820。
+- The user explicitly approved the only intentional framing difference: the source's full-width workspace is rendered as a 1380px right-side drawer, keeping the editor visible instead of forcing the configuration view to fill the screen.
+
+**Evidence and comparison**
+
+- The final drawer keeps the reference layout's three-column hierarchy: filter-condition list, active-condition editor, and linked-chart table. The column ratio, header title/subtitle, primary add action, selected-card treatment, condition controls, destructive action, and tabular linkage rows are all represented in the implementation.
+- The reference capture is in a date-filter state with eight charts; the verification capture is in a non-date field state with one mock bar chart. Those data-dependent differences appropriately change the visible controls and row count while preserving the same layout and interaction model.
+- A full source/implementation visual pair was inspected together after the responsive 1920px verification pass. No misalignment, clipping, or low-fidelity asset substitution was found.
+
+**Functional verification**
+
+- `pnpm vitest run apps/web/src/features/editor/DashboardHeaderPanel.test.tsx` passed, including adding a filter, switching its control type, and linking all eligible charts.
+- `pnpm --filter @drag-visual/web typecheck` passed.
+- `git diff --check` passed.
+
+**Required fidelity surfaces**
+
+- Fonts and typography: title, secondary explanation, condition labels, table headers, and status labels follow the reference's clear hierarchy.
+- Spacing and layout rhythm: the drawer uses the reference's three-panel rhythm while remaining bounded to 1380px as approved.
+- Colors and visual tokens: the primary blue action, selected card tint, neutral dividers, restrained red delete action, and linked status remain consistent with the reference.
+- Image quality and asset fidelity: this interface has no raster assets; existing vector icons are used consistently.
+- Copy and content: source terminology such as “筛选条件”“配置筛选条件”“联动图表”“已表联动” is retained; the supporting drawer subtitle clarifies scope without changing behavior.
+
+**Comparison history**
+
+- Iteration 1: the existing full-screen/bottom-sheet treatment and simplified list did not match the reference's structured three-column workbench; classified as P1.
+- Iteration 2: rebuilt the workbench inside an approved right-side drawer, added condition cards and linkage-table structure, then compared at desktop width. No P0/P1/P2 issues remained.
+
+final result: passed
+
+---
+
 # 目标任务进度：业务指标表与配置弹窗 QA
 
 **Comparison target**
@@ -95,6 +380,51 @@ final result: blocked
 **Follow-up Polish**
 
 - [P3] 侧栏扩宽时可启用概念稿的一行连线式规则表达。
+
+final result: passed
+
+---
+
+# Latest QA — 商品动销排行
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-021116b8-dda7-49d6-9a99-e32ea6f70846.png`（1849 × 166 px）。目标为商品两行条形排行：销售额／销量使用实色前景条，库存金额／库存数量提供浅色全宽底条，最右侧并列展示“销 / 库”数值。
+- Implementation capture: `/private/tmp/product-movement-ranking-implementation-final.png`。浏览器 CSS viewport 为 1512 × 765；状态为真实编辑器画布中的两个商品演示数据项，使用项目实际注册、字段绑定、聚合和渲染链路。
+
+**Evidence**
+
+- 浏览器实测的组件语义内容包含四个图例、商品“小米／创维”、每项“金额／数量”双行，以及销售与库存金额、件数的完整右侧文案。
+- 金额与数量分别使用蓝色／绿色前景条和对应浅色库存底条；库存轨道固定为可用全宽，避免库存较低时失去“底色条”识别。
+- `pnpm --filter @drag-visual/component-registry test -- registry.test.ts`、`pnpm --filter @drag-visual/contracts test -- dashboard.test.ts`、`pnpm --filter @drag-visual/chart-renderer exec vitest run src/DashboardComponentRenderer.test.tsx`、`pnpm --filter @drag-visual/web exec vitest run src/features/datasets/datasetAggregation.test.ts`、两个包的 build 和 `git diff --check` 均通过。
+
+**Focused-region comparison**
+
+- 参考图和最终实现截图已在同一次视觉检查输入中一并审阅。实现处于编辑器画布，因而可用宽度小于参考图的全页宽度；两者均保持“商品名—双行指标—右侧数值”的三列结构。
+- 图例顺序、色彩语义和每行的轻边框圆角容器与参考一致；浅蓝／浅绿库存轨道完整铺满行宽，蓝／绿销售条叠加在上方。
+
+**Findings**
+
+- No actionable P0/P1/P2 differences. 编辑器画布中的宽度收缩属于容器响应式行为，不影响全宽看板与查看页的横向伸展。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 商品名和右侧数值使用紧凑的正文层级；“金额／数量”使用较小的辅助层级。
+- Spacing and layout rhythm: 每个商品项使用 8px 级别内边距与间隔，双行轨道保持紧凑且可扫读。
+- Colors and visual tokens: 销售额蓝、库存金额浅蓝、销量绿、库存数量浅绿与参考图保持同一语义配对。
+- Image quality and asset fidelity: 无新增栅格或矢量资产。
+- Copy and content: 组件名称、字段槽位、图例和“销 / 库”文案均使用中文业务语境。
+
+**Comparison history**
+
+- Iteration 1: 库存条曾按库存数值缩放，第二行会留下明显空白，不符合参考图作为底色轨道的表达。
+- Iteration 2: 将库存条固定为全宽轨道，并保留销售条按其指标数据缩放；小额金额改为直接显示货币数值，避免不必要地转换为“万”。最终复查无 P0/P1/P2。
+
+**Implementation Checklist**
+
+1. 在编辑器左侧“柱/条图”分类选择“商品动销排行”。
+2. 绑定商品、销售额、库存金额、销量、库存数量五个字段。
+3. 确认每个商品出现“金额／数量”两行、库存浅色底条及右侧“销 / 库”数值。
 
 final result: passed
 
@@ -973,3 +1303,191 @@ final result: passed
 3. 修改标题或每页行数，再切换一次开关，确认属性仍可保存并正常生效。
 
 final result: passed
+
+---
+
+# Latest QA — 双指标对比排行配置分隔与文案
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-2227f579-3cf3-489c-9bbc-1979e3e184b1.png`（311 × 644 px）。目标是窄侧栏中的紧凑属性编辑表单；用户要求优化各项之间的分隔效果，并移除所有圆括号形式的补充文案。
+- Implementation capture: `/private/tmp/product-movement-style-panel-final.png`（559 × 778 px）。应用内浏览器 CSS viewport 为 559 × 778，device pixel ratio 为 2；验收状态为新建看板、选中“双指标对比排行”、右侧“显示 → 图表样式”展开。
+
+**Evidence**
+
+- 浏览器中配置区的每个属性行使用 `#f6f7f9` 浅灰承载，行间为 4px 连续白色间隙；输入控件保持白底、30px 高和直角边框，不会形成视觉上厚重的卡片堆叠。
+- “留空跟随字段”“单位”以及“紧凑显示（万）”中的全角圆括号均已移除，末者改为“万级紧凑显示”。
+- 输入“成交额”后内容正常保留；控制台仅有项目已有的 Ant Design Drawer `width` 弃用提示，没有新增 error/warn。
+- `ComponentStylePanel.test.tsx`（5/5）、Web build 与 `git diff --check` 均通过。
+
+**Focused-region comparison**
+
+- 参考图和最终实施截图在同一视觉检查输入中审阅。参考为 311px 宽的侧栏局部，实施为真实 559px 窄视口中的约 318px 配置栏；以真实配置栏宽度归一化比较，而非整页浏览器宽度。
+- 参考中每项位于同一浅灰表面；实施保留这种紧凑左右对齐结构，同时以白色间隙清晰分组，消除了此前灰底连成一片的密集感。
+
+**Findings**
+
+- No actionable P0/P1/P2 differences. 由于参考图未定义精确的间隔尺寸，4px 白色间隙作为有意的可读性增强，且不改变字段顺序、控件尺寸或业务交互。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 标签继续使用 12px／500，输入值为 13px；移除括号后标签更短，窄栏不再产生多余噪点。
+- Spacing and layout rhythm: 每行 3px 内边距配合 4px 白色间隔，保持高密度但具有可扫读的节奏。
+- Colors and visual tokens: 行面为 `#f6f7f9`，控件和分隔为白色，焦点仍使用项目蓝色边框。
+- Image quality and asset fidelity: 该区域没有图像资产；继续使用现有 Ant Design 图标和原生输入控件。
+- Copy and content: 字段含义、单位和数值格式功能不变，仅清理圆括号样式的辅助文案。
+
+**Comparison history**
+
+- Iteration 1: 早期白色分隔通过边框实现，未形成稳定的行级表面，配置区仍显得连成一片。
+- Iteration 2: 将样式面板改为白色容器、浅灰属性行和 4px 行间白带；再次核对后，分隔清晰且圆括号为零。
+
+**Implementation Checklist**
+
+1. 选中“双指标对比排行”，打开右侧“显示 → 图表样式”。
+2. 确认每项配置之间有白色间隙，且输入框仍保持直角白底。
+3. 检查图例名称、数值后缀和“万级紧凑显示”均不出现圆括号。
+
+final result: passed
+
+---
+
+# Latest QA — 全局筛选器配置抽屉：最终交付记录
+
+- Source: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-8ec47e31-5051-4e43-9195-2666938e4980.png`（2163 × 727）。
+- Implementation: `/private/tmp/global-filter-drawer-side-implementation.png`（1920 × 820，CSS viewport 1920 × 820）。二者已在同一视觉检查输入中并排核对。
+- The selected implementation is an approved 1380px right-side drawer rather than the source's full-width workspace; it retains the source's three-column hierarchy, selected filter cards, condition editor, linkage table, typography, and action treatment while leaving the editor visible.
+- The source uses a date filter with eight charts; the verification fixture uses a regular field with one chart. The resulting control and row-count differences are data-dependent and preserve the same configuration model.
+- Verification passed: `DashboardHeaderPanel.test.tsx`, Web typecheck, and `git diff --check`. No actionable P0/P1/P2 visual differences remain.
+
+final result: passed
+
+---
+
+# Latest QA — 蓝色大盘任务进度看板（最终记录）
+
+- Source visual truth: `/Users/ethan/.codex/generated_images/01a040df-855a-7542-92bd-87626d58804e/exec-913c97e9-32fe-43ac-87e2-c621d7fdbf2e.png`（1983 × 793 px）。
+- Implementation screenshot: `/private/tmp/drag-visual-goal-task-progress-qa.png`（1280 × 720 px；CSS viewport 1280 × 720，DPR 1）。已在浏览器中验证周期切换、目标配置和评分权重，紧凑画布实测 `scrollWidth: 960`、`clientWidth: 454`，右侧任务列可通过横向滚动到达。
+- Full-view evidence: 浅蓝工作区、白色圆角表面、蓝/绿/橙指标进度、排名徽标、状态标签、综合完成环及表头 Ant Design 图标均已在实施中呈现。
+- Focused-region evidence: 滚动到右侧后“毛利”“库存周转”“综合完成”均可见，不再有原先被裁掉的不可达列。
+
+**Findings**
+
+- [P2] 浏览器安全策略拒绝 data URL 比较页，无法将设计稿和实施截图置于同一个视觉比较输入中。两份证据均已单独打开；未尝试绕过该策略。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 20px 标题、12px 表头、13–16px 数值，层级与宽表读数密度匹配。
+- Spacing and layout rhythm: 14px 圆角、20px 列距、14px 行内边距；窄画布改用横向浏览保全内容。
+- Colors and visual tokens: `#2563eb`、`#10b981`、`#f97316` 与 `#f5f9ff` 对应蓝色设计方向。
+- Image quality and asset fidelity: 无新增图像资产；指标图标采用 Ant Design 图标库。
+- Copy and content: 采用“GMV”“毛利”“库存周转”“综合完成”等任务进度语义。
+
+**Comparison history**
+
+- Iteration 1: 宽表右侧列在紧凑编辑器画布被裁掉，判定为 P2。
+- Iteration 2: 表格最小宽度设为 920px，由外层提供横向滚动；右侧列浏览器实测可访问。最终并排比较受浏览器 URL 策略阻断。
+
+**Implementation Checklist**
+
+1. 绑定渠道/员工维度与实际指标。
+2. 用“自定义目标”维护目标，并在宽屏看板查看全列。
+3. 在允许并排本地图片比较的会话中重新执行最终视觉 QA。
+
+final result: blocked
+
+---
+
+# Latest QA — 大盘任务进度看板背景层级收敛
+
+- Source visual truth: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-f0f87253-d05a-4d17-a568-383789a8ed80.png`（设计稿）；目标为单一白色图表画布，仅以细分隔线区分内容。
+- Before-change evidence: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-937c2697-d5a0-4240-b9cd-6ee742a48234.png`；当前实现存在组件浅蓝底、白表格、浅蓝表头及浅蓝页脚的叠层。
+- Implementation capture: `/private/tmp/drag-visual-goal-background-qa.png`（CSS viewport 600 × 776）。真实预览刷新后持续停在加载状态，未能获得更新后的完整数据态截图。
+
+**Findings**
+
+- [P1] 已修复：组件根层、表头、数据行与权重栏统一白色；移除表格阴影，分隔线收敛为中性 `#e8eef6`。进度和状态芯片仍保留语义色。
+- [P2] 当前真实预览持续加载，无法完成更新后截图与设计稿的最终同屏比较。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 未改动标题、表头及数据层级。
+- Spacing and layout rhythm: 未改动行高和列距；移除阴影后不再形成额外卡片边界。
+- Colors and visual tokens: 大面积背景统一白色，浅蓝只用于进度轨道、信息芯片和选中态。
+- Image quality and asset fidelity: 未新增图像资产，指标图标仍来自 Ant Design。
+- Copy and content: 未改动指标、筛选和权重文案。
+
+**Comparison history**
+
+- Iteration 1: 四类大面积底色并存，判定为 P1 层级噪音。
+- Iteration 2: 合并为单一白色图表画布；渲染测试和类型检查通过。真实预览加载态阻断最终视觉比较。
+
+**Implementation Checklist**
+
+1. 在预览可加载数据后，确认表头、数据行、权重栏和空白区域为统一白底。
+2. 确认仅保留行分隔线与状态芯片的浅色。
+
+final result: blocked
+
+---
+
+# Latest QA — 复合分析拖入图表反馈
+
+- Source visual truth: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-29553894-4b53-49ad-bb99-d03d86b92eb5.png`（复合分析容器的拖入状态）。
+- Intended state: 正在把图表从组件库拖入已有子图表的复合分析容器。
+- Implementation route: `http://127.0.0.1:5173/auth`。浏览器捕获到登录页，未能进入同一拖拽状态。
+
+**Findings**
+
+- [P1] 已修复：取消覆盖整个组内画布的半透明占位层，改为 210px 宽、88px 高的独立卡片提示“松开添加图表 / 将以默认卡片尺寸放入组内网格”。保留低强调的组容器描边，现有子图表不再被遮挡或暗化。
+- [P2] 本地预览受登录态阻断，无法对真实拖入状态执行浏览器同屏视觉比较。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 提示标题使用 13px/600，说明为 12px，沿用编辑器辅助信息层级。
+- Spacing and layout rhythm: 占位提示固定为紧凑卡片，不再使用 `inset` 填满组内容区。
+- Colors and visual tokens: 复用 `#1677ff`、`#69b1ff` 和中性说明文本，背景改为近白色以保留既有卡片可见性。
+- Image quality and asset fidelity: 无图像资产或自定义图标变更。
+- Copy and content: 明确说明以默认卡片尺寸加入组内网格。
+
+**Comparison history**
+
+- Iteration 1: 全区域浅蓝遮罩被理解为新图表将占满复合分析容器。
+- Iteration 2: 改为独立默认尺寸卡片提示；`EditorCanvas.integration.test.tsx` 11/11 通过。登录态阻断浏览器视觉比较。
+
+**Implementation Checklist**
+
+1. 登录本地预览，在包含子图表的复合分析中拖入任意图表。
+2. 确认现有图表保持可见，且仅出现紧凑的默认尺寸添加提示。
+
+final result: blocked
+
+---
+
+# Latest QA — 条件配置列表无边框层级
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-1061db7d-8e9a-4607-9b07-7b19d5ab8c84.png`（复合分析）与 `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-f796d37e-6163-43e3-b08e-4cff2ca7352a.png`（单图表）。
+- Intended state: 条件列表项不使用外边框；未选中项由中性浅底区分，选中项由浅蓝底和左侧主色标记表达层级。
+- Implementation target: 复合分析、单图表与全局筛选器三类配置抽屉的条件列表。
+
+**Findings**
+
+- [P1] 已修复：三类抽屉的条件列表项均去除 `border`，改为 `#f7f9fc` 的平面中性底色；悬停采用更浅蓝底。
+- [P1] 已修复：选中项统一使用 `#eaf3ff` 与内嵌 3px 主色左侧标记，不再通过蓝色外框制造卡片感。
+- [P2] 本地预览的登录请求返回“账号或密码不正确”，无法捕获与参考图同状态的浏览器渲染截图；功能测试与类型检查已通过，但视觉对照仍待登录态恢复后完成。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 未调整列表文字层级，继续沿用 12px 条件名称和 10–11px 辅助说明。
+- Spacing and layout rhythm: 保持现有紧凑行高与圆角，仅移除重复边界，让列表更像一个连续的选择区域。
+- Colors and visual tokens: 中性项使用 `#f7f9fc`，悬停使用 `#f0f6ff`，选中态使用 `#eaf3ff` 与 `#1677ff`。
+- Image quality and asset fidelity: 无图像或图标资产变更。
+- Copy and content: 未变更任何配置文案。
+
+**Verification**
+
+- `QueryFiltersPanel.test.tsx` 与 `DashboardHeaderPanel.test.tsx`: 5/5 passed。
+- `@drag-visual/web typecheck`: passed。
+- Browser visual comparison: blocked by local preview authentication.
+
+final result: blocked

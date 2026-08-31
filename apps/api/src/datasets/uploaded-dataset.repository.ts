@@ -189,6 +189,15 @@ export class UploadedDatasetRepository {
     return this.toUploadedDataset(record);
   }
 
+  /** Deletes only a file dataset owned by the requesting user. */
+  async delete(id: string, ownerId?: string): Promise<boolean> {
+    if (!ownerId) return false;
+    const result = await this.prisma.uploadedDatasetRecord.deleteMany({
+      where: { id, ownerId },
+    });
+    return result.count > 0;
+  }
+
   async getSchema(id: string, ownerId?: string): Promise<Dataset | null> {
     if (!ownerId) return null;
     const record = await this.prisma.uploadedDatasetRecord.findFirst({

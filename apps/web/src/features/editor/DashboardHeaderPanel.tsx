@@ -1,8 +1,8 @@
 import type { ComponentDefinition } from "@drag-visual/component-registry";
 import { DashboardGlobalFilterConfig, type Dataset, type DatasetField } from "@drag-visual/contracts";
-import { DeleteOutlined, FormOutlined } from "@ant-design/icons";
+import { CalendarOutlined, DeleteOutlined, FormOutlined, HolderOutlined, MoreOutlined, PlusOutlined, SearchOutlined, TagsOutlined } from "@ant-design/icons";
 import { useQueries } from "@tanstack/react-query";
-import { Button, Checkbox, Drawer, Input, Select, Typography } from "antd";
+import { Button, Checkbox, Drawer, Input, Segmented, Select, Typography } from "antd";
 import { type DragEvent, useState } from "react";
 import { useStore } from "zustand";
 
@@ -26,7 +26,11 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [activeFilterId, setActiveFilterId] = useState<string | undefined>();
   const [isFilterDropTarget, setIsFilterDropTarget] = useState(false);
-  const props = { ...definition.createDefaults(), ...component.props } as Record<string, unknown>;
+  const [newFilterOpen, setNewFilterOpen] = useState(false);
+  const [newFilterQuery, setNewFilterQuery] = useState("");
+  const dashboardComponents = useStore(store, (state) => state.history.present.components);
+  const currentComponent = dashboardComponents.find((candidate) => candidate.id === component.id);
+  const props = { ...definition.createDefaults(), ...component.props, ...currentComponent?.props } as Record<string, unknown>;
   const stringValue = (key: string) => typeof props[key] === "string" ? props[key] : "";
   const globalFilters = DashboardGlobalFilterConfig.array().safeParse(props.globalFilters).success
     ? DashboardGlobalFilterConfig.array().parse(props.globalFilters)
@@ -39,7 +43,6 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
     return filter.operator === "equals" || filter.controlType === "select" ? "等于" : "包含";
   };
   const filterControlLabel = (filter: (typeof globalFilters)[number]) => filter.controlType === "dateRange" ? "日期范围" : filter.controlType === "select" ? "下拉选择" : "输入框";
-  const dashboardComponents = useStore(store, (state) => state.history.present.components);
   const update = (nextValues: Record<string, unknown>) => {
     const latest = store.getState().history.present.components.find((candidate) => candidate.id === component.id);
     const parsed = definition.propsSchema.safeParse({ ...definition.createDefaults(), ...latest?.props, ...nextValues });
@@ -84,11 +87,42 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
     const schema: Dataset | undefined = localDatasets.getDataset(datasetId) ?? targetSchemas[index]?.data;
     return [candidate.id, (schema?.fields ?? []).filter((field) => field.type === "date")] as const;
   }));
+  const availableFilterFields = [...new Map(targetCandidates.flatMap((candidate, index) => {
+    const datasetId = candidate.binding!.datasetId;
+    const schema: Dataset | undefined = localDatasets.getDataset(datasetId) ?? targetSchemas[index]?.data;
+    return (schema?.fields ?? [])
+      .filter((field) => field.type === "date" || field.type === "string" || field.type === "boolean")
+      .map((field) => [field.key, field] as const);
+  })).values()]
+    .filter((field) => !globalFilters.some((filter) => filter.fieldKey === field.key));
+  const matchingAvailableFields = availableFilterFields.filter((field) => {
+    const query = newFilterQuery.trim().toLocaleLowerCase();
+    return query.length === 0 || field.label.toLocaleLowerCase().includes(query) || field.key.toLocaleLowerCase().includes(query);
+  });
   const activeFilter = globalFilters.find((filter) => filter.id === activeFilterId) ?? globalFilters[0];
+  const filterIcon = (filter: (typeof globalFilters)[number]) => filter.controlType === "dateRange"
+    ? <CalendarOutlined />
+    : filter.controlType === "input" ? <FormOutlined /> : <TagsOutlined />;
+  const addFilter = (field: DatasetField) => {
+    const id = `filter-${field.key}`;
+    update({ globalFilters: [...globalFilters, { id, fieldKey: field.key, label: field.label, controlType: field.type === "date" ? "dateRange" : "select", targets: [] }] });
+    setActiveFilterId(id);
+    setNewFilterOpen(false);
+    setNewFilterQuery("");
+  };
   const updateDateTarget = (componentId: string, fieldKey: string | undefined) => {
     if (activeFilter === undefined) return;
     const targets = activeFilter.targets.filter((target) => target.componentId !== componentId);
     if (fieldKey !== undefined) targets.push({ componentId, fieldKey });
+    updateFilter(activeFilter.id, { targets });
+  };
+  const updateAllTargets = (checked: boolean) => {
+    if (activeFilter === undefined) return;
+    const targets = checked ? targetCandidates.flatMap((candidate) => {
+      if (activeFilter.controlType !== "dateRange") return [{ componentId: candidate.id, fieldKey: activeFilter.fieldKey }];
+      const firstDateField = (targetDateFields.get(candidate.id) ?? [])[0];
+      return firstDateField === undefined ? [] : [{ componentId: candidate.id, fieldKey: firstDateField.key }];
+    }) : [];
     updateFilter(activeFilter.id, { targets });
   };
 
@@ -128,36 +162,52 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
       <Drawer
         className="dashboard-filter-drawer"
         destroyOnHidden
-        size="66vh"
+        size="min(1120px, calc(100vw - 48px))"
         open={drawerOpen}
-        placement="bottom"
-        title="全局筛选器配置"
+        placement="right"
+        title={<div className="dashboard-filter-drawer__title"><strong>全局筛选器配置</strong><Typography.Text type="secondary">定义一组全局可用的筛选条件，联动全局图表与看板</Typography.Text></div>}
         onClose={() => setDrawerOpen(false)}
         extra={<Button type="primary" onClick={() => setDrawerOpen(false)}>完成</Button>}
       >
         <div className="dashboard-filter-drawer__layout">
           <aside className="dashboard-filter-drawer__list">
-            <Typography.Text type="secondary">筛选器</Typography.Text>
-            {globalFilters.length === 0 ? <Typography.Text type="secondary">请先从右侧数据面板添加字段。</Typography.Text> : globalFilters.map((filter) => <button className={activeFilter?.id === filter.id ? "is-active" : ""} key={filter.id} type="button" onClick={() => setActiveFilterId(filter.id)}>{filter.label}<small>{filter.operator === "isEmpty" ? "为空" : filter.operator === "isNotEmpty" ? "不为空" : filter.controlType === "dateRange" ? "日期范围" : filter.controlType === "select" ? "下拉选择" : "输入框"}</small></button>)}
+            <div className="dashboard-filter-drawer__list-heading"><span>筛选条件</span><Typography.Text type="secondary"><HolderOutlined /> 拖拽调整顺序</Typography.Text></div>
+            <Button className="dashboard-filter-drawer__add-button" icon={<PlusOutlined />} onClick={() => setNewFilterOpen((open) => !open)}>新增筛选条件</Button>
+            {newFilterOpen && <div className="dashboard-filter-drawer__add-panel" aria-label="新增全局筛选条件">
+              <Input aria-label="搜索可用字段" placeholder="搜索字段" prefix={<SearchOutlined />} value={newFilterQuery} onChange={(event) => setNewFilterQuery(event.target.value)} />
+              <div className="dashboard-filter-drawer__field-options">
+                {matchingAvailableFields.length === 0 ? <Typography.Text type="secondary">没有可添加的日期或维度字段。</Typography.Text> : matchingAvailableFields.map((field) => <button key={field.key} type="button" onClick={() => addFilter(field)}>
+                  {field.type === "date" ? <CalendarOutlined /> : <span className="dashboard-filter-drawer__field-mark" />}
+                  <span><strong>{field.label}</strong><small>{field.type === "date" ? "日期范围" : "下拉选择"} · {field.key}</small></span>
+                </button>)}
+              </div>
+            </div>}
+            <div className="dashboard-filter-drawer__filter-list">
+              {globalFilters.length === 0 ? <Typography.Text type="secondary">从上方选择字段，创建全局筛选条件。</Typography.Text> : globalFilters.map((filter) => <button className={activeFilter?.id === filter.id ? "is-active" : ""} key={filter.id} type="button" onClick={() => setActiveFilterId(filter.id)}><span className="dashboard-filter-drawer__filter-card-start"><HolderOutlined /><i>{filterIcon(filter)}</i><span><strong>{filter.label}</strong><small>{filterControlLabel(filter)}</small></span></span><MoreOutlined /></button>)}
+            </div>
+            <Typography.Text className="dashboard-filter-drawer__filter-count" type="secondary">{globalFilters.length} 条筛选条件</Typography.Text>
           </aside>
+          {!activeFilter && <section className="dashboard-filter-drawer__empty-state">
+            <div>
+              <span><PlusOutlined /></span>
+              <Typography.Title level={4}>从字段开始创建筛选条件</Typography.Title>
+              <Typography.Text type="secondary">选择日期或维度字段后，可设置控件类型，并指定哪些图表接收此筛选条件。</Typography.Text>
+            </div>
+          </section>}
           {activeFilter && <section className="dashboard-filter-drawer__config">
-            <div><Typography.Title level={5}>{activeFilter.label}</Typography.Title><Typography.Text type="secondary">字段：{activeFilter.fieldKey}</Typography.Text></div>
+            <div className="dashboard-filter-drawer__config-heading"><div><span>配置筛选条件</span><Typography.Title level={4}>{activeFilter.label}</Typography.Title><Typography.Text type="secondary">字段 · {activeFilter.fieldKey}</Typography.Text></div><Button danger icon={<DeleteOutlined />} size="small" type="text" onClick={() => removeFilter(activeFilter.id)}>删除筛选条件</Button></div>
             {activeFilter.controlType === "dateRange"
-              ? <div className="dashboard-filter-drawer__locked-control"><Typography.Text>控件类型</Typography.Text><strong>日期范围</strong><Typography.Text type="secondary">日期字段固定使用时间选择器。</Typography.Text></div>
-              : <><label>匹配方式<Select aria-label={`${activeFilter.label}匹配方式`} value={activeFilter.operator ?? (activeFilter.controlType === "select" ? "equals" : "contains")} options={[
+              ? <div className="dashboard-filter-drawer__locked-control"><Typography.Text>控件类型</Typography.Text><strong><CalendarOutlined />日期范围</strong><Typography.Text type="secondary">日期字段使用统一的时间范围选择器。</Typography.Text></div>
+              : <><div className="dashboard-filter-drawer__control-type"><Typography.Text>控件类型</Typography.Text><div><button className={activeFilter.controlType === "select" ? "is-active" : ""} type="button" onClick={() => updateFilter(activeFilter.id, { controlType: "select", operator: "equals" })}>下拉选择<small>从列表选择值</small></button><button className={activeFilter.controlType === "input" ? "is-active" : ""} type="button" onClick={() => updateFilter(activeFilter.id, { controlType: "input", operator: activeFilter.operator === "notContains" ? "notContains" : "contains" })}>输入框<small>输入筛选关键词</small></button></div></div><label>匹配方式<Segmented aria-label={`${activeFilter.label}匹配方式`} options={[
                 { label: "包含", value: "contains" }, { label: "不包含", value: "notContains" }, { label: "等于", value: "equals" }, { label: "为空", value: "isEmpty" }, { label: "不为空", value: "isNotEmpty" },
-              ]} onChange={(operator) => updateFilter(activeFilter.id, { operator, ...(operator === "contains" || operator === "notContains" ? { controlType: "input" } : {}) })} /></label>{activeFilter.operator !== "isEmpty" && activeFilter.operator !== "isNotEmpty" && <label>控件类型<Select aria-label={`${activeFilter.label}控件类型`} value={activeFilter.controlType} options={[
-                { label: "下拉选择", value: "select" }, { label: "输入框", value: "input" },
-              ]} onChange={(controlType) => updateFilter(activeFilter.id, { controlType })} /></label>}</>}
+              ]} value={activeFilter.operator ?? (activeFilter.controlType === "select" ? "equals" : "contains")} onChange={(operator) => updateFilter(activeFilter.id, { operator: operator as Exclude<typeof activeFilter.operator, null>, ...(operator === "contains" || operator === "notContains" ? { controlType: "input" } : { controlType: "select" }) })} /></label></>}
             {(activeFilter.operator === "isEmpty" || activeFilter.operator === "isNotEmpty") && <Typography.Text type="secondary">该条件为固定条件，预览页不显示值输入，应用时直接筛选{activeFilter.operator === "isEmpty" ? "为空" : "不为空"}的数据。</Typography.Text>}
             {activeFilter.controlType === "select" && <Typography.Text type="secondary">下拉项由数据源字段去重生成，默认最多展示 200 项；输入关键字时按服务端搜索。</Typography.Text>}
             {activeFilter.controlType === "input" && <Typography.Text type="secondary">输入框支持包含、不包含与精确匹配，适合订单号、客户名称等高基数字段。</Typography.Text>}
-            <Button danger icon={<DeleteOutlined />} onClick={() => removeFilter(activeFilter.id)}>删除筛选器</Button>
           </section>}
           {activeFilter && <section className="dashboard-filter-drawer__targets">
-            <Typography.Title level={5}>联动图表</Typography.Title>
-            <Typography.Text type="secondary">仅勾选的图表会收到此筛选条件。日期筛选可为每个图表选择其数据源中的对应日期字段。</Typography.Text>
-            <div className="dashboard-filter-drawer__target-list">{targetCandidates.length === 0 ? <Typography.Text type="secondary">暂无可联动图表</Typography.Text> : targetCandidates.map((candidate) => {
+            <div className="dashboard-filter-drawer__targets-heading"><div><Typography.Title level={5}>联动图表</Typography.Title><Typography.Text type="secondary">选择接收该筛选条件的图表。</Typography.Text></div><span>{activeFilter.targets.length} 已关联</span></div>
+            <div className="dashboard-filter-drawer__target-list">{targetCandidates.length === 0 ? <Typography.Text type="secondary">暂无可联动图表</Typography.Text> : <><div className="dashboard-filter-drawer__target-head"><Checkbox checked={activeFilter.targets.length > 0 && activeFilter.targets.length === targetCandidates.length} indeterminate={activeFilter.targets.length > 0 && activeFilter.targets.length < targetCandidates.length} onChange={(event) => updateAllTargets(event.target.checked)}>已表联动 {activeFilter.targets.length} / {targetCandidates.length}</Checkbox><span>图表类型</span><span>状态</span></div>{targetCandidates.map((candidate) => {
               const target = activeFilter.targets.find((item) => item.componentId === candidate.id);
               const dateFields = targetDateFields.get(candidate.id) ?? [];
               const isDateFilter = activeFilter.controlType === "dateRange";
@@ -168,15 +218,10 @@ export const DashboardHeaderPanel = ({ store, component, definition }: Dashboard
                   disabled={isDateFilter && dateFields.length === 0}
                   onChange={(event) => updateDateTarget(candidate.id, event.target.checked ? defaultField : undefined)}
                 >{candidate.title?.trim() || candidate.type}</Checkbox>
-                {isDateFilter && target !== undefined && <Select
-                  aria-label={`${candidate.title?.trim() || candidate.type}联动日期字段`}
-                  options={dateFields.map((field: DatasetField) => ({ label: field.label, value: field.key }))}
-                  value={target.fieldKey}
-                  onChange={(fieldKey: string) => updateDateTarget(candidate.id, fieldKey)}
-                />}
-                {isDateFilter && dateFields.length === 0 && <Typography.Text type="secondary">该数据源没有日期字段</Typography.Text>}
+                <Typography.Text type="secondary">{candidate.type}</Typography.Text>
+                {isDateFilter && target !== undefined ? <Select aria-label={`${candidate.title?.trim() || candidate.type}联动日期字段`} options={dateFields.map((field: DatasetField) => ({ label: field.label, value: field.key }))} value={target.fieldKey} onChange={(fieldKey: string) => updateDateTarget(candidate.id, fieldKey)} /> : isDateFilter && dateFields.length === 0 ? <Typography.Text type="secondary">无日期字段</Typography.Text> : <Typography.Text className={target === undefined ? "is-idle" : "is-linked"}>{target === undefined ? "未关联" : "已关联"}</Typography.Text>}
               </div>;
-            })}</div>
+            })}</>}</div>
           </section>}
         </div>
       </Drawer>

@@ -1,9 +1,12 @@
 import {
   Controller,
+  Delete,
+  HttpCode,
   Inject,
   HttpException,
   HttpStatus,
   Post,
+  Param,
   Req,
   UseGuards,
   UseFilters,
@@ -94,5 +97,12 @@ export class DatasetUploadController {
       if (error instanceof DatasetUploadInvalidError) throw invalidUpload();
       throw error;
     }
+  }
+
+  @Delete("uploads/:datasetId")
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async delete(@Param("datasetId") datasetId: string, @CurrentUser() user: AuthenticatedUser): Promise<void> {
+    const deleted = await this.uploads.delete(user.id, datasetId);
+    if (!deleted) throw uploadError(HttpStatus.NOT_FOUND, "DATASET_NOT_FOUND", "数据集不存在或无权删除");
   }
 }

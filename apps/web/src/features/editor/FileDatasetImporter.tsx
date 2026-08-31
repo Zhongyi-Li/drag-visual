@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { DataPreview } from "../datasets/DataPreview.js";
-import { getDataset, listDatasets, queryDataset, uploadDataset } from "../datasets/datasetApi.js";
+import { deleteUploadedDataset, getDataset, listDatasets, queryDataset, uploadDataset } from "../datasets/datasetApi.js";
 import { importDatasetFile } from "../datasets/fileImport.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 
@@ -90,6 +90,24 @@ export const FileDatasetImporter = () => {
     setDatasetNameDrafts((current) => ({ ...current, [activeDataset.id]: nextName }));
     setEditingDatasetId(undefined);
     setMessage(`已将数据集重命名为 ${nextName}。`);
+  };
+
+  const removeDataset = async (dataset: { readonly id: string; readonly name: string }, active: boolean) => {
+    const nextDatasetId = summaries.find((candidate) => candidate.id !== dataset.id)?.id;
+    if (localDatasets.isUploadedDataset(dataset.id)) {
+      localDatasets.deleteDataset(dataset.id);
+    } else if (dataset.id.startsWith("uploaded-")) {
+      await deleteUploadedDataset(dataset.id);
+      // Remove the temporary preview retained immediately after an upload.
+      localDatasets.deleteDataset(dataset.id);
+    } else {
+      // Interface/runtime snapshots only exist in this browser session.
+      localDatasets.deleteDataset(dataset.id);
+    }
+    queryClient.removeQueries({ queryKey: ["datasets", dataset.id] });
+    await queryClient.invalidateQueries({ queryKey: ["datasets"] });
+    if (active) setActiveDatasetId(nextDatasetId);
+    setMessage(`已删除 ${dataset.name}。`);
   };
 
   const onFileChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -226,7 +244,7 @@ export const FileDatasetImporter = () => {
                     const schema = localDatasets.getDataset(dataset.id);
                     const result = localDatasets.queryDataset(dataset.id);
                     const active = dataset.id === activeDatasetId;
-                    const legacyLocal = localDatasets.isUploadedDataset(dataset.id);
+                    const sessionOnly = !localDatasets.isUploadedDataset(dataset.id) && !dataset.id.startsWith("uploaded-");
                     return (
                       <div key={dataset.id} className={`dataset-library-item${active ? " dataset-library-item--active" : ""}`}>
                         <button
@@ -239,18 +257,13 @@ export const FileDatasetImporter = () => {
                           <strong title={dataset.name}>{dataset.name}</strong>
                           <span>{result?.rows.length ?? 0} 行 · {schema?.fields.length ?? 0} 个字段</span>
                         </button>
-                        {legacyLocal && <Popconfirm
+                        <Popconfirm
                           title={`删除“${dataset.name}”？`}
-                          description="删除后，已绑定该数据集的图表将无法继续读取数据。"
+                          description={sessionOnly ? "移除后，当前会话中已绑定该数据集的图表将无法继续读取数据。" : "删除后，已绑定该数据集的图表将无法继续读取数据。"}
                           okText="删除"
                           cancelText="取消"
                           okButtonProps={{ danger: true }}
-                          onConfirm={() => {
-                            const nextDatasetId = summaries.find((candidate) => candidate.id !== dataset.id)?.id;
-                            localDatasets.deleteDataset(dataset.id);
-                            if (active) setActiveDatasetId(nextDatasetId);
-                            setMessage(`已删除 ${dataset.name}。`);
-                          }}
+                          onConfirm={() => void removeDataset(dataset, active).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : "删除数据集失败"))}
                         >
                           <Button
                             type="text"
@@ -259,7 +272,7 @@ export const FileDatasetImporter = () => {
                             icon={<DeleteOutlined />}
                             aria-label={`删除数据集 ${dataset.name}`}
                           />
-                        </Popconfirm>}
+                        </Popconfirm>
                       </div>
                     );
                   })}

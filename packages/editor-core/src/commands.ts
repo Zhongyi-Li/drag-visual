@@ -2,6 +2,7 @@ import type {
   ComponentInstance,
   ComponentDisplayAnnotations,
   ComponentInteraction,
+  ComponentTitleStyle,
   Dashboard,
   DataBinding,
   GridItem,
@@ -43,6 +44,12 @@ export interface ComponentTitleUpdateCommand {
   readonly type: "component.title.update";
   readonly componentId: string;
   readonly nextTitle: string;
+}
+
+export interface ComponentTitleStyleUpdateCommand {
+  readonly type: "component.title-style.update";
+  readonly componentId: string;
+  readonly nextTitleStyle: ComponentTitleStyle | undefined;
 }
 
 export interface ComponentSubtitleUpdateCommand {
@@ -92,6 +99,7 @@ export type EditorCommand =
   | LayoutChangeCommand
   | ComponentPropsUpdateCommand
   | ComponentTitleUpdateCommand
+  | ComponentTitleStyleUpdateCommand
   | ComponentSubtitleUpdateCommand
   | ComponentDisplayAnnotationsUpdateCommand
   | ComponentInteractionUpdateCommand

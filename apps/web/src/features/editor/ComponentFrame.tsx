@@ -1,7 +1,7 @@
 import { MoreOutlined } from "@ant-design/icons";
 import { DashboardComponentRenderer, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
 import type { ComponentRegistry } from "@drag-visual/component-registry";
-import { DashboardGlobalFilterConfig, type ComponentInstance, type DatasetFilter, type DatasetQueryRequest, type DatasetQueryResult } from "@drag-visual/contracts";
+import { ComponentTitleStyle, DashboardGlobalFilterConfig, type ComponentInstance, type DatasetFilter, type DatasetQueryRequest, type DatasetQueryResult } from "@drag-visual/contracts";
 import { applyTransforms } from "@drag-visual/data-engine";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Drawer, Empty, Dropdown, Space, Spin, Typography, type MenuProps } from "antd";
@@ -32,6 +32,7 @@ interface ComponentFrameProps {
     readonly id: ComponentInstance["id"];
     readonly type: ComponentInstance["type"];
     readonly title?: ComponentInstance["title"];
+    readonly titleStyle?: ComponentInstance["titleStyle"];
     readonly subtitle?: ComponentInstance["subtitle"];
     readonly props: Readonly<Record<string, unknown>>;
     readonly binding?: unknown;
@@ -96,7 +97,8 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   // the component type in that case, otherwise authors can never remove a
   // chart title after it has been created.
   const title = component.title ?? component.type;
-  const hasTitle = title.trim().length > 0;
+  const titleStyle = ComponentTitleStyle.parse(component.titleStyle ?? {});
+  const hasTitle = titleStyle.visible && title.trim().length > 0;
   const isDashboardHeader = component.type === "dashboardHeader";
   const topLeftHint = isDashboardHeader || component.type === "analysisGroup" ? undefined : chartTopLeftHint(component as ComponentInstance);
   const analysisGroupDescription = component.type === "analysisGroup" && typeof component.props.description === "string"
@@ -146,6 +148,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   } as DatasetQueryRequest["parameters"];
   const chartComponent = component as ComponentInstance;
   const dateFilterControl = chartComponent.binding?.dateFilter;
+  const shouldShowDateFilterControl = dateFilterControl?.showControl ?? chartComponent.type !== "goalTaskProgress";
   useEffect(() => {
     setActiveDateFilter(defaultDateFilterSelection(dateFilterControl));
   }, [dateFilterControl?.defaultPreset, dateFilterControl?.defaultRange?.end, dateFilterControl?.defaultRange?.start, dateFilterControl?.fieldKey, dateFilterControl?.timezone]);
@@ -339,15 +342,15 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   return (
     <section
       aria-label={hasTitle ? title : topLeftHint ?? component.type}
-      className={`component-frame${selected ? " component-frame--selected" : ""}${hasTitle ? "" : " component-frame--untitled"}${hasHeaderHint ? " component-frame--has-header-hint" : ""}${isDashboardHeader ? " component-frame--dashboard-header" : ""}${chartComponent.type === "analysisGroup" ? " component-frame--analysis-group" : ""}`}
+      className={`component-frame${selected ? " component-frame--selected" : ""}${hasTitle ? "" : " component-frame--untitled"}${hasHeaderHint ? " component-frame--has-header-hint" : ""}${isDashboardHeader ? " component-frame--dashboard-header" : ""}${chartComponent.type === "analysisGroup" ? " component-frame--analysis-group" : ""}${chartComponent.type === "kpiInsight" ? " component-frame--kpi-insight" : ""}${chartComponent.type === "globalFilterSummary" ? " component-frame--global-filter-summary" : ""}`}
       role="group"
       tabIndex={0}
       onClick={select}
       onFocus={(event) => { if (event.target === event.currentTarget) select(); }}
     >
       <header className="component-frame__header">
-        <div className="component-frame__heading">
-          {isEditingTitle ? (
+        <div className="component-frame__heading" style={{ alignItems: titleStyle.textAlign === "left" ? "flex-start" : titleStyle.textAlign === "center" ? "center" : "flex-end" }}>
+          {titleStyle.visible && (isEditingTitle ? (
             <input
               ref={titleInput}
               className="component-frame__title-input"
@@ -364,10 +367,10 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
               }}
             />
           ) : (
-            <button className={`component-frame__title-button${hasTitle ? "" : " component-frame__title-button--empty"}`} type="button" onClick={beginTitleEdit}>
+            <button className={`component-frame__title-button${hasTitle ? "" : " component-frame__title-button--empty"}`} style={{ color: titleStyle.color, fontSize: titleStyle.fontSize, fontStyle: titleStyle.fontStyle, fontWeight: titleStyle.fontWeight, textAlign: titleStyle.textAlign }} type="button" onClick={beginTitleEdit}>
               {hasTitle ? title : "添加标题"}
             </button>
-          )}
+          ))}
           {topLeftHint !== undefined && <span className="component-frame__header-hint" title={topLeftHint}>{topLeftHint}</span>}
           {analysisGroupDescription.length > 0 && <span className="component-frame__analysis-group-description" title={analysisGroupDescription}>{analysisGroupDescription}</span>}
         </div>
@@ -405,7 +408,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
         </div>
       </header>
       <div className="component-frame__renderer" data-testid="component-renderer" data-interacting={String(isInteracting)}>
-        {dateFilterControl !== undefined && !isDateBoundByGlobalFilter && dateFilterFieldLabel !== undefined && (
+        {dateFilterControl !== undefined && shouldShowDateFilterControl && !isDateBoundByGlobalFilter && dateFilterFieldLabel !== undefined && (
           <DateRangeFilterBar
             control={dateFilterControl}
             fieldLabel={dateFilterFieldLabel}
@@ -456,6 +459,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
                 activeTreemapMeasure={isTreemap ? activeTreemapMeasure : undefined}
                 onTreemapMeasureChange={isTreemap ? setSelectedTreemapMeasure : undefined}
                 dashboardFilterValues={globalFilterValues}
+                dashboardFilters={globalFilters}
                 onDashboardFilterChange={onGlobalFilterChange}
                 dashboardFiltersLoading={globalFiltersLoading}
                 onDashboardFiltersApply={onGlobalFiltersApply}

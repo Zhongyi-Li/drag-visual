@@ -59,6 +59,7 @@ export const KpiInsightPanel = ({ store, component }: KpiInsightPanelProps) => {
     enabled: datasetId !== undefined,
   });
   const fields = localDatasets.getDataset(datasetId ?? "")?.fields ?? schema.data?.fields ?? [];
+  const dimensions = slotValues(binding, "dimension");
   const measures = slotValues(binding, "measure");
   const defaultAggregation = validAggregation(current.props?.aggregation);
 
@@ -85,7 +86,9 @@ export const KpiInsightPanel = ({ store, component }: KpiInsightPanelProps) => {
     <div className="kpi-insight-panel__summary">
       <div>
         <Typography.Text strong>主指标聚合方式</Typography.Text>
-        <Typography.Text type="secondary">配置每个指标的汇总口径，影响当前指标洞察的计算结果。</Typography.Text>
+        <Typography.Text type="secondary">{dimensions.length === 0
+          ? "未选择洞察维度，展示各指标的整体汇总值。"
+          : `按“${labelFor(fields, dimensions[0]!.fieldKey)}”汇总后，每个指标分别展示数值最高的项目。`}</Typography.Text>
       </div>
       <Typography.Text type="secondary">已选 {measures.length} 个主指标</Typography.Text>
     </div>

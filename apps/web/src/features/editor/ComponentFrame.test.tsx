@@ -145,6 +145,38 @@ describe("ComponentFrame", () => {
     expect(frame.querySelector(".component-frame__title-button")).toHaveTextContent("添加标题");
   });
 
+  it("marks KPI insight frames so nested cards can keep their metric area while selected", () => {
+    const store = createEditorStore(DashboardSchema.parse({
+      ...dashboard,
+      components: [{
+        id: "bar-1",
+        type: "kpiInsight",
+        title: "",
+        props: { aggregation: "sum", prefix: "", suffix: "", decimals: 0, displayName: "", insightRows: [], metricSettings: [] },
+      }],
+    }));
+
+    renderFrame(<ComponentFrame component={store.getState().history.present.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    expect(screen.getByRole("group", { name: "kpiInsight" })).toHaveClass("component-frame--kpi-insight", "component-frame--untitled");
+  });
+
+  it("keeps an untitled global filter summary renderer independent of its selection header", () => {
+    const store = createEditorStore(DashboardSchema.parse({
+      ...dashboard,
+      components: [{
+        id: "bar-1",
+        type: "globalFilterSummary",
+        title: "",
+        props: { filterId: "store", label: "当前门店", emptyValue: "全部店铺", description: "" },
+      }],
+    }));
+
+    renderFrame(<ComponentFrame component={store.getState().history.present.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    expect(screen.getByRole("group", { name: "globalFilterSummary" })).toHaveClass("component-frame--global-filter-summary", "component-frame--untitled");
+  });
+
   it("keeps the title unchanged when escaping an edit", async () => {
     const store = createEditorStore(dashboard);
     renderFrame(<ComponentFrame component={dashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);

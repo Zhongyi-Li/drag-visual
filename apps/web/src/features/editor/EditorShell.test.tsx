@@ -75,6 +75,10 @@ describe("EditorShell", () => {
     expect(editorCss).toContain("border-radius: 50%");
   });
 
+  it("places new analysis-group charts without a layout rebound animation", () => {
+    expect(editorCss).toContain(".analysis-group-canvas__grid .react-grid-item { transition: none !important; }");
+  });
+
   it("collapses and expands the right inspector panel", async () => {
     renderShell(<EditorShell store={createEditorStore(initial)} />);
     const workbench = screen.getByTestId("editor-workbench");

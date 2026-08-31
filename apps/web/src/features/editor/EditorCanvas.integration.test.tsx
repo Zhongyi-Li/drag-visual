@@ -239,6 +239,11 @@ describe("editor canvas library integration", () => {
     fireEvent.pointerDown(palette, { clientX: 130, clientY: 150, pointerId: 4, button: 0, isPrimary: true });
     fireEvent.pointerMove(document, { clientX: 540, clientY: 270, pointerId: 4, buttons: 1, isPrimary: true });
     fireEvent.pointerMove(document, { clientX: 541, clientY: 271, pointerId: 4, buttons: 1, isPrimary: true });
+
+    const dropHint = screen.getByRole("status", { name: "复合分析添加提示" });
+    expect(dropHint).toHaveTextContent("松开添加图表");
+    expect(dropHint).toHaveTextContent("将以默认卡片尺寸放入组内网格");
+
     fireEvent.pointerUp(document, { clientX: 540, clientY: 270, pointerId: 4, button: 0, isPrimary: true });
 
     expect(store.getState().history.present.components).toContainEqual(expect.objectContaining({

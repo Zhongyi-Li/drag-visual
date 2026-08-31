@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createApiClient } from "../../api/client.js";
 import { datasetFixtures, datasetSummaryFixtures, salesQueryResultFixture } from "../../mocks/fixtures.js";
 import { server } from "../../mocks/server.js";
-import { getDataset, listDatasets, queryDataset, queryDatasetRequest, uploadDataset } from "./datasetApi.js";
+import { deleteUploadedDataset, getDataset, listDatasets, queryDataset, queryDatasetRequest, uploadDataset } from "./datasetApi.js";
 
 const client = createApiClient("http://localhost");
 
@@ -70,5 +70,16 @@ describe("datasetApi", () => {
     expect(body?.get("file")).toBeInstanceOf(File);
     expect(body?.get("schema")).toBe(JSON.stringify(datasetFixtures[0]));
     expect(body?.get("result")).toBe(JSON.stringify(salesQueryResultFixture));
+  });
+
+  it("deletes a persisted upload", async () => {
+    let method: string | undefined;
+    server.use(http.delete("http://localhost/datasets/uploads/uploaded-1", ({ request }) => {
+      method = request.method;
+      return new HttpResponse(null, { status: 204 });
+    }));
+
+    await expect(deleteUploadedDataset("uploaded-1", client)).resolves.toBeUndefined();
+    expect(method).toBe("DELETE");
   });
 });

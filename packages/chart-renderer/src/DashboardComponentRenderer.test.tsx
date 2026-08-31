@@ -21,42 +21,101 @@ vi.stubGlobal("ResizeObserver", class {
   disconnect() {}
 });
 
+vi.stubGlobal("matchMedia", (query: string) => ({
+  addEventListener: () => undefined,
+  addListener: () => undefined,
+  dispatchEvent: () => false,
+  matches: false,
+  media: query,
+  onchange: null,
+  removeEventListener: () => undefined,
+  removeListener: () => undefined,
+}));
+
 afterEach(cleanup);
 
-it("renders the target task progress table and persists goal configuration", () => {
+it("renders a summary of the selected dashboard-wide filter value", () => {
+  const component: ComponentInstance = {
+    id: "filter-summary-1",
+    type: "globalFilterSummary",
+    title: "",
+    props: { filterId: "date-range", label: "统计周期", emptyValue: "全部日期", description: "按全局日期筛选" },
+  };
+  const { rerender } = render(<DashboardComponentRenderer
+    component={component}
+    rows={[]}
+    dashboardFilterValues={{ "date-range": { start: "2026-08-01", end: "2026-08-26" } }}
+  />);
+
+  expect(screen.getByTestId("global-filter-summary-surface")).toBeTruthy();
+  expect(screen.getByText("2026-08-01 至 2026-08-26")).toBeTruthy();
+  expect(screen.getByText("按全局日期筛选")).toBeTruthy();
+
+  rerender(<DashboardComponentRenderer component={component} rows={[]} dashboardFilterValues={{}} />);
+  expect(screen.getByText("全部日期")).toBeTruthy();
+});
+
+it("renders each selected dashboard-wide filter in one summary card", () => {
+  const component: ComponentInstance = {
+    id: "filter-summary-1",
+    type: "globalFilterSummary",
+    title: "",
+    props: { filterId: "", filterIds: ["store", "channel"], label: "当前筛选", emptyValue: "全部范围", description: "" },
+  };
+
+  render(<DashboardComponentRenderer
+    component={component}
+    rows={[]}
+    dashboardFilters={[{ id: "store", label: "当前门店" }, { id: "channel", label: "销售渠道" }]}
+    dashboardFilterValues={{ store: "华东店", channel: "线上" }}
+  />);
+
+  expect(screen.getByText("当前门店")).toBeTruthy();
+  expect(screen.getByText("华东店")).toBeTruthy();
+  expect(screen.getByText("销售渠道")).toBeTruthy();
+  expect(screen.getByText("线上")).toBeTruthy();
+});
+
+it("renders the channel task board and persists channel configuration", () => {
   const onComponentPropsChange = vi.fn();
   render(<DashboardComponentRenderer
     component={{
       id: "target-task-progress-1", type: "goalTaskProgress", title: "目标任务进度",
       props: {
-        aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, maxEmployees: 8, employeeSettings: [],
+        aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, maxEmployees: 8, employeeSettings: [], channelSettings: [],
         metricSettings: [{ measureKey: "gmv", targetKey: "gmvTarget", label: "GMV", color: "#2f6bff", weight: 100, includeInScore: true }],
       },
-      binding: { datasetId: "sales", slots: { employeeDimension: { fieldKey: "employee" }, measure: [{ fieldKey: "gmv" }], target: [{ fieldKey: "gmvTarget" }] } },
+      binding: { datasetId: "sales", slots: { employeeDimension: { fieldKey: "channel" }, storeDimension: { fieldKey: "store" }, dateDimension: { fieldKey: "orderTime" }, measure: [{ fieldKey: "gmv" }] } },
     }}
     fields={[
-      { key: "employee", label: "员工", type: "string", nullable: false },
+      { key: "channel", label: "渠道", type: "string", nullable: false },
+      { key: "store", label: "店铺", type: "string", nullable: false },
+      { key: "orderTime", label: "订单时间", type: "number", nullable: false },
       { key: "gmv", label: "GMV", type: "number", nullable: false },
       { key: "gmvTarget", label: "GMV目标", type: "number", nullable: false },
     ]}
-    rows={[{ employee: "王雨晨", gmv: 80, gmvTarget: 100 }]}
+    rows={[{ channel: "线下批发", store: "波兰线下批发", orderTime: 46235, gmv: 80, gmvTarget: 100 }]}
     onComponentPropsChange={onComponentPropsChange}
   />);
 
   expect(screen.getByLabelText("目标任务进度图表")).toBeTruthy();
-  expect(screen.getByText("GMV（实际 / 目标）")).toBeTruthy();
-  expect(screen.getByText("GMV完成率")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "自定义目标" }));
-  expect(screen.getByText("目标配置")).toBeTruthy();
-  const monthlyGmvInput = screen.getByRole("spinbutton", { name: "月度GMV目标" }) as HTMLInputElement;
-  fireEvent.change(monthlyGmvInput, { target: { value: "" } });
-  expect(monthlyGmvInput.value).toBe("");
-  fireEvent.change(monthlyGmvInput, { target: { value: "120" } });
-  expect(monthlyGmvInput.value).toBe("120");
-  fireEvent.click(screen.getByRole("button", { name: "保存目标" }));
+  expect(screen.getByText("GMV")).toBeTruthy();
+  expect(screen.getByText("综合完成")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "自定义目标" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "配置渠道" }));
+  expect(screen.getByText("线下批发渠道配置")).toBeTruthy();
+  expect(screen.getByText("波兰线下批发")).toBeTruthy();
+  fireEvent.change(screen.getByRole("spinbutton", { name: "GMV目标" }), { target: { value: "120" } });
+  fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
   expect(onComponentPropsChange).toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "评分权重设置" }));
-  expect(screen.getByText("评分权重配置")).toBeTruthy();
+  expect(onComponentPropsChange).toHaveBeenLastCalledWith(expect.objectContaining({
+    channelSettings: [expect.objectContaining({
+      channel: "线下批发",
+      storeSelectionMode: "all",
+      metricTargets: [expect.objectContaining({ measureKey: "gmv", monthlyTargetValue: 120 })],
+    })],
+  }));
+  expect(screen.queryByRole("button", { name: "评分权重" })).toBeNull();
 });
 
 const dataComponents = [
@@ -480,6 +539,58 @@ it("places long ranking dimension labels above their progress bars", () => {
   expect(measureHeader.style.whiteSpace).toBe("nowrap");
 });
 
+it("renders product movement ranking as paired amount and quantity bars", () => {
+  const product = "小米";
+  render(<DashboardComponentRenderer component={{
+    id: "product-movement-1", type: "productMovementRanking", title: "", props: { aggregation: "sum", maxItems: 6 },
+    binding: { datasetId: "products", slots: {
+      dimension: { fieldKey: "product" }, salesAmount: { fieldKey: "salesAmount" }, inventoryAmount: { fieldKey: "inventoryAmount" },
+      salesQuantity: { fieldKey: "salesQuantity" }, inventoryQuantity: { fieldKey: "inventoryQuantity" },
+    } },
+  }} fields={[
+    { key: "product", label: "商品", type: "string", nullable: false }, { key: "salesAmount", label: "销售额", type: "number", nullable: false },
+    { key: "inventoryAmount", label: "库存金额", type: "number", nullable: false }, { key: "salesQuantity", label: "销量", type: "number", nullable: false },
+    { key: "inventoryQuantity", label: "库存数量", type: "number", nullable: false },
+  ]} rows={[
+    { product, salesAmount: 445000, inventoryAmount: 1760000, salesQuantity: 2160, inventoryQuantity: 18558 },
+    { product: "创维", salesAmount: 9831.3, inventoryAmount: 255000, salesQuantity: 36, inventoryQuantity: 1063 },
+  ]} />);
+
+  expect(screen.getByTestId("product-movement-ranking-surface")).toBeTruthy();
+  expect(screen.getByText("销售额")).toBeTruthy();
+  expect(screen.getByLabelText(`${product}销售额与库存金额对比`)).toBeTruthy();
+  expect(screen.getByLabelText(`${product}销量与库存数量对比`)).toBeTruthy();
+  expect(screen.getByText("销 ¥44.5万")).toBeTruthy();
+  expect(screen.getByText("库 18,558件")).toBeTruthy();
+  expect(screen.getByTestId("product-movement-ranking-surface").querySelector("article")?.style.borderWidth).toBe("0px");
+});
+
+it("configures movement ranking labels and right-side units independently from the bound fields", () => {
+  render(<DashboardComponentRenderer component={{
+    id: "movement-configurable", type: "productMovementRanking", title: "", props: {
+      aggregation: "sum", maxItems: 6,
+      primarySeriesLabel: "成交额", primaryReferenceSeriesLabel: "目标额",
+      secondarySeriesLabel: "成交单数", secondaryReferenceSeriesLabel: "目标单数",
+      primaryRowLabel: "业绩", secondaryRowLabel: "订单", actualValueLabel: "实", referenceValueLabel: "目",
+      primaryPrefix: "", primarySuffix: "元", secondaryPrefix: "", secondarySuffix: "单",
+      primaryNumberFormat: "number", secondaryNumberFormat: "number",
+    },
+    binding: { datasetId: "sales", slots: {
+      dimension: { fieldKey: "region" }, salesAmount: { fieldKey: "actualAmount" }, inventoryAmount: { fieldKey: "targetAmount" },
+      salesQuantity: { fieldKey: "actualOrders" }, inventoryQuantity: { fieldKey: "targetOrders" },
+    } },
+  }} fields={[
+    { key: "region", label: "区域", type: "string", nullable: false }, { key: "actualAmount", label: "实收", type: "number", nullable: false },
+    { key: "targetAmount", label: "预算", type: "number", nullable: false }, { key: "actualOrders", label: "订单", type: "number", nullable: false },
+    { key: "targetOrders", label: "目标订单", type: "number", nullable: false },
+  ]} rows={[{ region: "华东", actualAmount: 3250, targetAmount: 5000, actualOrders: 31, targetOrders: 48 }]} />);
+
+  expect(screen.getByText("成交额")).toBeTruthy();
+  expect(screen.getByText("业绩")).toBeTruthy();
+  expect(screen.getByText("实 3,250元")).toBeTruthy();
+  expect(screen.getByText("目 48单")).toBeTruthy();
+});
+
 it("uses a direct weighted result for ranking without adding a result column", () => {
   const fields: readonly DatasetField[] = [
     { key: "region", label: "区域", type: "string", nullable: false },
@@ -634,11 +745,12 @@ it("renders an aggregated KPI value", () => {
     id: "kpi-1",
     type: "kpi",
     title: "总收入",
-    props: { aggregation: "sum", prefix: "¥", suffix: "", decimals: 0 },
+    props: { aggregation: "sum", prefix: "¥", suffix: "", decimals: 0, description: "当月累计 GMV" },
     binding: { datasetId: "sales", slots: { measure: { fieldKey: "revenue" } } },
   };
   render(<DashboardComponentRenderer component={component} rows={[{ revenue: 10 }, { revenue: 20 }]} />);
   expect(screen.getByLabelText("总收入指标值").textContent).toContain("30 ¥");
+  expect(screen.getByText("当月累计 GMV")).toBeTruthy();
 });
 
 it("renders KPI target progress and comparison change when optional slots are bound", () => {
@@ -709,6 +821,8 @@ it("renders a standalone KPI insight card without manual comparison configuratio
       prefix: "¥",
       suffix: "",
       decimals: 0,
+      displayName: "本月销售额",
+      description: "当月累计 GMV",
       insightRows: [
         { type: "comparison", prefix: "环比", tone: "auto" },
         { type: "target", prefix: "目标完成", tone: "positive" },
@@ -727,8 +841,9 @@ it("renders a standalone KPI insight card without manual comparison configuratio
   render(<DashboardComponentRenderer component={component} rows={[{ revenue: 120, revenueTarget: 200, priorRevenue: 100 }]} />);
 
   expect(screen.getByTestId("kpi-insight-surface")).toBeTruthy();
-  expect(screen.getByLabelText("GMV 洞察指标值").textContent).toContain("120 ¥");
-  expect(screen.getByText("GMV 洞察")).toBeTruthy();
+  expect(screen.getByLabelText("本月销售额指标值").textContent).toContain("120 ¥");
+  expect(screen.getByText("本月销售额")).toBeTruthy();
+  expect(screen.getByText("当月累计 GMV")).toBeTruthy();
   expect(screen.queryByText("环比 +20.0%")).toBeNull();
   expect(screen.queryByText("目标完成 60.0%")).toBeNull();
 });
@@ -755,6 +870,82 @@ it("adds the item unit to quantity and qty metrics across KPI insight cards", ()
 
   expect(screen.getByLabelText("数量指标值").textContent).toContain("2517 件");
   expect(screen.getByLabelText("下单数量指标值").textContent).toContain("20 件");
+});
+
+it("groups independently aggregated Top metrics under one editable heading", () => {
+  const component: ComponentInstance = {
+    id: "kpi-insight-top-products",
+    type: "kpiInsight",
+    title: "商品洞察",
+    props: { aggregation: "sum", prefix: "", suffix: "", decimals: 0, topLabel: "明星商品" },
+    binding: {
+      datasetId: "sales",
+      slots: {
+        dimension: { fieldKey: "product" },
+        measure: [
+          { fieldKey: "salesAmount", aggregation: "sum" },
+          { fieldKey: "salesQuantity", aggregation: "sum" },
+        ],
+      },
+    },
+  };
+
+  render(
+    <DashboardComponentRenderer
+      component={component}
+      fields={[
+        { key: "product", label: "商品", type: "string", nullable: false },
+        { key: "salesAmount", label: "销售额", type: "number", nullable: false },
+        { key: "salesQuantity", label: "销量", type: "number", nullable: false },
+      ]}
+      rows={[
+        { product: "小米电视机 A32", salesAmount: 150_000, salesQuantity: 600 },
+        { product: "小米电视机 A32", salesAmount: 110_000, salesQuantity: 200 },
+        { product: "小米空气净化器", salesAmount: 180_000, salesQuantity: 1_300 },
+      ]}
+    />,
+  );
+
+  expect(screen.getAllByText("明星商品")).toHaveLength(1);
+  expect(screen.getByTestId("kpi-insight-top-metrics").style.display).toBe("flex");
+  expect(screen.getByTestId("kpi-insight-top-metrics").style.flexDirection).toBe("row");
+  expect(screen.getByLabelText("明星商品 销售额").style.flex).toBe("0 1 auto");
+  expect(screen.getByLabelText("销售额最高商品").textContent).toBe("小米电视机 A32");
+  expect(screen.getByLabelText("销量最高商品").textContent).toBe("小米空气净化器");
+  expect(screen.getByText("销售额 26万 ¥")).toBeTruthy();
+  expect(screen.getByText("销量 1300 件")).toBeTruthy();
+});
+
+it("uses already grouped KPI insight results without aggregating them again", () => {
+  const component: ComponentInstance = {
+    id: "kpi-insight-top-products-grouped",
+    type: "kpiInsight",
+    title: "商品洞察",
+    props: { aggregation: "sum", prefix: "", suffix: "", decimals: 0 },
+    binding: {
+      datasetId: "sales",
+      slots: {
+        dimension: { fieldKey: "product" },
+        measure: { fieldKey: "salesAmount", aggregation: "sum" },
+      },
+    },
+  };
+
+  render(<DashboardComponentRenderer
+    component={component}
+    fields={[
+      { key: "product", label: "商品", type: "string", nullable: false },
+      { key: "salesAmount", label: "销售额", type: "number", nullable: false },
+    ]}
+    rows={[
+      { product: "商品 A", salesAmount: 300 },
+      { product: "商品 B", salesAmount: 250 },
+    ]}
+    rowsAreAggregated
+  />);
+
+  expect(screen.getByLabelText("销售额最高商品").textContent).toBe("商品 A");
+  expect(screen.getByText("销售额 300 ¥")).toBeTruthy();
 });
 
 it("aggregates each KPI insight metric using its own aggregation setting", () => {

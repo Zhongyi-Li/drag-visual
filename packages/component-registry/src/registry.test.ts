@@ -12,6 +12,7 @@ import {
   donutDefinition,
   flipNumberDefinition,
   gaugeDefinition,
+  globalFilterSummaryDefinition,
   heatmapDefinition,
   horizontalBarDefinition,
   kpiDefinition,
@@ -22,6 +23,7 @@ import {
   metricTrendDefinition,
   multidimensionalDefinition,
   progressBarDefinition,
+  productMovementRankingDefinition,
   targetProgressDefinition,
   rankingDefinition,
   radarDefinition,
@@ -48,6 +50,7 @@ describe("component registry", () => {
       "donut",
       "flipNumber",
       "gauge",
+      "globalFilterSummary",
       "goalTaskProgress",
       "heatmap",
       "horizontalBar",
@@ -62,6 +65,7 @@ describe("component registry", () => {
       "percentArea",
       "percentBar",
       "pie",
+      "productMovementRanking",
       "progressBar",
       "radar",
       "ranking",
@@ -81,6 +85,15 @@ describe("component registry", () => {
   it("provides a data-free dashboard header component", () => {
     expect(dashboardHeaderDefinition.dataSlots).toEqual([]);
     expect(dashboardHeaderDefinition.defaultLayout).toEqual({ w: 12, h: 3 });
+  });
+
+  it("defines a data-free summary card for dashboard-wide query controls", () => {
+    expect(globalFilterSummaryDefinition.title).toBe("全局筛选摘要");
+    expect(globalFilterSummaryDefinition.defaultLayout).toEqual({ w: 3, h: 3 });
+    expect(globalFilterSummaryDefinition.createDefaults()).toEqual({
+      filterId: "", filterIds: [], label: "当前筛选", emptyValue: "全部范围", description: "",
+    });
+    expect(globalFilterSummaryDefinition.dataSlots).toEqual([]);
   });
 
   it("defines a first-class rose chart so its polar-area encoding survives renaming", () => {
@@ -324,7 +337,7 @@ describe("component registry", () => {
   it("supports up to two typed KPI insight rows while keeping legacy props valid", () => {
     const legacyProps = { aggregation: "first", prefix: "¥", suffix: "", decimals: 0 };
 
-    expect(kpiDefinition.propsSchema.parse(legacyProps)).toEqual({ ...legacyProps, insightRows: [] });
+    expect(kpiDefinition.propsSchema.parse(legacyProps)).toEqual({ ...legacyProps, displayName: "", description: "", insightRows: [] });
     expect(kpiDefinition.propsSchema.parse({
       ...legacyProps,
       insightRows: [
@@ -354,7 +367,9 @@ describe("component registry", () => {
     expect(kpiInsightDefinition.title).toBe("指标洞察");
     expect(kpiInsightDefinition.createDefaults().insightRows).toHaveLength(2);
     expect(kpiInsightDefinition.createDefaults().displayName).toBe("");
-    expect(kpiInsightDefinition.dataSlots.map((slot) => slot.key)).not.toContain("dimension");
+    expect(kpiInsightDefinition.createDefaults().description).toBe("");
+    expect(kpiInsightDefinition.createDefaults().topLabel).toBe("");
+    expect(kpiInsightDefinition.dataSlots).toContainEqual(expect.objectContaining({ key: "dimension", required: false, multiple: false }));
     expect(kpiInsightDefinition.validateBinding?.({
       datasetId: "sales",
       slots: { measure: { fieldKey: "revenue" } },
@@ -463,6 +478,26 @@ describe("component registry", () => {
     expect(metricBreakdownDefinition.validateBinding?.({
       datasetId: "sales",
       slots: { dimension: { fieldKey: "productLine" }, measure: { fieldKey: "revenue" } },
+    }).valid).toBe(true);
+  });
+
+  it("defines product movement ranking with paired sales and inventory bindings", () => {
+    expect(productMovementRankingDefinition.title).toBe("双指标对比排行");
+    expect(productMovementRankingDefinition.defaultLayout).toEqual({ w: 12, h: 7 });
+    expect(productMovementRankingDefinition.createDefaults()).toEqual({
+      aggregation: "sum", maxItems: 6,
+      primarySeriesLabel: "", primaryReferenceSeriesLabel: "", secondarySeriesLabel: "", secondaryReferenceSeriesLabel: "",
+      primaryRowLabel: "金额", secondaryRowLabel: "数量", actualValueLabel: "销", referenceValueLabel: "库",
+      primaryPrefix: "¥", primarySuffix: "", secondaryPrefix: "", secondarySuffix: "件",
+      primaryNumberFormat: "compact", secondaryNumberFormat: "number",
+    });
+    expect(productMovementRankingDefinition.dataSlots.map((slot) => slot.title)).toEqual(["分类维度", "主指标", "主指标对比值", "次指标", "次指标对比值"]);
+    expect(productMovementRankingDefinition.validateBinding?.({
+      datasetId: "sales",
+      slots: {
+        dimension: { fieldKey: "product" }, salesAmount: { fieldKey: "salesAmount" }, inventoryAmount: { fieldKey: "inventoryAmount" },
+        salesQuantity: { fieldKey: "salesQuantity" }, inventoryQuantity: { fieldKey: "inventoryQuantity" },
+      },
     }).valid).toBe(true);
   });
 

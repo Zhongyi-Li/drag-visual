@@ -97,6 +97,26 @@ describe("InspectorPanel", () => {
     expect(store.getState().history.present.components[0]?.props.showSurface).toBe(false);
   });
 
+  it("directs analysis-group filters to the fields configuration", async () => {
+    const selectedDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "group-1", x: 0, y: 0, w: 12, h: 8 }],
+      components: [{
+        id: "group-1",
+        type: "analysisGroup",
+        title: "复合分析",
+        props: { description: "", columns: 12, gap: 12, showSurface: true, queryFilters: [] },
+      }],
+    });
+    const store = createEditorStore(selectedDashboard);
+    store.getState().select("group-1");
+    render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
+
+    await userEvent.click(screen.getByRole("tab", { name: "分析" }));
+
+    expect(screen.getByText("复合分析的共享筛选条件请前往「字段 → 筛选条件配置」设置。")).toBeInTheDocument();
+  });
+
   it("explains that a chart must be selected before configuring data interaction", async () => {
     const store = createEditorStore(dashboard);
     render(
@@ -209,7 +229,7 @@ describe("InspectorPanel", () => {
     expect(screen.getByRole("button", { name: "编辑全局筛选条件" })).toBeInTheDocument();
   });
 
-  it("removes a legacy KPI insight dimension binding", async () => {
+  it("keeps a KPI insight dimension binding as its Top calculation dimension", async () => {
     const selectedDashboard = DashboardSchema.parse({
       ...dashboard,
       layout: [{ i: "insight-legacy", x: 0, y: 0, w: 3, h: 3 }],
@@ -230,7 +250,8 @@ describe("InspectorPanel", () => {
       </AppProviders>,
     );
 
-    await waitFor(() => expect(store.getState().history.present.components[0]?.binding?.slots.dimension).toBeUndefined());
+    await waitFor(() => expect(store.getState().history.present.components[0]?.binding?.slots.dimension).toEqual({ fieldKey: "store" }));
+    expect(screen.getByText("洞察维度（可选）")).toBeInTheDocument();
   });
 
   it("saves a selected chart's date-filter control in its binding", async () => {

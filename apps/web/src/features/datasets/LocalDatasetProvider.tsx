@@ -182,6 +182,12 @@ export const LocalDatasetProvider = ({ children }: LocalDatasetProviderProps) =>
         next.delete(datasetId);
         return next;
       });
+      setRuntimeDatasets((current) => {
+        if (!current.has(datasetId)) return current;
+        const next = new Map(current);
+        next.delete(datasetId);
+        return next;
+      });
     },
     replaceDataset: (datasetId, dataset) => {
       setDatasets((current) => {

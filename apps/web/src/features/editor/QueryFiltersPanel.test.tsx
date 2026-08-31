@@ -42,6 +42,7 @@ describe("QueryFiltersPanel", () => {
     await screen.findByRole("button", { name: "编辑筛选条件" });
     expect(screen.getByText("未配置")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "编辑筛选条件" }));
+    expect(document.querySelector(".query-filters-drawer--component")).toBeInTheDocument();
     fireEvent.click(await screen.findByRole("button", { name: "添加筛选条件" }));
     expect(store.getState().history.present.components[0]!.props.queryFilters).toBeUndefined();
     fireEvent.change(screen.getByRole("textbox", { name: "查询值1" }), { target: { value: "小米" } });

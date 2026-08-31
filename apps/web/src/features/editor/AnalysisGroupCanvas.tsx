@@ -64,7 +64,7 @@ export const AnalysisGroupCanvas = ({ component, store, registry, createComponen
     <AnalysisGroupDateFilterBar control={analysisGroupDateFilter} value={runtimeAnalysisGroupDateSelection} loading={isGroupFiltering} onChange={setRuntimeAnalysisGroupDateSelection} />
     <div ref={containerRef} className="analysis-group-canvas__grid" data-drop-zone-id={analysisGroupDropId(component.id)} data-analysis-group-drop-zone={analysisGroupDropId(component.id)}>
       {isGroupFiltering && <div className="analysis-group-canvas__loading" role="status"><span>正在更新组合内图表</span></div>}
-      {activePaletteDrop && <div className="analysis-group-canvas__drop-placeholder" aria-hidden="true"><span>松开以添加到复合分析</span></div>}
+      {activePaletteDrop && <div className="analysis-group-canvas__drop-placeholder" role="status" aria-label="复合分析添加提示"><strong>松开添加图表</strong><span>将以默认卡片尺寸放入组内网格</span></div>}
       {children.length === 0 ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="将左侧图表拖入此容器" /> : mounted ? <ReactGridLayout
         width={width}
         layout={layout}

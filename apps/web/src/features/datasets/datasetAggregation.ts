@@ -3,8 +3,21 @@ import type { ComponentInstance, DatasetAggregation, DatasetQueryRequest, FieldB
 import { activeCalculatedMetricReferences, calculatedMetricsForBinding } from "./calculatedMetrics.js";
 
 const aggregationValues = new Set<DatasetAggregation>(["sum", "avg", "count", "max", "min"]);
-const groupSlotKeys = new Set(["dimension", "dimensions", "timeDimension", "dateDimension", "rowDimension", "columnDimension"]);
-const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasure", "target", "comparison", "secondaryMeasures", "tooltipMeasures"]);
+const groupSlotKeys = new Set([
+  "dimension",
+  "dimensions",
+  "timeDimension",
+  "dateDimension",
+  // The task-progress board calls these channel/store slots by their legacy
+  // names. They still form the row identity and must be retained when a
+  // remote dataset is aggregated, otherwise every channel collapses into one
+  // unlabelled total.
+  "employeeDimension",
+  "storeDimension",
+  "rowDimension",
+  "columnDimension",
+]);
+const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasure", "target", "comparison", "secondaryMeasures", "tooltipMeasures", "salesAmount", "inventoryAmount", "salesQuantity", "inventoryQuantity"]);
 
 const asBindings = (value: FieldBinding | readonly FieldBinding[] | undefined): readonly FieldBinding[] =>
   value === undefined ? [] : Array.isArray(value) ? value as readonly FieldBinding[] : [value as FieldBinding];

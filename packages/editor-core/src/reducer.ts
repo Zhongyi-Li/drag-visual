@@ -228,6 +228,17 @@ const applyKnownCommand = (
           (component) => ({ ...component, title: command.nextTitle }),
         ),
       });
+    case "component.title-style.update":
+      return validateDashboardSnapshot({
+        ...dashboard,
+        components: replaceComponent(
+          dashboard,
+          command.componentId,
+          (component) => command.nextTitleStyle === undefined
+            ? (({ titleStyle: _titleStyle, ...rest }) => rest)(component)
+            : { ...component, titleStyle: command.nextTitleStyle },
+        ),
+      });
     case "component.subtitle.update":
       return validateDashboardSnapshot({
         ...dashboard,

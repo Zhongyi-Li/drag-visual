@@ -59,9 +59,9 @@ const lineFields: readonly DatasetField[] = [
 ];
 
 describe("component option builders", () => {
-  it("builds a multi-metric employee progress and score model", () => {
+  it("builds a multi-metric channel progress and score model", () => {
     const fields: readonly DatasetField[] = [
-      { key: "employee", label: "员工", type: "string", nullable: false },
+      { key: "channel", label: "渠道", type: "string", nullable: false },
       { key: "sales", label: "销售额", type: "number", nullable: false },
       { key: "salesTarget", label: "销售额目标", type: "number", nullable: false },
       { key: "quantity", label: "销量", type: "number", nullable: false },
@@ -80,28 +80,28 @@ describe("component option builders", () => {
       binding: {
         datasetId: "sales",
         slots: {
-          employeeDimension: { fieldKey: "employee" },
+          employeeDimension: { fieldKey: "channel" },
           measure: [{ fieldKey: "sales" }, { fieldKey: "quantity" }],
           target: [{ fieldKey: "salesTarget" }, { fieldKey: "quantityTarget" }],
         },
       },
     }), [
-      { employee: "王晨晨", sales: 20, salesTarget: 100, quantity: 40, quantityTarget: 100 },
-      { employee: "陈慧慧", sales: 80, salesTarget: 100, quantity: 20, quantityTarget: 100 },
+      { channel: "线下批发", sales: 20, salesTarget: 100, quantity: 40, quantityTarget: 100 },
+      { channel: "Amazon", sales: 80, salesTarget: 100, quantity: 20, quantityTarget: 100 },
     ], fields);
 
     expect(model.periodLabel).toBe("2026年7月");
     expect(model.metrics).toHaveLength(2);
-    expect(model.employees.map((employee) => employee.label)).toEqual(["陈慧慧", "王晨晨"]);
+    expect(model.employees.map((employee) => employee.label)).toEqual(["Amazon", "线下批发"]);
     expect(model.employees[0]?.score).toBeCloseTo(0.56);
     expect(model.employees[1]?.score).toBeCloseTo(0.28);
     expect(model.weights).toEqual([{ label: "销售额", weight: 60 }, { label: "销量", weight: 40 }]);
   });
 
-  it("automatically discovers the business target metrics when bindings have not been configured", () => {
+  it("does not display business metrics until actual metrics are selected", () => {
     const fields: readonly DatasetField[] = [
       { key: "statisticMonth", label: "统计月份", type: "date", nullable: false },
-      { key: "employee", label: "员工", type: "string", nullable: false },
+      { key: "channel", label: "渠道", type: "string", nullable: false },
       { key: "gmvActual", label: "GMV实际（欧元）", type: "number", nullable: false },
       { key: "gmvTarget", label: "GMV目标（欧元）", type: "number", nullable: false },
       { key: "salesActual", label: "销量实际", type: "number", nullable: false },
@@ -115,20 +115,19 @@ describe("component option builders", () => {
       props: { aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, maxEmployees: 8, employeeSettings: [], metricSettings: [] },
       binding: { datasetId: "targets", slots: {} },
     }), [{
-      statisticMonth: new Date("2026-08-01"), employee: "王雨晨", gmvActual: 329102, gmvTarget: 1_000_000,
+      statisticMonth: new Date("2026-08-01"), channel: "速卖通", gmvActual: 329102, gmvTarget: 1_000_000,
       salesActual: 1413, salesTarget: 2000, grossProfit: 54342, turnoverDays: 418, turnoverTarget: 1000,
     }], fields);
 
     expect(model.employees).toHaveLength(1);
-    expect(model.employees[0]?.metrics.map((metric) => metric.kind)).toEqual(["gmv", "sales", "turnover"]);
-    expect(model.employees[0]?.metrics.map((metric) => metric.target)).toEqual([1_000_000, 2000, 1000]);
-    expect(model.employees[0]?.metrics.map((metric) => metric.weight)).toEqual([30, 55, 15]);
+    expect(model.metrics).toEqual([]);
+    expect(model.employees[0]?.metrics).toEqual([]);
     expect(model.employees[0]?.grossProfit).toBe(54342);
   });
 
-  it("uses the detected employee field instead of an accidentally bound status field", () => {
+  it("uses the detected channel field instead of an accidentally bound status field", () => {
     const fields: readonly DatasetField[] = [
-      { key: "employee", label: "员工", type: "string", nullable: false },
+      { key: "channel", label: "渠道", type: "string", nullable: false },
       { key: "status", label: "状态", type: "string", nullable: false },
       { key: "gmvActual", label: "GMV实际（欧元）", type: "number", nullable: false },
       { key: "gmvTarget", label: "GMV目标（欧元）", type: "number", nullable: false },
@@ -136,14 +135,75 @@ describe("component option builders", () => {
     const model = buildGoalTaskProgressModel(component({
       type: "goalTaskProgress",
       props: { aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, maxEmployees: 8, employeeSettings: [], metricSettings: [] },
-      binding: { datasetId: "targets", slots: { employeeDimension: { fieldKey: "status" } } },
+      binding: { datasetId: "targets", slots: { employeeDimension: { fieldKey: "status" }, measure: [{ fieldKey: "gmvActual" }] } },
     }), [
-      { employee: "王雨晨", status: "需关注", gmvActual: 329102, gmvTarget: 1_000_000 },
-      { employee: "林晓峰", status: "推进中", gmvActual: 621500, gmvTarget: 750000 },
+      { channel: "速卖通", status: "需关注", gmvActual: 329102, gmvTarget: 1_000_000 },
+      { channel: "Amazon", status: "推进中", gmvActual: 621500, gmvTarget: 750000 },
     ], fields);
 
-    expect(model.employeeLabel).toBe("员工");
-    expect(model.employees.map((employee) => employee.label)).toEqual(["林晓峰", "王雨晨"]);
+    expect(model.employeeLabel).toBe("渠道");
+    expect(model.employees.map((employee) => employee.label)).toEqual(["Amazon", "速卖通"]);
+  });
+
+  it("uses the configured store scope, period-specific goals, and inverse turnover completion", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "channel", label: "渠道", type: "string", nullable: false },
+      { key: "store", label: "店铺", type: "string", nullable: false },
+      { key: "gmv", label: "GMV（欧元）", type: "number", nullable: false },
+      { key: "grossProfit", label: "销售毛利（欧元）", type: "number", nullable: false },
+      { key: "turnoverDays", label: "库存周转天数", type: "number", nullable: false },
+    ];
+    const baseProps = {
+      aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, maxEmployees: 8, employeeSettings: [], metricSettings: [],
+      channelSettings: [{
+        channel: "Amazon", storeKeys: ["Amazon DE 小米店"], storeSelectionMode: "selected",
+        monthlyGmvTarget: 80, monthlyGrossProfitTarget: 20, monthlyTurnoverTargetDays: 10,
+        annualGmvTarget: 120, annualGrossProfitTarget: 30, annualTurnoverTargetDays: 12,
+      }],
+    };
+    const sourceRows = [
+      { channel: "Amazon", store: "Amazon DE 小米店", gmv: 100, grossProfit: 18, turnoverDays: 8 },
+      { channel: "Amazon", store: "Amazon ES 小米店", gmv: 900, grossProfit: 160, turnoverDays: 24 },
+    ];
+    const monthly = buildGoalTaskProgressModel(component({
+      type: "goalTaskProgress", props: { ...baseProps, periodMode: "month" },
+      binding: { datasetId: "sales", slots: { employeeDimension: { fieldKey: "channel" }, storeDimension: { fieldKey: "store" }, measure: [{ fieldKey: "gmv" }, { fieldKey: "turnoverDays", aggregation: "avg" }] } },
+    }), sourceRows, fields);
+    const monthlyEmployee = monthly.employees[0]!;
+    expect(monthlyEmployee.metrics.find((metric) => metric.kind === "gmv")?.value).toBe(100);
+    expect(monthlyEmployee.metrics.find((metric) => metric.kind === "turnover")?.progress).toBeCloseTo(1.25);
+    expect(monthlyEmployee.grossProfit).toBe(18);
+    expect(monthlyEmployee.grossProfitTarget).toBe(20);
+
+    const annual = buildGoalTaskProgressModel(component({
+      type: "goalTaskProgress", props: { ...baseProps, periodMode: "year" },
+      binding: { datasetId: "sales", slots: { employeeDimension: { fieldKey: "channel" }, storeDimension: { fieldKey: "store" }, measure: [{ fieldKey: "gmv" }, { fieldKey: "turnoverDays" }] } },
+    }), sourceRows, fields);
+    expect(annual.periodLabel).toBe("2026年");
+    expect(annual.employees[0]?.metrics.find((metric) => metric.kind === "gmv")?.target).toBe(120);
+    expect(annual.employees[0]?.grossProfitTarget).toBe(30);
+  });
+
+  it("uses channel targets for every selected actual metric", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "channel", label: "渠道", type: "string", nullable: false },
+      { key: "store", label: "店铺", type: "string", nullable: false },
+      { key: "orders", label: "订单量", type: "number", nullable: false },
+    ];
+    const model = buildGoalTaskProgressModel(component({
+      type: "goalTaskProgress",
+      props: {
+        aggregation: "sum", decimals: 1, periodYear: 2026, periodMonth: 8, periodMode: "month", maxEmployees: 8, employeeSettings: [], metricSettings: [],
+        channelSettings: [{
+          channel: "Amazon", storeKeys: [], storeSelectionMode: "all",
+          metricTargets: [{ measureKey: "orders", monthlyTargetValue: 120, annualTargetValue: 1200 }],
+        }],
+      },
+      binding: { datasetId: "sales", slots: { employeeDimension: { fieldKey: "channel" }, storeDimension: { fieldKey: "store" }, measure: [{ fieldKey: "orders" }] } },
+    }), [{ channel: "Amazon", store: "Amazon DE 小米店", orders: 90 }], fields);
+
+    expect(model.metrics.map((metric) => metric.label)).toEqual(["订单量"]);
+    expect(model.employees[0]?.metrics[0]).toMatchObject({ value: 90, target: 120, progress: .75 });
   });
 
   it("builds a sorted horizontal bar chart and a dual-axis bar-line chart", () => {

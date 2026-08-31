@@ -57,7 +57,7 @@ export const InspectorPanel = ({
               component={selected}
               definition={definition}
               showRefreshButton
-              slotKeys={["measure"]}
+              slotKeys={["dimension", "measure"]}
               slotActions={{
                 measure: <Tooltip title="配置指标洞察" placement="topRight">
                   <Button
@@ -104,8 +104,10 @@ export const InspectorPanel = ({
           label: "数据交互",
           children: selected === null
             ? <Typography.Text type="secondary">选择图表后配置日期筛选。</Typography.Text>
-            : selected.type === "analysisGroup" || selected.type === "dashboardHeader"
-              ? <Typography.Text type="secondary">该组件不支持独立数据交互。</Typography.Text>
+            : selected.type === "analysisGroup"
+              ? <Typography.Text type="secondary">复合分析的共享筛选条件请前往「字段 → 筛选条件配置」设置。</Typography.Text>
+              : selected.type === "dashboardHeader"
+                ? <Typography.Text type="secondary">该组件不支持独立数据交互。</Typography.Text>
               : <Collapse
                   ghost
                   className="inspector-analysis__subcollapse"

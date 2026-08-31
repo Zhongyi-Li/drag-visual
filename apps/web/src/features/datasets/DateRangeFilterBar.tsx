@@ -39,6 +39,7 @@ export const DateRangeFilterBar = ({ control, fieldLabel, value, onChange, loadi
     <DatePicker.RangePicker
       aria-label={`${fieldLabel}日期范围`}
       allowClear
+      allowEmpty={[true, true]}
       className="date-range-filter__picker"
       disabled={loading}
       format="YYYY/MM/DD"

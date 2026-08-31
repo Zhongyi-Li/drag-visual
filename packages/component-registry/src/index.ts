@@ -7,6 +7,7 @@ import { dashboardHeaderDefinition } from "./definitions/dashboardHeader.js";
 import { analysisGroupDefinition } from "./definitions/analysisGroup.js";
 import { flipNumberDefinition } from "./definitions/flipNumber.js";
 import { gaugeDefinition } from "./definitions/gauge.js";
+import { globalFilterSummaryDefinition } from "./definitions/globalFilterSummary.js";
 import { heatmapDefinition } from "./definitions/heatmap.js";
 import { horizontalBarDefinition } from "./definitions/horizontalBar.js";
 import { kpiDefinition } from "./definitions/kpi.js";
@@ -20,6 +21,7 @@ import { multidimensionalDefinition } from "./definitions/multidimensional.js";
 import { pieDefinition } from "./definitions/pie.js";
 import { roseDefinition } from "./definitions/rose.js";
 import { progressBarDefinition } from "./definitions/progressBar.js";
+import { productMovementRankingDefinition } from "./definitions/productMovementRanking.js";
 import { goalTaskProgressDefinition } from "./definitions/goalTaskProgress.js";
 import { targetProgressDefinition } from "./definitions/targetProgress.js";
 import { rankingDefinition } from "./definitions/ranking.js";
@@ -45,6 +47,7 @@ export { dashboardHeaderDefinition } from "./definitions/dashboardHeader.js";
 export { analysisGroupDefinition } from "./definitions/analysisGroup.js";
 export { flipNumberDefinition } from "./definitions/flipNumber.js";
 export { gaugeDefinition } from "./definitions/gauge.js";
+export { globalFilterSummaryDefinition } from "./definitions/globalFilterSummary.js";
 export { heatmapDefinition } from "./definitions/heatmap.js";
 export { horizontalBarDefinition } from "./definitions/horizontalBar.js";
 export { kpiDefinition } from "./definitions/kpi.js";
@@ -58,6 +61,7 @@ export { multidimensionalDefinition } from "./definitions/multidimensional.js";
 export { pieDefinition } from "./definitions/pie.js";
 export { roseDefinition } from "./definitions/rose.js";
 export { progressBarDefinition } from "./definitions/progressBar.js";
+export { productMovementRankingDefinition } from "./definitions/productMovementRanking.js";
 export { goalTaskProgressDefinition } from "./definitions/goalTaskProgress.js";
 export { targetProgressDefinition } from "./definitions/targetProgress.js";
 export { rankingDefinition } from "./definitions/ranking.js";
@@ -102,6 +106,7 @@ export const createDefaultRegistry = (): ComponentRegistry =>
     .register(percentBarDefinition)
     .register(ringBarDefinition)
     .register(rankingDefinition)
+    .register(productMovementRankingDefinition)
     .register(pieDefinition)
     .register(donutDefinition)
     .register(roseDefinition)
@@ -109,6 +114,7 @@ export const createDefaultRegistry = (): ComponentRegistry =>
     .register(radarDefinition)
     .register(treemapDefinition)
     .register(kpiDefinition)
+    .register(globalFilterSummaryDefinition)
     .register(metricAlertDefinition)
     .register(kpiInsightDefinition)
     .register(metricTrendDefinition)

@@ -324,6 +324,18 @@ describe("applyCommand", () => {
     expect(initial.components[0]!.title).toBe("Revenue");
   });
 
+  it("stores title presentation without changing the title text", () => {
+    const initial = populatedDashboard();
+    const next = applyCommand(initial, {
+      type: "component.title-style.update",
+      componentId: "chart-1",
+      nextTitleStyle: { visible: true, color: "#1677ff", fontSize: 18, fontWeight: "bold", fontStyle: "italic", textAlign: "center" },
+    });
+
+    expect(next.components[0]?.title).toBe(initial.components[0]?.title);
+    expect(next.components[0]?.titleStyle).toEqual({ visible: true, color: "#1677ff", fontSize: 18, fontWeight: "bold", fontStyle: "italic", textAlign: "center" });
+  });
+
   it("updates a component subtitle without changing its props or binding", () => {
     const initial = populatedDashboard();
     const next = applyCommand(initial, {

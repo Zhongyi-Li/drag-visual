@@ -28,6 +28,10 @@ const renderRoute = (path: string) => {
 };
 
 describe("application routes", () => {
+  it("provides a hydration fallback for every top-level route branch", () => {
+    expect(appRoutes.every((route) => route.HydrateFallback !== undefined)).toBe(true);
+  });
+
   it("redirects an unsigned-in workspace visit to the account gateway", async () => {
     renderRoute("/");
 

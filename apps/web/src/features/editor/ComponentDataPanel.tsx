@@ -54,11 +54,12 @@ const slotPriority = (
     if (field.type === "number") {
       const semanticName = `${field.key} ${field.label}`.toLowerCase();
       const looksLikeTarget = /目标|target/.test(semanticName);
-      if (slot.key === "target") return looksLikeTarget ? 120 : 35;
       if (slot.key === "measure") return looksLikeTarget ? 45 : 115;
       if (slot.key === "employeeDimension") return 90;
+      if (slot.key === "storeDimension") return 100;
       return 0;
     }
+    if (field.type === "string" && slot.key === "storeDimension") return 100;
     if ((field.type === "date" || field.type === "string") && slot.key === "dateDimension") return 95;
     return field.type === "string" ? (slot.key === "employeeDimension" ? 105 : 0) : 0;
   }
@@ -215,7 +216,7 @@ export const ComponentDataPanel = ({
       nextBinding: DataBinding.parse({
         ...currentSelected.binding,
         dateFilter: currentSelected.binding.dateFilter === undefined
-          ? { fieldKey: field.key, defaultPreset: "all", allowCustom: true, timezone: "Asia/Shanghai" }
+          ? { fieldKey: field.key, defaultPreset: "all", allowCustom: true, showControl: currentSelected.type !== "goalTaskProgress", timezone: "Asia/Shanghai" }
           : { ...currentSelected.binding.dateFilter, fieldKey: field.key },
       }),
     });

@@ -34,6 +34,14 @@ const labelKeyMap = new Map<string, string>([
   ["月份", "month"],
   ["日期", "date"],
   ["业务日期", "businessDate"],
+  ["订单时间", "orderTime"],
+  ["渠道", "channel"],
+  ["店铺", "store"],
+  ["GMV", "gmv"],
+  ["GMV（欧元）", "gmv"],
+  ["销售毛利", "grossProfit"],
+  ["销售毛利（欧元）", "grossProfit"],
+  ["库存周转天数", "turnoverDays"],
   ["收入", "revenue"],
   ["销售额", "salesAmount"],
   ["数量", "quantity"],
@@ -104,7 +112,7 @@ const parseCsvRows = (text: string): string[][] => {
 const isDateValue = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
 const isDateField = (label: string, key: string): boolean =>
-  /date|日期|month|月份/i.test(label) || /date|month/i.test(key);
+  /date|日期|时间|time|month|月份/i.test(label) || /date|time|month/i.test(key);
 
 const isExcelDateSerial = (value: string): boolean => {
   const parsed = Number(value);
@@ -135,15 +143,35 @@ const coerceValue = (value: string, type: DatasetField["type"]): string | number
   return value;
 };
 
+/**
+ * A number of business workbooks start with a title and import notes before
+ * their actual table.  Select the first row that is shaped like a header
+ * rather than treating a merged title cell as the field name.
+ */
+const tabularHeaderRowIndex = (rows: readonly string[][]): number => {
+  for (let index = 0; index < Math.min(rows.length - 1, 50); index += 1) {
+    const header = rows[index] ?? [];
+    const headerCells = header.filter((value) => value.trim().length > 0);
+    if (headerCells.length < 2 || new Set(headerCells).size !== headerCells.length) continue;
+
+    const followingRows = rows.slice(index + 1).filter((row) => row.some((value) => value.trim().length > 0)).slice(0, 3);
+    if (followingRows.length === 0) continue;
+    const compatibleRows = followingRows.filter((row) => row.filter((value) => value.trim().length > 0).length >= Math.ceil(headerCells.length * .7));
+    if (index === 0 || compatibleRows.length >= Math.min(2, followingRows.length)) return index;
+  }
+  return 0;
+};
+
 const rowsToDataset = (fileName: string, parsedRows: string[][]): ImportedDataset => {
-  const header = parsedRows[0];
+  const headerIndex = tabularHeaderRowIndex(parsedRows);
+  const header = parsedRows[headerIndex];
   if (header === undefined || header.length === 0) throw new Error("文件为空，请上传包含表头和数据行的文件");
   const labels = header.map((label) => label.trim());
   const blankHeaderIndex = labels.findIndex((label) => label.length === 0);
   if (blankHeaderIndex >= 0) throw new Error(`第 ${blankHeaderIndex + 1} 列表头为空，请补充字段名称`);
   const duplicate = labels.find((label, index) => labels.indexOf(label) !== index);
   if (duplicate !== undefined) throw new Error(`存在重复表头：${duplicate}`);
-  const body = parsedRows.slice(1);
+  const body = parsedRows.slice(headerIndex + 1);
   if (body.length === 0) throw new Error("文件缺少数据行，请至少保留一行数据");
   if (body.length > MAX_LOCAL_ROWS) throw new Error(`文件最多支持 ${MAX_LOCAL_ROWS} 行数据`);
 

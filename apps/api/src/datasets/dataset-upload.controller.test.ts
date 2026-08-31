@@ -64,11 +64,13 @@ const multipartPayload = (values: {
 describe("DatasetUploadController", () => {
   let app: NestFastifyApplication | undefined;
   let created: CreateUploadedDatasetInput | undefined;
+  let deleted: { readonly id: string; readonly ownerId: string } | undefined;
 
   afterEach(async () => {
     await app?.close();
     app = undefined;
     created = undefined;
+    deleted = undefined;
   });
 
   const bootstrap = async () => {
@@ -76,6 +78,10 @@ describe("DatasetUploadController", () => {
       create: async (input: CreateUploadedDatasetInput) => {
         created = input;
         return { dataset: input.schema, result: input.result };
+      },
+      delete: async (id: string, ownerId: string) => {
+        deleted = { id, ownerId };
+        return true;
       },
     };
     const module = await Test.createTestingModule({
@@ -189,5 +195,17 @@ describe("DatasetUploadController", () => {
       message: "上传数据集参数无效",
     });
     expect(created).toBeUndefined();
+  });
+
+  it("deletes an uploaded dataset owned by the current user", async () => {
+    await bootstrap();
+
+    const response = await app!.inject({
+      method: "DELETE",
+      url: "/datasets/uploads/uploaded-to-delete",
+    });
+
+    expect(response.statusCode).toBe(204);
+    expect(deleted).toEqual({ id: "uploaded-to-delete", ownerId: "owner-a" });
   });
 });

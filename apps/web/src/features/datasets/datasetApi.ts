@@ -92,3 +92,10 @@ export const uploadDataset = async (
   if (!schema.success || !parsed.success) throw new Error("上传接口返回的数据集格式无效");
   return { dataset: schema.data, result: parsed.data };
 };
+
+export const deleteUploadedDataset = async (
+  id: string,
+  client: ApiClient = apiClient,
+): Promise<void> => {
+  await client.request(`datasets/uploads/${encodeURIComponent(id)}`, { method: "DELETE" });
+};

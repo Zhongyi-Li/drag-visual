@@ -76,45 +76,61 @@ export const AnalysisGroupDateFilterConfigurationPanel = ({ component, store }: 
       <strong>{configuredTargetSummary}</strong>
     </div>}
     <Drawer
-      className="date-filter-drawer"
+      className="date-filter-drawer date-filter-drawer--analysis-group"
       destroyOnHidden
       extra={<Button type="primary" onClick={() => setDrawerOpen(false)}>完成</Button>}
       open={drawerOpen}
-      placement="bottom"
-      size={500}
-      title="日期筛选设置"
+      placement="right"
+      size="min(880px, calc(100vw - 48px))"
+      title={<div className="filter-configuration-drawer__title"><strong>日期筛选设置</strong><Typography.Text type="secondary">复合分析：统一配置默认范围，并关联各子图表的时间字段</Typography.Text></div>}
       onClose={() => setDrawerOpen(false)}
     >
-      <Typography.Paragraph type="secondary" style={{ marginTop: 0 }}>复合分析不需要绑定数据源；请选择每个子图表实际使用的日期字段。</Typography.Paragraph>
-      {control !== undefined && <div className="analysis-group-date-filter-configuration__content">
-        <label>默认范围
-          <Select aria-label="复合分析默认日期范围" options={presetOptions.map((preset) => ({ value: preset, label: dateFilterPresetLabel(preset) }))} value={control.defaultPreset} onChange={(defaultPreset) => update({ ...control, defaultPreset })} />
-        </label>
-        <label className="analysis-group-date-filter-configuration__switch">允许自定义日期范围
-          <Switch aria-label="允许自定义复合分析日期范围" checked={control.allowCustom} onChange={(allowCustom) => update({ ...control, allowCustom })} />
-        </label>
-        <div className="analysis-group-date-filter-configuration__targets">
-          <div className="analysis-group-date-filter-configuration__heading"><CalendarOutlined />关联子图表时间字段</div>
-          {children.length === 0 ? <Typography.Text type="secondary">请先在容器中添加已绑定数据源的图表。</Typography.Text> : children.map((child) => {
-            const fields = (childSchemas.get(child.id)?.fields ?? []).filter((field: DatasetField) => field.type === "date");
-            const target = control.targets.find((candidate) => candidate.componentId === child.id);
-            return <label className="analysis-group-date-filter-configuration__target" key={child.id}>
-              <span>{child.title || child.type}</span>
-              <Select
-                allowClear
-                aria-label={`${child.title || child.type}时间字段`}
-                disabled={fields.length === 0}
-                placeholder={fields.length === 0 ? "没有日期字段" : "选择日期字段"}
-                value={target?.fieldKey}
-                options={fields.map((field) => ({ value: field.key, label: field.label }))}
-                onChange={(fieldKey: string | undefined) => updateTarget(child.id, fieldKey)}
-              />
-            </label>;
-          })}
-        </div>
-        {control.targets.length === 0 && <Alert type="info" showIcon message="尚未关联子图表。保存后时间选择器会展示，但不会筛选任何图表。" />}
-        <Button danger size="small" type="text" onClick={() => { update(undefined); setDrawerOpen(false); }}>停用日期筛选</Button>
-      </div>}
+      <div className="analysis-group-date-filter-drawer__workspace">
+        <div className="analysis-group-date-filter-drawer__intro"><span>日期筛选条件</span><Typography.Text type="secondary">复合分析不需要绑定数据源；请选择每个子图表实际使用的日期字段。</Typography.Text></div>
+        {control !== undefined && <div className="analysis-group-date-filter-configuration__content">
+          <section className="analysis-group-date-filter-configuration__settings">
+            <div className="analysis-group-date-filter-configuration__preset-field">
+              <span>默认范围</span>
+              <div aria-label="复合分析默认日期范围" className="analysis-group-date-filter-configuration__preset-grid" role="group">
+                {presetOptions.map((preset) => {
+                  const active = control.defaultPreset === preset;
+                  return <button
+                    aria-pressed={active}
+                    className={`analysis-group-date-filter-configuration__preset${active ? " is-active" : ""}`}
+                    key={preset}
+                    type="button"
+                    onClick={() => update({ ...control, defaultPreset: preset })}
+                  >{dateFilterPresetLabel(preset)}</button>;
+                })}
+              </div>
+            </div>
+            <label className="analysis-group-date-filter-configuration__switch">允许自定义日期范围
+              <Switch aria-label="允许自定义复合分析日期范围" checked={control.allowCustom} onChange={(allowCustom) => update({ ...control, allowCustom })} />
+            </label>
+            <Button danger size="small" type="text" onClick={() => { update(undefined); setDrawerOpen(false); }}>停用日期筛选</Button>
+          </section>
+          <section className="analysis-group-date-filter-configuration__targets">
+            <div className="analysis-group-date-filter-configuration__heading"><CalendarOutlined />关联子图表时间字段</div>
+            {children.length === 0 ? <Typography.Text type="secondary">请先在容器中添加已绑定数据源的图表。</Typography.Text> : children.map((child) => {
+              const fields = (childSchemas.get(child.id)?.fields ?? []).filter((field: DatasetField) => field.type === "date");
+              const target = control.targets.find((candidate) => candidate.componentId === child.id);
+              return <label className="analysis-group-date-filter-configuration__target" key={child.id}>
+                <span>{child.title || child.type}</span>
+                <Select
+                  allowClear
+                  aria-label={`${child.title || child.type}时间字段`}
+                  disabled={fields.length === 0}
+                  placeholder={fields.length === 0 ? "没有日期字段" : "选择日期字段"}
+                  value={target?.fieldKey}
+                  options={fields.map((field) => ({ value: field.key, label: field.label }))}
+                  onChange={(fieldKey: string | undefined) => updateTarget(child.id, fieldKey)}
+                />
+              </label>;
+            })}
+          </section>
+          {control.targets.length === 0 && <Alert className="analysis-group-date-filter-configuration__warning" type="info" showIcon message="尚未关联子图表。保存后时间选择器会展示，但不会筛选任何图表。" />}
+        </div>}
+      </div>
     </Drawer>
   </section>;
 };

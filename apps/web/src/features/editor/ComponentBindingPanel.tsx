@@ -190,6 +190,10 @@ const slotHelpText = (slotKey: string, slotTitle: string, componentType: Compone
   if (componentType === "metricTrend" && slotKey === "timeDimension") return "作为指标趋势的时间或分类横轴，可选择天级日期，也可选择已整理好的年、季度、月、周、日等维度字段。";
   if (slotKey === "timeDimension") return "作为趋势分析的基础日期字段，只支持天级日期，系统会按时间粒度聚合为周、月、季度或年。";
   if (slotKey === "dateDimension") return "作为时间分析的基础日期字段，只支持天级日期，系统会按时间粒度聚合为周、月、季度或年。";
+  if (componentType === "goalTaskProgress" && slotKey === "employeeDimension") return "选择“渠道”字段。看板会按渠道汇总，并在渠道配置中维护目标。";
+  if (componentType === "goalTaskProgress" && slotKey === "storeDimension") return "选择“店铺”字段。配置渠道时会自动展示该渠道下的店铺，可勾选纳入看板的数据范围。";
+  if (componentType === "goalTaskProgress" && slotKey === "dateDimension") return "选择订单日期字段，用于月度和年度统计。";
+  if (componentType === "goalTaskProgress" && slotKey === "measure") return "选择一个或多个实际指标；“配置渠道”会根据所选指标生成月度、年度目标输入项。已存在的目标字段仅作为未配置渠道目标时的兼容回退。";
   if (slotKey === "dimensions") return "作为多维分析的分组层级，可选择地区、品类、渠道等多个分类字段。";
   if (slotKey === "measures") return "作为多维分析要汇总的数值指标，可选择销售额、订单数、访客数等多个指标。";
   if (componentType === "bar" && slotKey === "measure") return "可选择一个或多个数值指标；多个指标会按同一维度并列展示为多组柱。";
@@ -199,6 +203,13 @@ const slotHelpText = (slotKey: string, slotTitle: string, componentType: Compone
   if (componentType === "ringBar" && slotKey === "measure") return "主指标决定各维度同心环的长度，系统会按所选聚合方式汇总。";
   if (componentType === "ringBar" && slotKey === "tooltipMeasures") return "可选的辅助指标，只在鼠标悬浮同心环时显示，不会生成新的环。";
   if (componentType === "ranking" && slotKey === "measure") return "只选择参与排名的业务指标，例如订单数、访客数。只选一个指标时会自动按该指标从高到低排行；选择多个指标后，可决定按主指标或综合加权结果排行。";
+  if (componentType === "kpiInsight" && slotKey === "dimension") return "可选。选择后会按该维度汇总，并为每个主指标分别找出数值最高的项目；不选择则展示整体汇总值。";
+  if (componentType === "kpiInsight" && slotKey === "measure") return "可多选。选择洞察维度后，每个指标都会按自己的聚合口径独立计算 Top 项。";
+  if (componentType === "productMovementRanking" && slotKey === "dimension") return "按此字段汇总生成排行条目，例如商品、门店、渠道或区域。";
+  if (componentType === "productMovementRanking" && slotKey === "salesAmount") return "第一行的实色前景条，并决定默认的排行顺序。";
+  if (componentType === "productMovementRanking" && slotKey === "inventoryAmount") return "第一行的浅色对比底条。";
+  if (componentType === "productMovementRanking" && slotKey === "salesQuantity") return "第二行的实色前景条。";
+  if (componentType === "productMovementRanking" && slotKey === "inventoryQuantity") return "第二行的浅色对比底条。";
   if (componentType === "kpi" && slotKey === "measure") return "作为指标看板展示的数值字段，可多选收入、目标、同期、订单等指标。第一项会作为主指标展示。";
   if (componentType === "flipNumber" && slotKey === "measure") return "作为翻牌器展示的多个数值指标，每个指标会生成一张翻牌卡。";
   if (componentType === "progressBar" && slotKey === "measure") return "作为进度条展示的多个实际指标。请在“指标与目标配对”中为每项明确选择目标值。";
@@ -343,13 +354,6 @@ export const ComponentBindingPanel = ({
   ).map((dataset) => ({ label: dataset.name, value: dataset.id }));
   const showDatasetListError = datasets.isError && localDatasets.summaries.length === 0;
 
-  // KPI insight used to expose a dimension slot. The component now represents
-  // one aggregated metric, so old dashboards must not keep an inert grouping
-  // binding that would both confuse the query and fail binding validation.
-  const legacyInsightSlotKeys = currentComponent.type === "kpiInsight" && binding !== undefined
-    ? Object.keys(binding.slots).filter((key) => !definition.dataSlots.some((slot) => slot.key === key))
-    : [];
-
   const dispatchDatasetBinding = (dataset: Dataset) => {
     store.getState().dispatch({
       type: "dashboard.dataset.upsert",
@@ -480,17 +484,6 @@ export const ComponentBindingPanel = ({
     });
     if (nextMeasures.length !== selectedMeasures.length) updateSlot("measure", nextMeasures, true);
   }, [binding, currentComponent.type, schema.data]);
-
-  useEffect(() => {
-    if (legacyInsightSlotKeys.length === 0 || binding === undefined) return;
-    const nextSlots = cloneSlots(binding.slots);
-    legacyInsightSlotKeys.forEach((key) => { delete nextSlots[key]; });
-    store.getState().dispatch({
-      type: "component.binding.update",
-      componentId: component.id,
-      nextBinding: { ...cloneBinding(binding), slots: nextSlots },
-    });
-  }, [binding, component.id, legacyInsightSlotKeys.join("|"), store]);
 
   const updateTimeGranularity = (timeGranularity: string) => {
     store.getState().dispatch({
@@ -665,7 +658,7 @@ export const ComponentBindingPanel = ({
   const showTimeGranularity = supportsTimeGranularity && (
     currentComponent.type !== "metricTrend" || metricTrendDimension === undefined || metricTrendDimension.type === "date"
   );
-  const isProgressPairingComponent = currentComponent.type === "progressBar" || currentComponent.type === "goalTaskProgress";
+  const isProgressPairingComponent = currentComponent.type === "progressBar";
   const progressMeasureKeys = isProgressPairingComponent
     ? (Array.isArray(selectedKeys(binding, "measure", true)) ? selectedKeys(binding, "measure", true) as string[] : [])
     : [];
@@ -784,14 +777,7 @@ export const ComponentBindingPanel = ({
       nextProps: { ...componentProps, resultLimit: nextLimit },
     });
   };
-  const validationBinding = binding === undefined
-    ? undefined
-    : legacyInsightSlotKeys.length === 0
-      ? cloneBinding(binding)
-      : {
-        ...cloneBinding(binding),
-        slots: Object.fromEntries(Object.entries(cloneBinding(binding).slots).filter(([key]) => !legacyInsightSlotKeys.includes(key))),
-      };
+  const validationBinding = binding === undefined ? undefined : cloneBinding(binding);
   const validation = schema.data && validationBinding
     ? validateBinding(validationBinding, schema.data.fields, definition.dataSlots)
     : null;
@@ -884,7 +870,7 @@ export const ComponentBindingPanel = ({
 
       {isProgressPairingComponent && (
         <div className="binding-field progress-pair-field">
-          <BindingFieldLabel label={currentComponent.type === "goalTaskProgress" ? "任务指标配对" : "指标与目标配对"} help="每一行对应一项已完成指标和它的目标指标。可从右侧数据栏双击添加，再拖动字段到对应一行完成配对。" />
+          <BindingFieldLabel label="指标与目标配对" help="每一行对应一项已完成指标和它的目标指标。可从右侧数据栏双击添加，再拖动字段到对应一行完成配对。" />
           <div className="progress-pair-list">
             {progressPairs.map((pair, index) => {
               const measureAggregation = selectedMetricAggregation("measure", pair.measure) ?? "sum";
@@ -976,7 +962,7 @@ export const ComponentBindingPanel = ({
                 </div>
               );
             })}
-            <div className="binding-field__data-panel-hint">从右侧数据栏双击或拖入度量，添加{currentComponent.type === "goalTaskProgress" ? "任务指标" : "进度"}</div>
+            <div className="binding-field__data-panel-hint">从右侧数据栏双击或拖入度量，添加进度</div>
           </div>
         </div>
       )}
@@ -986,7 +972,8 @@ export const ComponentBindingPanel = ({
         const value = selectedKeys(binding, slot.key, slot.multiple);
         const isTargetProgress = currentComponent.type === "targetProgress";
         const isTargetProgressTarget = isTargetProgress && slot.key === "target";
-        const isMetricSlot = slot.key === "measure" || slot.key === "measures" || slot.key === "tooltipMeasures" || slot.key === "target" || slot.key === "comparison" || slot.key === "secondaryMeasures";
+        const isMetricSlot = slot.key === "measure" || slot.key === "measures" || slot.key === "tooltipMeasures" || slot.key === "target" || slot.key === "comparison" || slot.key === "secondaryMeasures"
+          || (currentComponent.type === "productMovementRanking" && slot.key !== "dimension");
         const isDimensionSlot = !isMetricSlot;
         const metricFieldKeys = !isMetricSlot
           ? []

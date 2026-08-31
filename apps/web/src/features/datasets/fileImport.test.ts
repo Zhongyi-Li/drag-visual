@@ -150,7 +150,7 @@ const metricDashboardWorkbook = createStoredZip({
     </Relationships>`,
   "xl/worksheets/sheet1.xml": `<?xml version="1.0" encoding="UTF-8"?>
     <worksheet><sheetData>
-      <row r="1"><c r="A1" t="inlineStr"><is><t>businessDate</t></is></c><c r="B1" t="inlineStr"><is><t>month</t></is></c><c r="C1" t="inlineStr"><is><t>revenue</t></is></c></row>
+      <row r="1"><c r="A1" t="inlineStr"><is><t>订单时间</t></is></c><c r="B1" t="inlineStr"><is><t>month</t></is></c><c r="C1" t="inlineStr"><is><t>revenue</t></is></c></row>
       <row r="2"><c r="A2" t="n"><v>46023</v></c><c r="B2" t="inlineStr"><is><t>2026-01</t></is></c><c r="C2" t="n"><v>120000</v></c></row>
       <row r="3"><c r="A3" t="n"><v>46054</v></c><c r="B3" t="inlineStr"><is><t>2026-02</t></is></c><c r="C3" t="n"><v>98000</v></c></row>
     </sheetData></worksheet>`,
@@ -173,6 +173,21 @@ describe("parseDelimitedDataset", () => {
       { month: "1月", revenue: 120000, businessDate: "2026-01-01" },
       { month: "2月", revenue: 98000, businessDate: "2026-02-01" },
     ]);
+  });
+
+  it("skips workbook titles and import notes before the tabular header", () => {
+    const imported = parseDelimitedDataset("渠道店铺数据.csv", [
+      "大盘任务进度看板 · 渠道与店铺明细数据",
+      "用于绑定渠道、店铺、日期和实际指标",
+      "",
+      "订单时间,渠道,店铺,GMV（欧元）,销售毛利（欧元）,库存周转天数",
+      "2026-08-01,Amazon,Amazon DE 小米店,100,20,90",
+      "2026-08-01,Amazon,Amazon ES 小米店,120,25,96",
+    ].join("\n"));
+
+    expect(imported.schema.fields.map((field) => field.label)).toEqual(["订单时间", "渠道", "店铺", "GMV（欧元）", "销售毛利（欧元）", "库存周转天数"]);
+    expect(imported.result.rows).toHaveLength(2);
+    expect(imported.result.rows[0]).toMatchObject({ orderTime: "2026-08-01", channel: "Amazon", store: "Amazon DE 小米店", gmv: 100 });
   });
 
   it("turns an Excel workbook into a local dataset using the first worksheet", async () => {
@@ -206,17 +221,17 @@ describe("parseDelimitedDataset", () => {
     ]);
   });
 
-  it("keeps metric dashboard business dates as date fields when Excel stores date serials", async () => {
+  it("keeps order-time fields as dates when Excel stores date serials", async () => {
     const imported = await parseExcelDataset("metric_dashboard_upload_ready.xlsx", metricDashboardWorkbook);
 
     expect(imported.schema.fields).toEqual([
-      { key: "businessDate", label: "businessDate", type: "date", nullable: false },
+      { key: "orderTime", label: "订单时间", type: "date", nullable: false },
       { key: "month", label: "month", type: "string", nullable: false },
       { key: "revenue", label: "revenue", type: "number", nullable: false },
     ]);
     expect(imported.result.rows).toEqual([
-      { businessDate: "2026-01-01", month: "2026-01", revenue: 120000 },
-      { businessDate: "2026-02-01", month: "2026-02", revenue: 98000 },
+      { orderTime: "2026-01-01", month: "2026-01", revenue: 120000 },
+      { orderTime: "2026-02-01", month: "2026-02", revenue: 98000 },
     ]);
   });
 

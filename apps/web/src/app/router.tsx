@@ -1,7 +1,6 @@
 import { ArrowLeftOutlined } from "@ant-design/icons";
-import { Button, Result } from "antd";
+import { Button, Result, Spin } from "antd";
 import { Navigate, Outlet, createBrowserRouter, type RouteObject, useLocation } from "react-router-dom";
-import { Spin } from "antd";
 import { useEffect, useSyncExternalStore } from "react";
 
 import { AuthRoute } from "../features/auth/AuthRoute.js";
@@ -20,6 +19,15 @@ const NotFound = () => (
   </main>
 );
 
+const RouteHydrationFallback = () => (
+  <main
+    aria-label="正在加载页面"
+    style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#f5f7fa" }}
+  >
+    <Spin />
+  </main>
+);
+
 const ProtectedRoute = () => {
   const location = useLocation();
   const status = useSyncExternalStore(subscribeAuthSession, readAuthStatus, readAuthStatus);
@@ -33,17 +41,18 @@ const ProtectedRoute = () => {
 };
 
 export const appRoutes: RouteObject[] = [
-  { path: "/auth", Component: AuthRoute },
+  { path: "/auth", Component: AuthRoute, HydrateFallback: RouteHydrationFallback },
   {
     Component: ProtectedRoute,
+    HydrateFallback: RouteHydrationFallback,
     children: [
       { path: "/", Component: DashboardHome },
       { path: "/editor/:id", lazy: () => import("../features/editor/EditorRoute.js") },
     ],
   },
-  { path: "/preview/:id", lazy: () => import("../features/preview/PreviewRoute.js") },
-  { path: "/view/:id", lazy: () => import("../features/view/ViewRoute.js") },
-  { path: "*", Component: NotFound },
+  { path: "/preview/:id", lazy: () => import("../features/preview/PreviewRoute.js"), HydrateFallback: RouteHydrationFallback },
+  { path: "/view/:id", lazy: () => import("../features/view/ViewRoute.js"), HydrateFallback: RouteHydrationFallback },
+  { path: "*", Component: NotFound, HydrateFallback: RouteHydrationFallback },
 ];
 
 export const router = createBrowserRouter(appRoutes, {

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { barDefinition, barLineDefinition, kpiDefinition, metricAlertDefinition } from "@drag-visual/component-registry";
+import { barDefinition, barLineDefinition, globalFilterSummaryDefinition, kpiDefinition, kpiInsightDefinition, metricAlertDefinition, productMovementRankingDefinition } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -50,6 +50,84 @@ describe("ComponentStylePanel", () => {
     fireEvent.blur(decimals);
 
     expect(store.getState().history.present.components[0]!.props).toMatchObject({ prefix: "¥", decimals: 2 });
+  });
+
+  it("allows an author to name a KPI independently from its data field", async () => {
+    const kpiDashboard = DashboardSchema.parse({
+      ...dashboard,
+      components: [{ id: "bar-1", type: "kpi", title: "指标卡", props: { aggregation: "first", prefix: "", suffix: "", decimals: 0 } }],
+    });
+    const store = createEditorStore(kpiDashboard);
+    const component = store.getState().history.present.components[0]!;
+    render(<AppProviders><ComponentStylePanel store={store} component={component} definition={kpiDefinition} /></AppProviders>);
+
+    const displayName = screen.getByRole("textbox", { name: "指标显示名称" });
+    await userEvent.type(displayName, "MTD销量");
+    fireEvent.blur(displayName);
+    const description = screen.getByRole("textbox", { name: "指标说明" });
+    await userEvent.type(description, "当月累计销量");
+    fireEvent.blur(description);
+
+    expect(store.getState().history.present.components[0]!.props).toMatchObject({ displayName: "MTD销量", description: "当月累计销量" });
+  });
+
+  it("allows an author to rename the shared KPI insight Top heading", async () => {
+    const insightDashboard = DashboardSchema.parse({
+      ...dashboard,
+      components: [{ id: "bar-1", type: "kpiInsight", title: "指标洞察", props: { aggregation: "sum", prefix: "", suffix: "", decimals: 0 } }],
+    });
+    const store = createEditorStore(insightDashboard);
+    const component = store.getState().history.present.components[0]!;
+    render(<AppProviders><ComponentStylePanel store={store} component={component} definition={kpiInsightDefinition} /></AppProviders>);
+
+    const topLabel = screen.getByRole("textbox", { name: "Top 标题" });
+    await userEvent.type(topLabel, "销量冠军");
+    fireEvent.blur(topLabel);
+
+    expect(store.getState().history.present.components[0]!.props).toMatchObject({ topLabel: "销量冠军" });
+  });
+
+  it("offers dashboard-header filters for a global filter summary card", async () => {
+    const summaryDashboard = DashboardSchema.parse({
+      ...dashboard,
+      layout: [{ i: "header-1", x: 0, y: 0, w: 12, h: 3 }, { i: "summary-1", x: 0, y: 3, w: 3, h: 3 }],
+      components: [
+        { id: "header-1", type: "dashboardHeader", title: "", props: { headline: "经营数据看板", description: "", updatedAt: "", date: "2026-08-26", dateRange: { start: "2026-08-01", end: "2026-08-26" }, dateFieldKey: null, globalFilters: [{ id: "store", fieldKey: "store", label: "当前门店", controlType: "select", operator: "equals", targets: [] }] } },
+        { id: "summary-1", type: "globalFilterSummary", title: "", props: { filterId: "", label: "当前门店", emptyValue: "全部店铺", description: "" } },
+      ],
+    });
+    const store = createEditorStore(summaryDashboard);
+    const component = store.getState().history.present.components[1]!;
+    render(<AppProviders><ComponentStylePanel store={store} component={component} definition={globalFilterSummaryDefinition} /></AppProviders>);
+
+    await userEvent.click(screen.getByRole("combobox", { name: "关联全局查询条件" }));
+    await userEvent.click(screen.getByText("当前门店", { selector: ".ant-select-item-option-content" }));
+
+    expect(store.getState().history.present.components[1]!.props).toMatchObject({ filterIds: ["store"] });
+  });
+
+  it("keeps configurable chart copy local until the author pauses or leaves the field", async () => {
+    const configurableDashboard = DashboardSchema.parse({
+      ...dashboard,
+      components: [{
+        id: "bar-1", type: "productMovementRanking", title: "", props: {
+          aggregation: "sum", maxItems: 6,
+          primarySeriesLabel: "", primaryReferenceSeriesLabel: "", secondarySeriesLabel: "", secondaryReferenceSeriesLabel: "",
+          primaryRowLabel: "金额", secondaryRowLabel: "数量", actualValueLabel: "销", referenceValueLabel: "库",
+          primaryPrefix: "¥", primarySuffix: "", secondaryPrefix: "", secondarySuffix: "件",
+          primaryNumberFormat: "compact", secondaryNumberFormat: "number",
+        },
+      }],
+    });
+    const store = createEditorStore(configurableDashboard);
+    const component = store.getState().history.present.components[0]!;
+    render(<AppProviders><ComponentStylePanel store={store} component={component} definition={productMovementRankingDefinition} /></AppProviders>);
+
+    const label = screen.getByRole("textbox", { name: "主指标图例名称" });
+    await userEvent.type(label, "成交额");
+    expect(store.getState().history.present.components[0]!.props.primarySeriesLabel).toBe("");
+    fireEvent.blur(label);
+    expect(store.getState().history.present.components[0]!.props.primarySeriesLabel).toBe("成交额");
   });
 
   it("configures metric-alert decimals and commits alert copy after the author pauses editing", async () => {

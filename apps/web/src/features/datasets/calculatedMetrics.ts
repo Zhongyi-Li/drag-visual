@@ -2,7 +2,7 @@ import type { CalculatedMetric, DataBinding, DatasetAggregationRequest, DatasetF
 
 type Row = DatasetQueryResult["rows"][number];
 
-const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasure", "target", "comparison", "secondaryMeasures", "tooltipMeasures"]);
+const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasure", "target", "comparison", "secondaryMeasures", "tooltipMeasures", "salesAmount", "inventoryAmount", "salesQuantity", "inventoryQuantity"]);
 
 const slotBindings = (binding: DataBinding): readonly { readonly fieldKey: string }[] => (
   Object.entries(binding.slots)

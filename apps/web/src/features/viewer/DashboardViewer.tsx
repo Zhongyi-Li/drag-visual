@@ -1,5 +1,5 @@
 import { createDefaultRegistry } from "@drag-visual/component-registry";
-import { AnalysisGroupDateFilterControl, type ChartJumpRule, type Dashboard, type Dataset, type DatasetField } from "@drag-visual/contracts";
+import { AnalysisGroupDateFilterControl, ComponentTitleStyle, type ChartJumpRule, type Dashboard, type Dataset, type DatasetField } from "@drag-visual/contracts";
 import { Alert, Card, Empty, Space, Spin, Typography } from "antd";
 import { useQueries } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -259,7 +259,8 @@ export const DashboardViewer = ({
               const drift = driftByComponent.get(component.id);
               const blocksRendering = drift?.messages.some((message) => !/^数据集 .+ 已从 .+ 更新到 .+$/.test(message)) ?? false;
               const componentTitle = component.title?.trim();
-              const hasComponentTitle = componentTitle !== undefined && componentTitle.length > 0;
+              const titleStyle = ComponentTitleStyle.parse(component.titleStyle ?? {});
+              const hasComponentTitle = titleStyle.visible && componentTitle !== undefined && componentTitle.length > 0;
               const isDashboardHeader = component.type === "dashboardHeader";
               const isAnalysisGroup = component.type === "analysisGroup";
               const topLeftHint = isDashboardHeader || isAnalysisGroup ? undefined : chartTopLeftHint(component);
@@ -270,7 +271,7 @@ export const DashboardViewer = ({
                   id={chartJumpTargetElementId(component.id)}
                   key={component.id}
                   title={hasComponentHeading ? <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                    {hasComponentTitle && <span style={{ color: "#262626", fontSize: 14, fontWeight: 600, lineHeight: 1.45 }}>{componentTitle}</span>}
+                    {hasComponentTitle && <span style={{ alignSelf: titleStyle.textAlign === "left" ? "flex-start" : titleStyle.textAlign === "center" ? "center" : "flex-end", color: titleStyle.color, fontSize: titleStyle.fontSize, fontStyle: titleStyle.fontStyle, fontWeight: titleStyle.fontWeight, lineHeight: 1.45, textAlign: titleStyle.textAlign }}>{componentTitle}</span>}
                     {hasTopLeftHint && <span style={{ overflow: "hidden", color: "#64748b", fontSize: 12, fontWeight: 500, lineHeight: 1.5, textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topLeftHint}>{topLeftHint}</span>}
                   </div> : undefined}
                   style={{

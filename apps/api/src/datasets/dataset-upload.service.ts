@@ -103,4 +103,9 @@ export class DatasetUploadService {
       result: metadata.result as DatasetQueryResultValue,
     });
   }
+
+  async delete(ownerId: string, datasetId: string): Promise<boolean> {
+    if (!datasetId.startsWith("uploaded-")) return false;
+    return this.repository.delete(datasetId, ownerId);
+  }
 }

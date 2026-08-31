@@ -44,6 +44,48 @@ describe("buildDatasetAggregation", () => {
     });
   });
 
+  it("keeps channel, store, and date fields when aggregating a task-progress board", () => {
+    const taskProgress = DashboardSchema.parse({
+      ...baseDashboard,
+      layout: [{ i: "task-progress-1", x: 0, y: 0, w: 12, h: 9 }],
+      components: [{
+        id: "task-progress-1",
+        type: "goalTaskProgress",
+        props: {
+          aggregation: "sum",
+          decimals: 1,
+          periodYear: 2026,
+          periodMonth: 8,
+          periodMode: "month",
+          maxEmployees: 12,
+          metricSettings: [],
+          channelSettings: [],
+          employeeSettings: [],
+        },
+        binding: {
+          datasetId: "sales",
+          slots: {
+            employeeDimension: { fieldKey: "channel" },
+            storeDimension: { fieldKey: "store" },
+            dateDimension: { fieldKey: "orderTime" },
+            measure: [
+              { fieldKey: "gmv", aggregation: "sum" },
+              { fieldKey: "turnoverDays", aggregation: "avg" },
+            ],
+          },
+        },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(taskProgress)).toEqual({
+      groupBy: ["channel", "store", "orderTime"],
+      measures: [
+        { fieldKey: "gmv", aggregation: "sum" },
+        { fieldKey: "turnoverDays", aggregation: "avg" },
+      ],
+    });
+  });
+
   it("keeps raw-value charts and unsupported first-value defaults on the existing path", () => {
     const line = DashboardSchema.parse({
       ...baseDashboard,
@@ -66,6 +108,35 @@ describe("buildDatasetAggregation", () => {
 
     expect(buildDatasetAggregation(line)).toBeUndefined();
     expect(buildDatasetAggregation(kpi)).toBeUndefined();
+  });
+
+  it("groups KPI insight metrics by its optional insight dimension", () => {
+    const insight = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1",
+        type: "kpiInsight",
+        props: { aggregation: "sum", prefix: "", suffix: "", decimals: 0, displayName: "", insightRows: [], metricSettings: [] },
+        binding: {
+          datasetId: "sales",
+          slots: {
+            dimension: { fieldKey: "productName" },
+            measure: [
+              { fieldKey: "salesAmount", aggregation: "sum" },
+              { fieldKey: "salesQuantity", aggregation: "count" },
+            ],
+          },
+        },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(insight)).toEqual({
+      groupBy: ["productName"],
+      measures: [
+        { fieldKey: "salesAmount", aggregation: "sum" },
+        { fieldKey: "salesQuantity", aggregation: "count" },
+      ],
+    });
   });
 
   it("aggregates table numeric columns by the remaining columns when configured", () => {
@@ -176,6 +247,27 @@ describe("buildDatasetAggregation", () => {
         { fieldKey: "price", aggregation: "avg" },
         { fieldKey: "saleCostPrice", aggregation: "sum" },
         { fieldKey: "costPrice", aggregation: "max" },
+      ],
+    });
+  });
+
+  it("aggregates all four movement metrics by product", () => {
+    const chart = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1", type: "productMovementRanking", props: { aggregation: "sum", maxItems: 6 },
+        binding: { datasetId: "sales", slots: {
+          dimension: { fieldKey: "product" }, salesAmount: { fieldKey: "salesAmount", aggregation: "sum" }, inventoryAmount: { fieldKey: "inventoryAmount", aggregation: "max" },
+          salesQuantity: { fieldKey: "salesQuantity", aggregation: "sum" }, inventoryQuantity: { fieldKey: "inventoryQuantity", aggregation: "max" },
+        } },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(chart)).toEqual({
+      groupBy: ["product"],
+      measures: [
+        { fieldKey: "salesAmount", aggregation: "sum" }, { fieldKey: "inventoryAmount", aggregation: "max" },
+        { fieldKey: "salesQuantity", aggregation: "sum" }, { fieldKey: "inventoryQuantity", aggregation: "max" },
       ],
     });
   });

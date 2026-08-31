@@ -1,10 +1,10 @@
 import { DashboardGlobalFilterConfig, type ChartJumpRule, type ComponentInstance, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetField } from "@drag-visual/contracts";
-import { RightOutlined } from "@ant-design/icons";
-import { Button, DatePicker, Input, InputNumber, Modal, Segmented, Select, Slider } from "antd";
+import { BarChartOutlined, InfoCircleOutlined, RightOutlined } from "@ant-design/icons";
+import { Avatar, Button, Checkbox, DatePicker, Input, InputNumber, Modal, Progress, Segmented, Select, Tag } from "antd";
 import zhCN from "antd/es/date-picker/locale/zh_CN.js";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/zh-cn.js";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { EChart, type EChartPointClick } from "./EChart.js";
 import {
@@ -28,6 +28,7 @@ import {
   buildMetricTrendModel,
   buildMetricTrendOption,
   buildMetricBreakdownModel,
+  buildProductMovementRankingModel,
   buildMultidimensionalModel,
   buildPieOption,
   buildRadarOption,
@@ -60,6 +61,8 @@ interface Props {
   readonly activeTreemapMeasure?: string | undefined;
   readonly onTreemapMeasureChange?: ((measure: string) => void) | undefined;
   readonly dashboardFilterValues?: Readonly<Record<string, unknown>> | undefined;
+  /** Configurations supply readable labels for non-header filter summaries. */
+  readonly dashboardFilters?: readonly Pick<DashboardGlobalFilterConfigValue, "id" | "label">[] | undefined;
   readonly dashboardFilterOptions?: Readonly<Record<string, readonly string[]>> | undefined;
   readonly onDashboardFilterChange?: ((filterId: string, value: unknown) => void) | undefined;
   /** Whether the global filter batch that this header initiated is running. */
@@ -784,6 +787,104 @@ const kpiValueStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
+const kpiLabelStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 13,
+  fontWeight: 600,
+  lineHeight: 1.35,
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const kpiDescriptionStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 13,
+  lineHeight: 1.4,
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const globalFilterSummaryValueStyle: CSSProperties = {
+  color: "#0f172a",
+  fontSize: 22,
+  fontWeight: 700,
+  lineHeight: 1.25,
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const globalFilterSummaryDescriptionStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 12,
+  lineHeight: 1.4,
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const globalFilterSummaryListStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 7,
+  maxWidth: "100%",
+  minHeight: 0,
+  overflow: "auto",
+  width: "100%",
+};
+
+const globalFilterSummaryRowStyle: CSSProperties = {
+  alignItems: "center",
+  display: "flex",
+  gap: 10,
+  justifyContent: "space-between",
+  minWidth: 0,
+};
+
+const globalFilterSummaryRowLabelStyle: CSSProperties = {
+  color: "#64748b",
+  flex: "0 1 auto",
+  fontSize: 13,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const globalFilterSummaryRowValueStyle: CSSProperties = {
+  color: "#0f172a",
+  flex: "0 1 auto",
+  fontSize: 14,
+  fontWeight: 650,
+  overflow: "hidden",
+  textAlign: "right",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const globalFilterSummaryValue = (value: unknown): string | undefined => {
+  if (typeof value === "string") return value.trim() || undefined;
+  if (typeof value === "number") return String(value);
+  if (Array.isArray(value)) {
+    const items = value
+      .filter((item): item is string | number => typeof item === "string" || typeof item === "number")
+      .map((item) => String(item).trim())
+      .filter(Boolean);
+    return items.length > 0 ? items.join("、") : undefined;
+  }
+  if (typeof value !== "object" || value === null) return undefined;
+  const record = value as Readonly<Record<string, unknown>>;
+  const start = typeof record.start === "string" ? record.start.trim() : "";
+  const end = typeof record.end === "string" ? record.end.trim() : "";
+  if (start && end) return start === end ? start : `${start} 至 ${end}`;
+  return start || end || undefined;
+};
+
 const kpiMetaStackStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
@@ -884,6 +985,27 @@ const insightTitleStyle: CSSProperties = {
 
 const insightValueStyle: CSSProperties = { ...kpiValueStyle, fontSize: 36, fontWeight: 750, lineHeight: 1.18 };
 
+const insightTopDimensionStyle: CSSProperties = {
+  color: "#0f172a",
+  fontSize: 22,
+  fontWeight: 750,
+  lineHeight: 1.25,
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
+const insightTopMetricStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: 13,
+  lineHeight: 1.4,
+  maxWidth: "100%",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
 const insightGridStyle: CSSProperties = {
   display: "grid",
   gap: 12,
@@ -894,6 +1016,38 @@ const insightGridStyle: CSSProperties = {
   width: "100%",
 };
 
+const insightTopSurfaceStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 8,
+  height: "100%",
+  minHeight: 0,
+  overflow: "auto",
+  width: "100%",
+};
+
+const insightTopHeadingStyle: CSSProperties = {
+  ...insightTitleStyle,
+  flex: "0 0 auto",
+  padding: "16px 18px 0",
+};
+
+const insightTopMetricGridStyle: CSSProperties = {
+  display: "flex",
+  flex: "1 1 auto",
+  flexDirection: "row",
+  gap: 8,
+  minHeight: 0,
+  overflow: "auto",
+  width: "100%",
+};
+
+const insightTopMetricCardStyle: CSSProperties = {
+  ...insightShellStyle,
+  flex: "0 1 auto",
+  minWidth: 0,
+};
+
 const kpiInsightAggregation = (component: ComponentInstance, measureKey: string): string => {
   const measure = component.binding?.slots.measure;
   const measures = measure === undefined ? [] : Array.isArray(measure) ? measure : [measure];
@@ -901,6 +1055,53 @@ const kpiInsightAggregation = (component: ComponentInstance, measureKey: string)
   if (configured === "sum" || configured === "avg" || configured === "count" || configured === "max" || configured === "min") return configured;
   const legacy = component.props.aggregation;
   return legacy === "sum" || legacy === "avg" || legacy === "count" || legacy === "max" || legacy === "min" ? legacy : "sum";
+};
+
+type KpiInsightTopDimension = Readonly<{
+  dimension: string;
+  row: Row;
+  value: number;
+}>;
+
+/**
+ * Finds the leading dimension member after each metric has been aggregated.
+ * Uploaded data is intentionally kept raw by the local data provider, while
+ * remote datasets may already have been grouped by the query service.
+ */
+const kpiInsightTopDimension = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  dimensionKey: string,
+  measureKey: string,
+  aggregation: string,
+  rowsAreAggregated: boolean,
+): KpiInsightTopDimension | undefined => {
+  const candidates: readonly KpiInsightTopDimension[] = rowsAreAggregated
+    ? rows.flatMap((row) => {
+      const value = row[measureKey];
+      return typeof value === "number" && Number.isFinite(value)
+        ? [{ dimension: String(row[dimensionKey] ?? "未填写"), row, value }]
+        : [];
+    })
+    : (() => {
+      const groups = new Map<string, { dimension: string; rows: Row[] }>();
+      rows.forEach((row) => {
+        const dimension = String(row[dimensionKey] ?? "未填写");
+        const group = groups.get(dimension);
+        if (group === undefined) groups.set(dimension, { dimension, rows: [row] });
+        else group.rows.push(row);
+      });
+      return [...groups.values()].flatMap((group) => {
+        const value = buildKpiModelForFields(component, group.rows, measureKey, undefined, undefined, aggregation).value;
+        return value !== null && Number.isFinite(value)
+          ? [{ dimension: group.dimension, row: group.rows[0]!, value }]
+          : [];
+      });
+    })();
+
+  return candidates.reduce<KpiInsightTopDimension | undefined>((top, candidate) =>
+    top === undefined || candidate.value > top.value ? candidate : top,
+  undefined);
 };
 
 const flipNumberShellStyle: CSSProperties = {
@@ -1099,11 +1300,78 @@ const goalTaskProgressShellStyle: CSSProperties = {
 
 const goalTaskProgressTableStyle: CSSProperties = {
   alignContent: "start",
-  border: "1px solid #e5ebf3",
-  borderRadius: 6,
+  background: "transparent",
+  border: 0,
+  borderRadius: 14,
+  boxShadow: "none",
   display: "grid",
+  // Keep the full set of task columns reachable in compact editor canvases.
+  // The surrounding surface provides horizontal scrolling until the dashboard
+  // has enough room to present the wide-board layout.
+  minWidth: 920,
+  overflowX: "auto",
+  overflowY: "hidden",
+};
+
+const goalTaskHeaderStyle: CSSProperties = {
+  alignItems: "center",
+  background: "#ffffff",
+  borderBottom: "1px solid #e8eef6",
+  color: "#476486",
+  display: "grid",
+  fontSize: 12,
+  fontWeight: 700,
+  gap: 20,
+  minWidth: 920,
+  padding: "13px 18px",
+};
+
+const goalTaskRowStyle: CSSProperties = {
+  alignItems: "stretch",
+  background: "transparent",
+  border: 0,
+  borderBottom: "1px solid #e8eef6",
+  color: "#102a4c",
+  cursor: "pointer",
+  display: "grid",
+  fontFamily: "inherit",
+  gap: 20,
+  minWidth: 920,
+  padding: "14px 18px",
+  textAlign: "left",
+  transition: "background .18s ease",
+  width: "100%",
+};
+
+const goalTaskIdentityStyle: CSSProperties = {
+  alignItems: "center",
+  display: "flex",
+  gap: 13,
   minWidth: 0,
+};
+
+const goalTaskMetricStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: 7,
+  justifyContent: "center",
+  minWidth: 0,
+};
+
+const goalTaskMetricValueStyle: CSSProperties = {
+  alignItems: "baseline",
+  display: "flex",
+  gap: 8,
+  justifyContent: "space-between",
+  minWidth: 0,
+};
+
+const goalTaskMetricHintStyle: CSSProperties = {
+  color: "#7690b2",
+  fontSize: 12,
   overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
 };
 
 const GoalTaskProgressSurface = ({ component, rows, fields, onComponentPropsChange }: { readonly component: ComponentInstance; readonly rows: readonly Row[]; readonly fields: readonly DatasetField[]; readonly onComponentPropsChange?: ((props: ComponentInstance["props"]) => void) | undefined }) => {
@@ -1113,41 +1381,94 @@ const GoalTaskProgressSurface = ({ component, rows, fields, onComponentPropsChan
   const [month, setMonth] = useState(initialMonth);
   const [periodMode, setPeriodMode] = useState<"month" | "year">(component.props.periodMode === "year" ? "year" : "month");
   const dateKey = bindingFieldKeys(component, "dateDimension")[0]
-    ?? fields.find((field) => field.type === "date" || /日期|月份|month|date/.test(`${field.key} ${field.label}`.toLowerCase()))?.key;
+    ?? fields.find((field) => field.type === "date" || /日期|时间|月份|time|month|date/.test(`${field.key} ${field.label}`.toLowerCase()))?.key;
   const selectedRows = dateKey === undefined ? rows : rows.filter((row) => {
     const value = row[dateKey];
-    const parsed = value instanceof Date ? dayjs(value) : typeof value === "string" || typeof value === "number" ? dayjs(value) : null;
+    // Excel stores dates as day serials. Existing uploads made before date
+    // inference covered “时间” labels may still contain those numeric values.
+    const parsed = value instanceof Date
+      ? dayjs(value)
+      : typeof value === "number" && Number.isFinite(value) && value >= 1 && value <= 80_000
+        ? dayjs(Date.UTC(1899, 11, 30) + value * 86_400_000)
+        : typeof value === "string" || typeof value === "number" ? dayjs(value) : null;
     return parsed !== null && parsed.isValid() && parsed.year() === year && (periodMode === "year" || parsed.month() + 1 === month);
   });
   const model = buildGoalTaskProgressModel({ ...component, props: { ...component.props, periodYear: year, periodMonth: month, periodMode } }, selectedRows, fields);
   const decimals = Math.max(0, Math.min(4, Math.trunc(numberProp(component, "decimals", 1))));
   const maximumEmployees = Math.max(3, Math.min(50, Math.trunc(numberProp(component, "maxEmployees", 12))));
   const [activeEmployee, setActiveEmployee] = useState<string | null>(null);
-  const [targetConfigOpen, setTargetConfigOpen] = useState(false);
-  const [weightConfigOpen, setWeightConfigOpen] = useState(false);
-  const [targetDrafts, setTargetDrafts] = useState<Record<string, { monthly: number | null; annual: number | null }>>({});
-  const [weightDrafts, setWeightDrafts] = useState<Record<string, number>>({});
-  const selectedEmployee = model.employees.find((employee) => employee.key === activeEmployee) ?? model.employees[0];
-  const saveSettings = (changes: Record<string, { monthlyTargetValue?: number | null; annualTargetValue?: number | null; weight?: number }>) => {
-    if (onComponentPropsChange === undefined || selectedEmployee === undefined) return;
-    const existingSettings = Array.isArray(component.props.employeeSettings) ? component.props.employeeSettings : [];
-    const currentEmployeeSettings = existingSettings.find((setting) => setting !== null && typeof setting === "object" && (setting as { employeeKey?: unknown }).employeeKey === selectedEmployee.key) as { readonly metrics?: unknown } | undefined;
-    const existingMetrics = new Map(Array.isArray(currentEmployeeSettings?.metrics)
-      ? currentEmployeeSettings.metrics.flatMap((metric) => metric !== null && typeof metric === "object" && typeof (metric as { measureKey?: unknown }).measureKey === "string"
-        ? [[(metric as { measureKey: string }).measureKey, metric as Record<string, unknown>] as const] : [])
-      : []);
-    const otherEmployees = existingSettings.filter((setting) => setting !== null && typeof setting === "object" && (setting as { employeeKey?: unknown }).employeeKey !== selectedEmployee.key);
-    onComponentPropsChange({ ...component.props, employeeSettings: [...otherEmployees, { employeeKey: selectedEmployee.key, metrics: selectedEmployee.metrics.map((metric) => {
-      const change = changes[metric.measureKey];
-      const previous = existingMetrics.get(metric.measureKey);
-      return {
+  const [channelConfigOpen, setChannelConfigOpen] = useState(false);
+  const [configuredChannel, setConfiguredChannel] = useState<string | null>(null);
+  const [storeSearch, setStoreSearch] = useState("");
+  const [selectedStores, setSelectedStores] = useState<string[]>([]);
+  const [storeSelectionMode, setStoreSelectionMode] = useState<"all" | "selected">("all");
+  const [targetPeriodMode, setTargetPeriodMode] = useState<"month" | "year">(periodMode);
+  const [channelTargets, setChannelTargets] = useState<Record<string, { readonly monthlyTargetValue: number | null; readonly annualTargetValue: number | null }>>({});
+  const detectedChannelKey = fields.find((field) => field.type === "string" && /渠道|channel|平台|platform/.test(`${field.key} ${field.label}`.toLowerCase()))?.key;
+  const configuredChannelKey = bindingFieldKeys(component, "employeeDimension")[0] ?? detectedChannelKey;
+  const storeKey = bindingFieldKeys(component, "storeDimension")[0]
+    ?? fields.find((field) => field.type === "string" && /店铺|store/.test(`${field.key} ${field.label}`.toLowerCase()))?.key;
+  const channelSettings = Array.isArray(component.props.channelSettings) ? component.props.channelSettings : [];
+  const configureChannel = (channel: string) => {
+    const saved = channelSettings.find((setting) => setting !== null && typeof setting === "object" && (setting as { channel?: unknown }).channel === channel) as Record<string, unknown> | undefined;
+    const savedMetricTargets = new Map((Array.isArray(saved?.metricTargets) ? saved.metricTargets : []).flatMap((value) => {
+      if (value === null || typeof value !== "object") return [];
+      const target = value as Record<string, unknown>;
+      if (typeof target.measureKey !== "string") return [];
+      return [[target.measureKey, target] as const];
+    }));
+    const legacyTargetFor = (metric: typeof model.metrics[number], scope: "month" | "year"): number | null => {
+      const scoped = scope === "month" ? "monthly" : "annual";
+      const legacy = metric.kind === "gmv"
+        ? `${scoped}GmvTarget`
+        : metric.kind === "turnover"
+          ? `${scoped}TurnoverTargetDays`
+          : /毛利|grossprofit/.test(metric.measureKey.toLowerCase()) || /毛利|grossprofit/.test(metric.label.toLowerCase())
+            ? `${scoped}GrossProfitTarget`
+            : undefined;
+      if (legacy !== undefined && typeof saved?.[legacy] === "number") return saved[legacy] as number;
+      return null;
+    };
+    setConfiguredChannel(channel);
+    setStoreSearch("");
+    setSelectedStores(Array.isArray(saved?.storeKeys) ? saved.storeKeys.filter((value): value is string => typeof value === "string") : []);
+    setStoreSelectionMode(saved?.storeSelectionMode === "selected" ? "selected" : "all");
+    setChannelTargets(Object.fromEntries(model.metrics.map((metric) => {
+      const target = savedMetricTargets.get(metric.measureKey);
+      return [metric.measureKey, {
+        monthlyTargetValue: typeof target?.monthlyTargetValue === "number" ? target.monthlyTargetValue : legacyTargetFor(metric, "month"),
+        annualTargetValue: typeof target?.annualTargetValue === "number" ? target.annualTargetValue : legacyTargetFor(metric, "year"),
+      }];
+    })));
+  };
+  const openChannelConfig = () => {
+    configureChannel(activeEmployee ?? model.employees[0]?.key ?? "");
+    setTargetPeriodMode(periodMode);
+    setChannelConfigOpen(true);
+  };
+  const channelOptions = configuredChannelKey === undefined
+    ? []
+    : [...new Set(rows.map((row) => String(row[configuredChannelKey] ?? "")).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN"));
+  const storesForConfiguredChannel = configuredChannel === null || configuredChannelKey === undefined || storeKey === undefined
+    ? []
+    : [...new Set(rows.filter((row) => String(row[configuredChannelKey] ?? "") === configuredChannel).map((row) => String(row[storeKey] ?? "")).filter(Boolean))].sort((left, right) => left.localeCompare(right, "zh-CN"));
+  const visibleStores = storesForConfiguredChannel.filter((store) => storeSearch.trim().length === 0 || store.toLowerCase().includes(storeSearch.trim().toLowerCase()));
+  const saveChannelConfig = () => {
+    if (configuredChannel === null || configuredChannel.length === 0 || onComponentPropsChange === undefined) return;
+    const otherSettings = channelSettings.filter((setting) => setting === null || typeof setting !== "object" || (setting as { channel?: unknown }).channel !== configuredChannel);
+    const existingSetting = channelSettings.find((setting) => setting !== null && typeof setting === "object" && (setting as { channel?: unknown }).channel === configuredChannel) as Record<string, unknown> | undefined;
+    onComponentPropsChange({ ...component.props, channelSettings: [...otherSettings, {
+      ...existingSetting,
+      channel: configuredChannel,
+      storeKeys: selectedStores,
+      storeSelectionMode,
+      metricTargets: model.metrics.map((metric) => ({
         measureKey: metric.measureKey,
-        targetValue: typeof previous?.targetValue === "number" ? previous.targetValue : metric.target,
-        monthlyTargetValue: change?.monthlyTargetValue ?? (typeof previous?.monthlyTargetValue === "number" ? previous.monthlyTargetValue : metric.target),
-        annualTargetValue: change?.annualTargetValue ?? (typeof previous?.annualTargetValue === "number" ? previous.annualTargetValue : null),
-        weight: change?.weight ?? (typeof previous?.weight === "number" ? previous.weight : metric.weight),
-      };
-    }) }] });
+        monthlyTargetValue: channelTargets[metric.measureKey]?.monthlyTargetValue ?? null,
+        annualTargetValue: channelTargets[metric.measureKey]?.annualTargetValue ?? null,
+      })),
+    }] });
+    setChannelConfigOpen(false);
   };
 
   const formatMetric = (metric: typeof model.metrics[number], value: number | null, isTarget = false) => {
@@ -1163,54 +1484,67 @@ const GoalTaskProgressSurface = ({ component, rows, fields, onComponentPropsChan
     setPeriodMode(nextMode);
     onComponentPropsChange?.({ ...component.props, periodYear: year, periodMonth: month, periodMode: nextMode });
   };
-  const selectEmployeeForConfig = (employeeKey: string) => {
-    setActiveEmployee(employeeKey);
-    const employee = model.employees.find((candidate) => candidate.key === employeeKey);
-    const savedMetrics = new Map(
-      (Array.isArray(component.props.employeeSettings) ? component.props.employeeSettings : []).flatMap((setting) => {
-        if (setting === null || typeof setting !== "object" || (setting as { employeeKey?: unknown }).employeeKey !== employeeKey) return [];
-        const metrics = (setting as { metrics?: unknown }).metrics;
-        return Array.isArray(metrics)
-          ? metrics.flatMap((metric) => metric !== null && typeof metric === "object" && typeof (metric as { measureKey?: unknown }).measureKey === "string"
-            ? [[(metric as { measureKey: string }).measureKey, metric as Record<string, unknown>] as const] : [])
-          : [];
-      }),
-    );
-    setTargetDrafts(Object.fromEntries((employee?.metrics ?? []).map((metric) => [metric.measureKey, {
-      monthly: typeof savedMetrics.get(metric.measureKey)?.monthlyTargetValue === "number" ? savedMetrics.get(metric.measureKey)?.monthlyTargetValue as number : metric.target,
-      annual: typeof savedMetrics.get(metric.measureKey)?.annualTargetValue === "number"
-        ? savedMetrics.get(metric.measureKey)?.annualTargetValue as number
-        : metric.kind === "gmv" || metric.kind === "sales" ? (metric.target === null ? null : metric.target * 12) : null,
-    }])));
-    setWeightDrafts(Object.fromEntries((employee?.metrics ?? []).map((metric) => [metric.measureKey, metric.weight])));
+  const tableColumns = `64px minmax(164px, .86fr) repeat(${Math.max(1, model.metrics.length)}, minmax(164px, 1fr)) 112px`;
+  const statusFor = (score: number | null) => score === null || score < .55
+    ? { background: "#fff4e8", color: "#d95700", label: "优先改善" }
+    : score < .7
+      ? { background: "#eef5ff", color: "#2563eb", label: "关注推进" }
+      : { background: "#ecfdf3", color: "#059669", label: "表现良好" };
+  const progressPercent = (progress: number | null | undefined): number => progress === null || progress === undefined
+    ? 0
+    : Math.round(Math.min(1, Math.max(0, progress)) * 1000) / 10;
+  const MetricLane = ({ metric, color, fallbackLabel }: { readonly metric: typeof model.employees[number]["metrics"][number] | undefined; readonly color: string; readonly fallbackLabel: string }) => {
+    const percentage = progressPercent(metric?.progress);
+    const label = metric?.label ?? fallbackLabel;
+    const value = metric === undefined ? "—" : formatMetric(metric, metric.value);
+    const target = metric === undefined ? "—" : formatMetric(metric, metric.target, true);
+    return <div style={goalTaskMetricStyle}>
+      <div style={goalTaskMetricValueStyle}><span style={{ color: "#17365e", fontSize: 13, fontVariantNumeric: "tabular-nums", fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value} <span style={{ color: "#94a9c4", fontWeight: 500 }}>/ {target}</span></span><strong style={{ color, fontSize: 16, fontVariantNumeric: "tabular-nums" }}>{metric === undefined || metric.progress === null ? "—" : `${percentage}%`}</strong></div>
+      <Progress percent={percentage} railColor="#e8f0fb" showInfo={false} size="small" strokeColor={color} />
+      <span style={goalTaskMetricHintStyle}>{metric === undefined || metric.progress === null ? `${label}暂未配置目标` : `距目标 ${Math.max(0, 100 - percentage).toFixed(1)}%`}</span>
+    </div>;
   };
-  const weightTotal = (selectedEmployee?.metrics ?? []).reduce((total, metric) => total + (weightDrafts[metric.measureKey] ?? metric.weight), 0);
-  const metricByKind = (employee: typeof model.employees[number], kind: "gmv" | "sales" | "turnover") => employee.metrics.find((metric) => metric.kind === kind);
-  const metricLabel = (metric: typeof model.metrics[number]) => metric.kind === "gmv" ? "GMV" : metric.kind === "sales" ? "销量" : metric.kind === "turnover" ? "周转天数" : metric.label;
-  const targetDraftFor = (metric: typeof model.metrics[number]) => targetDrafts[metric.measureKey] ?? { monthly: metric.target, annual: null };
-  const updateTargetDraft = (metric: typeof model.metrics[number], changes: Partial<{ monthly: number | null; annual: number | null }>) => {
-    setTargetDrafts((current) => ({ ...current, [metric.measureKey]: { ...targetDraftFor(metric), ...current[metric.measureKey], ...changes } }));
-  };
-  const tableColumns = "minmax(88px, .8fr) 56px minmax(152px, 1.2fr) minmax(132px, 1fr) minmax(108px, .8fr) minmax(96px, .72fr) minmax(96px, .72fr) minmax(92px, .72fr)";
-  return <section aria-label={`${component.title ?? "目标任务进度"}图表`} data-testid="goal-task-progress-surface" style={{ ...goalTaskProgressShellStyle, gap: 12, padding: "14px 16px 16px" }}>
-    <div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 10, justifyContent: "space-between" }}><div style={{ display: "grid", gap: 2 }}><strong style={{ color: "#172033", fontSize: 15 }}>{periodMode === "year" ? "年度目标进度" : "月度目标进度"}</strong><span style={{ color: "#718096", fontSize: 12 }}>按员工查看 GMV、销量、毛利、完成率与评分</span></div><div style={{ alignItems: "center", display: "flex", flexWrap: "wrap", gap: 8 }}><Segmented aria-label="统计周期" size="small" value={periodMode} options={[{ label: "月度", value: "month" }, { label: "年度", value: "year" }]} onChange={(value) => changePeriodMode(value as "month" | "year")} /><Select aria-label="选择年份" size="small" value={year} style={{ width: 92 }} options={Array.from({ length: 7 }, (_, index) => ({ value: 2024 + index, label: `${2024 + index}年` }))} onChange={(value: number) => changePeriod(value, month)} />{periodMode === "month" && <Select aria-label="选择月份" size="small" value={month} style={{ width: 76 }} options={Array.from({ length: 12 }, (_, index) => ({ value: index + 1, label: `${index + 1}月` }))} onChange={(value: number) => changePeriod(year, value)} />}<Button size="small" onClick={() => { selectEmployeeForConfig(activeEmployee ?? model.employees[0]?.key ?? ""); setTargetConfigOpen(true); }}>自定义目标</Button><Button size="small" type="primary" onClick={() => { selectEmployeeForConfig(activeEmployee ?? model.employees[0]?.key ?? ""); setWeightConfigOpen(true); }}>评分权重设置</Button></div></div>
-    {dateKey === undefined && <span style={{ color: "#8a98aa", fontSize: 12 }}>未找到日期字段，年/月选择将仅用于目标配置；可在数据绑定中指定日期字段。</span>}
-    <div style={{ ...goalTaskProgressTableStyle, flex: "1 1 auto", borderRadius: 8 }}>
-      {model.employees.length === 0 ? <div style={{ color: "#94a3b8", fontSize: 12, padding: 18 }}>绑定员工维度后可查看运营人员的目标任务进度。</div> : <>
-        <div aria-hidden="true" style={{ background: "#f7f9fc", color: "#64748b", display: "grid", fontSize: 12, fontWeight: 650, gap: 14, gridTemplateColumns: tableColumns, minWidth: 900, padding: "10px 14px" }}><span>{model.employeeLabel}</span><span>评分</span><span>GMV（实际 / 目标）</span><span>销量（实际 / 目标）</span><span>{model.grossProfitLabel}</span><span>GMV完成率</span><span>销量完成率</span><span>周转天数</span></div>
+  const MetricHeader = ({ color, icon, label }: { readonly color: string; readonly icon: ReactNode; readonly label: string }) => <span style={{ alignItems: "center", display: "inline-flex", gap: 7 }}><span style={{ alignItems: "center", background: color, borderRadius: "50%", color: "#ffffff", display: "inline-flex", height: 24, justifyContent: "center", width: 24 }}>{icon}</span><span>{label}</span><InfoCircleOutlined aria-hidden="true" style={{ color: "#9cb6dc", fontSize: 13 }} /></span>;
+  return <section aria-label={`${component.title ?? "大盘任务进度看板"}图表`} data-testid="goal-task-progress-surface" style={{ ...goalTaskProgressShellStyle, background: "#ffffff", gap: 14, padding: "18px 20px 20px" }}>
+    <div style={{ alignItems: "center", alignSelf: "flex-end", display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end" }}><Segmented aria-label="统计周期" size="middle" value={periodMode} options={[{ label: "月度", value: "month" }, { label: "年度", value: "year" }]} onChange={(value) => changePeriodMode(value as "month" | "year")} /><Select aria-label="选择年份" size="middle" value={year} style={{ width: 94 }} options={Array.from({ length: 7 }, (_, index) => ({ value: 2024 + index, label: `${2024 + index}年` }))} onChange={(value: number) => changePeriod(value, month)} />{periodMode === "month" && <Select aria-label="选择月份" size="middle" value={month} style={{ width: 78 }} options={Array.from({ length: 12 }, (_, index) => ({ value: index + 1, label: `${index + 1}月` }))} onChange={(value: number) => changePeriod(year, value)} />}<Button size="middle" type="primary" onClick={openChannelConfig}>配置渠道</Button></div>
+    {dateKey === undefined && <span style={{ color: "#8a98aa", fontSize: 12 }}>未找到日期字段，年/月选择无法筛选数据；可在数据绑定中指定日期字段。</span>}
+    <div style={{ ...goalTaskProgressTableStyle, flex: "1 1 auto" }}>
+      {model.metrics.length === 0 ? <div style={{ color: "#64748b", fontSize: 13, padding: 18 }}>请先在右侧「字段 → 实际指标」选择一个或多个指标，再为各渠道配置目标。</div> : model.employees.length === 0 ? <div style={{ color: "#94a3b8", fontSize: 12, padding: 18 }}>绑定渠道维度后可查看渠道与店铺的目标任务进度。</div> : <>
+        <div aria-hidden="true" style={{ ...goalTaskHeaderStyle, gridTemplateColumns: tableColumns }}><span>排名</span><span>渠道</span>{model.metrics.map((metric) => <MetricHeader color={metric.color} icon={<BarChartOutlined />} key={metric.measureKey} label={metric.label} />)}<span>综合完成</span></div>
         {model.employees.slice(0, maximumEmployees).map((employee) => {
-          const gmv = metricByKind(employee, "gmv");
-          const sales = metricByKind(employee, "sales");
-          const turnover = metricByKind(employee, "turnover");
-          const score = employee.score === null ? null : employee.score * 100;
-          const rate = (metric: typeof gmv) => metric?.progress === null || metric === undefined ? "—" : `${(metric.progress * 100).toFixed(decimals)}%`;
-          return <button key={employee.key} type="button" aria-pressed={activeEmployee === employee.key} onClick={() => setActiveEmployee((current) => current === employee.key ? null : employee.key)} style={{ alignItems: "center", background: activeEmployee === employee.key ? "#f0f5ff" : "#fff", border: 0, borderTop: "1px solid #edf2f7", color: "#172033", cursor: "pointer", display: "grid", fontFamily: "inherit", gap: 14, gridTemplateColumns: tableColumns, minWidth: 900, padding: "13px 14px", textAlign: "left", width: "100%" }}><strong style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{employee.label}</strong><span style={{ color: score !== null && score < 70 ? "#e34d59" : "#2f6bee", fontSize: 18, fontVariantNumeric: "tabular-nums", fontWeight: 750 }}>{score === null ? "—" : score.toFixed(0)}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{gmv === undefined ? "—" : <>{formatMetric(gmv, gmv.value)} <span style={{ color: "#94a3b8" }}>/ {formatMetric(gmv, gmv.target, true)}</span></>}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{sales === undefined ? "—" : <>{formatMetric(sales, sales.value)} <span style={{ color: "#94a3b8" }}>/ {formatMetric(sales, sales.target, true)}</span></>}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{formatCurrencyMetricNumber(employee.grossProfit, model.grossProfitIsCurrency, false)}</span><strong style={{ color: gmv?.progress !== null && gmv?.progress !== undefined && gmv.progress < .7 ? "#e65f00" : "#2f6bee" }}>{rate(gmv)}</strong><strong style={{ color: sales?.progress !== null && sales?.progress !== undefined && sales.progress < .7 ? "#e65f00" : "#2f6bee" }}>{rate(sales)}</strong><span style={{ fontVariantNumeric: "tabular-nums" }}>{turnover === undefined ? "—" : formatMetric(turnover, turnover.value)}</span></button>;
+          const overall = progressPercent(employee.score);
+          const status = statusFor(employee.score);
+          return <button key={employee.key} type="button" aria-pressed={activeEmployee === employee.key} onClick={() => setActiveEmployee((current) => current === employee.key ? null : employee.key)} style={{ ...goalTaskRowStyle, background: activeEmployee === employee.key ? "#f6f9ff" : "transparent", gridTemplateColumns: tableColumns }}>
+            <Avatar size={46} style={{ background: employee === model.employees[0] ? "#e9f1ff" : "#f3f7fd", color: "#2563eb", fontSize: 21, fontWeight: 750 }}>{model.employees.indexOf(employee) + 1}</Avatar>
+            <div style={goalTaskIdentityStyle}><div style={{ display: "grid", gap: 7, minWidth: 0 }}><strong style={{ color: "#102a4c", fontSize: 16, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{employee.label}</strong><Tag variant="filled" style={{ background: status.background, borderRadius: 999, color: status.color, fontSize: 12, margin: 0, padding: "2px 9px", width: "fit-content" }}>{status.label}</Tag></div></div>
+            {model.metrics.map((metric, index) => <MetricLane color={metric.color} fallbackLabel={metric.label} key={metric.measureKey} metric={employee.metrics[index]} />)}
+            <div style={{ alignItems: "center", display: "flex", justifyContent: "center" }}><Progress format={(percent) => <span style={{ color: "#1d4ed8", fontSize: 17, fontWeight: 750 }}>{percent === undefined ? "—" : `${percent.toFixed(0)}%`}</span>} percent={overall} railColor="#dbeafe" size={82} strokeColor="#2563eb" type="circle" /></div>
+          </button>;
         })}
-        <div style={{ alignItems: "center", borderTop: "1px solid #e7edf5", color: "#64748b", display: "flex", flexWrap: "wrap", fontSize: 12, gap: 10, padding: "10px 14px" }}><strong style={{ color: "#475569" }}>评分权重：</strong>{(selectedEmployee?.metrics ?? model.metrics).map((metric) => <span key={metric.measureKey} style={{ background: "#f5f8fe", borderRadius: 4, padding: "3px 7px" }}>{metric.label} {metric.weight}%</span>)}<span style={{ marginLeft: "auto" }}>{model.periodLabel}</span></div>
+        <div style={{ alignItems: "center", background: "#ffffff", borderTop: "1px solid #e8eef6", color: "#6682a5", display: "flex", flexWrap: "wrap", fontSize: 12, gap: 8, padding: "11px 18px" }}><strong style={{ color: "#31557f" }}>渠道目标：</strong><span>{channelSettings.length === 0 ? "暂未配置" : `已配置 ${channelSettings.length} 个渠道`}</span><span style={{ marginLeft: "auto" }}>统计周期：{model.periodLabel}</span></div>
       </>}
     </div>
-    <Modal aria-label="目标配置" title="目标配置" open={targetConfigOpen} okText="保存目标" cancelText="取消" onCancel={() => setTargetConfigOpen(false)} onOk={() => { saveSettings(Object.fromEntries((selectedEmployee?.metrics ?? []).map((metric) => [metric.measureKey, { monthlyTargetValue: targetDraftFor(metric).monthly, annualTargetValue: targetDraftFor(metric).annual }]))); setTargetConfigOpen(false); }}><p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>选择运营后维护月度、年度目标；保存后列表中的实际、目标与完成率会同步更新。</p><Select aria-label="配置运营" value={selectedEmployee?.key ?? null} style={{ marginBottom: 16, width: "100%" }} options={model.employees.map((employee) => ({ value: employee.key, label: employee.label }))} onChange={selectEmployeeForConfig} />{selectedEmployee?.metrics.map((metric) => metric.kind === "gmv" || metric.kind === "sales" ? <div key={metric.measureKey} style={{ display: "grid", gap: 10, gridTemplateColumns: "112px 1fr 1fr", marginBottom: 14 }}><strong style={{ alignSelf: "center" }}>{metricLabel(metric)}</strong><label style={{ color: "#64748b", fontSize: 12 }}>月度目标<InputNumber aria-label={`月度${metricLabel(metric)}目标`} style={{ marginTop: 4, width: "100%" }} min={0} value={targetDraftFor(metric).monthly} onChange={(value) => updateTargetDraft(metric, { monthly: value })} /></label><label style={{ color: "#64748b", fontSize: 12 }}>年度目标<InputNumber aria-label={`年度${metricLabel(metric)}目标`} style={{ marginTop: 4, width: "100%" }} min={0} value={targetDraftFor(metric).annual} onChange={(value) => updateTargetDraft(metric, { annual: value })} /></label></div> : <label key={metric.measureKey} style={{ alignItems: "center", display: "grid", gap: 12, gridTemplateColumns: "112px 1fr", marginBottom: 14 }}><strong>{metricLabel(metric)}目标</strong><InputNumber aria-label={`${metricLabel(metric)}目标`} style={{ width: "100%" }} min={0} value={targetDraftFor(metric).monthly} onChange={(value) => updateTargetDraft(metric, { monthly: value })} /></label>)}</Modal>
-    <Modal aria-label="评分权重配置" title="评分权重配置" open={weightConfigOpen} okText="保存配置" cancelText="取消" okButtonProps={{ disabled: weightTotal !== 100 }} onCancel={() => setWeightConfigOpen(false)} onOk={() => { saveSettings(Object.fromEntries(Object.entries(weightDrafts).map(([key, value]) => [key, { weight: value }]))); setWeightConfigOpen(false); }}><p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>每位员工可独立设置 GMV、销量和周转天数的评分权重，合计为 100% 后方可保存。</p><Select aria-label="配置运营" value={selectedEmployee?.key ?? null} style={{ marginBottom: 16, width: "100%" }} options={model.employees.map((employee) => ({ value: employee.key, label: employee.label }))} onChange={selectEmployeeForConfig} />{selectedEmployee?.metrics.map((metric) => <div key={metric.measureKey} style={{ alignItems: "center", display: "grid", gap: 12, gridTemplateColumns: "112px 1fr 44px", marginBottom: 16 }}><strong>{metricLabel(metric)}贡献</strong><Slider aria-label={`${metricLabel(metric)}贡献`} min={0} max={100} value={weightDrafts[metric.measureKey] ?? metric.weight} onChange={(value) => setWeightDrafts((current) => ({ ...current, [metric.measureKey]: typeof value === "number" ? value : 0 }))} /><span style={{ fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{weightDrafts[metric.measureKey] ?? metric.weight}%</span></div>)}<div style={{ background: weightTotal === 100 ? "#f1f8f5" : "#fff7ed", borderRadius: 6, color: weightTotal === 100 ? "#267a4b" : "#b45309", fontSize: 13, padding: "10px 12px" }}>当前合计：{weightTotal}%（{(selectedEmployee?.metrics ?? []).map((metric) => `${metricLabel(metric)} ${weightDrafts[metric.measureKey] ?? metric.weight}%`).join("｜")}）</div></Modal>
+    <Modal aria-label="渠道配置" title={configuredChannel === null || configuredChannel.length === 0 ? "渠道配置" : `${configuredChannel}渠道配置`} open={channelConfigOpen} okText="保存配置" cancelText="取消" width={760} onCancel={() => setChannelConfigOpen(false)} onOk={saveChannelConfig}>
+      <p style={{ color: "#64748b", fontSize: 13, marginTop: 0 }}>先选择渠道，再确认纳入统计的店铺；目标按月度和年度分别保存，切换看板周期不会混用目标。</p>
+      <div style={{ display: "grid", gap: 10, gridTemplateColumns: "140px minmax(0, 1fr) auto auto", marginBottom: 14 }}>
+        <Select aria-label="选择渠道" value={configuredChannel} options={channelOptions.map((channel) => ({ value: channel, label: channel }))} onChange={configureChannel} />
+        <Input aria-label="搜索店铺名称" placeholder="搜索店铺名称" value={storeSearch} onChange={(event) => setStoreSearch(event.target.value)} />
+        <Button onClick={() => { setStoreSelectionMode("all"); setSelectedStores([]); }}>选择全部店铺</Button>
+        <Button onClick={() => { setStoreSelectionMode("selected"); setSelectedStores([]); }}>清空</Button>
+      </div>
+      {storeKey === undefined ? <div style={{ color: "#8a98aa", fontSize: 13, marginBottom: 16 }}>未找到店铺字段。请在右侧数据绑定中添加“店铺维度”，再配置渠道包含的店铺。</div> : <div style={{ background: "#f8fbff", borderRadius: 8, marginBottom: 16, padding: "10px 12px" }}><div style={{ color: "#52677f", fontSize: 12, marginBottom: 9 }}>该渠道共 {storesForConfiguredChannel.length} 家店铺 · {storeSelectionMode === "all" ? "已纳入全部店铺" : `已选择 ${selectedStores.length} 家`}</div><div style={{ display: "grid", gap: 8, gridTemplateColumns: "repeat(2, minmax(0, 1fr))", maxHeight: 220, overflow: "auto" }}>{visibleStores.map((store) => <Checkbox checked={storeSelectionMode === "all" || selectedStores.includes(store)} key={store} onChange={(event) => {
+        const currentSelection = storeSelectionMode === "all" ? storesForConfiguredChannel : selectedStores;
+        setStoreSelectionMode("selected");
+        setSelectedStores(event.target.checked ? [...new Set([...currentSelection, store])] : currentSelection.filter((value) => value !== store));
+      }}>{store}</Checkbox>)}</div></div>}
+      <div style={{ background: "#fafcff", borderRadius: 8, display: "grid", gap: 10, gridTemplateColumns: "repeat(3, minmax(0, 1fr))", padding: 12 }}>
+        <div style={{ alignItems: "center", color: "#52677f", display: "flex", fontSize: 12, gridColumn: "1 / -1", justifyContent: "space-between" }}><span>目标口径</span><Segmented aria-label="目标口径" options={[{ label: "月度目标", value: "month" }, { label: "年度目标", value: "year" }]} size="small" value={targetPeriodMode} onChange={(value) => setTargetPeriodMode(value as "month" | "year")} /></div>
+        {model.metrics.length === 0 ? <span style={{ color: "#8a98aa", fontSize: 13, gridColumn: "1 / -1" }}>请先回到「字段」页选择实际指标，目标输入项会随所选指标生成。</span> : model.metrics.map((metric) => <label key={metric.measureKey} style={{ color: "#52677f", fontSize: 12 }}>{metric.label}目标<InputNumber aria-label={`${metric.label}目标`} min={0} style={{ marginTop: 4, width: "100%" }} value={targetPeriodMode === "month" ? channelTargets[metric.measureKey]?.monthlyTargetValue ?? null : channelTargets[metric.measureKey]?.annualTargetValue ?? null} onChange={(value) => setChannelTargets((current) => ({ ...current, [metric.measureKey]: {
+          monthlyTargetValue: targetPeriodMode === "month" ? value : current[metric.measureKey]?.monthlyTargetValue ?? null,
+          annualTargetValue: targetPeriodMode === "year" ? value : current[metric.measureKey]?.annualTargetValue ?? null,
+        } }))} /></label>)}
+      </div>
+    </Modal>
   </section>;
 };
 
@@ -1468,6 +1802,23 @@ const rankingMeasureHeaderStyle: CSSProperties = {
 };
 
 const rankingMedalColors = ["#f6b51f", "#aeb9c8", "#c9844b"] as const;
+
+const productMovementShellStyle: CSSProperties = { boxSizing: "border-box", display: "flex", flex: "1 1 auto", flexDirection: "column", gap: 8, minHeight: 0, overflow: "auto", padding: "4px 8px 10px" };
+const productMovementLegendStyle: CSSProperties = { alignItems: "center", color: "#64748b", display: "flex", flexWrap: "wrap", fontSize: 12, gap: "5px 14px", lineHeight: 1.25 };
+const productMovementLegendItemStyle: CSSProperties = { alignItems: "center", display: "inline-flex", gap: 5, whiteSpace: "nowrap" };
+const productMovementLegendMarkStyle: CSSProperties = { borderRadius: 999, display: "inline-block", height: 8, width: 10 };
+const productMovementListStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 8, minWidth: 580 };
+const productMovementItemStyle: CSSProperties = { alignItems: "center", background: "#fbfdff", borderWidth: 0, borderRadius: 6, display: "grid", gap: 12, gridTemplateColumns: "minmax(105px, 144px) minmax(300px, 1fr) minmax(164px, 206px)", minHeight: 56, padding: "8px 10px" };
+const productMovementLabelStyle: CSSProperties = { color: "#1e293b", fontSize: 12, fontWeight: 650, lineHeight: 1.4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
+const productMovementBarsStyle: CSSProperties = { display: "flex", flexDirection: "column", gap: 8, minWidth: 0 };
+const productMovementBarRowStyle: CSSProperties = { alignItems: "center", display: "grid", gap: 10, gridTemplateColumns: "34px minmax(0, 1fr)" };
+const productMovementBarLabelStyle: CSSProperties = { color: "#64748b", fontSize: 11, fontWeight: 650, textAlign: "right" };
+const productMovementLaneStyle: CSSProperties = { background: "#f5f8fc", borderRadius: 999, height: 10, overflow: "hidden", position: "relative", width: "100%" };
+const productMovementBackgroundBarStyle: CSSProperties = { borderRadius: 999, display: "block", height: "100%", left: 0, position: "absolute", top: 0 };
+const productMovementForegroundBarStyle: CSSProperties = { borderRadius: 999, display: "block", height: "100%", left: 0, position: "absolute", top: 0 };
+const productMovementValuesStyle: CSSProperties = { color: "#334155", display: "flex", flexDirection: "column", fontSize: 12, fontVariantNumeric: "tabular-nums", gap: 8, lineHeight: 1.1, whiteSpace: "nowrap" };
+const productMovementValueRowStyle: CSSProperties = { display: "flex", gap: 10, justifyContent: "flex-end" };
+const productMovementSalesValueStyle: CSSProperties = { color: "#172033", fontWeight: 650 };
 
 const progressBarColors = ["#3b82f6", "#35c7c9", "#a78bfa", "#f6bd7b", "#8b8aa8", "#22c55e"];
 
@@ -1913,6 +2264,7 @@ const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
     return <LineDemo area />;
   }
   if (component.type === "metricBreakdown") return <MetricBreakdownDemo />;
+  if (component.type === "productMovementRanking") return <BarDemo horizontal />;
   if (component.type === "percentBar") return <BarDemo stacked />;
   if (component.type === "percentArea") return <LineDemo area stacked />;
   if (component.type === "line" || component.type === "area" || component.type === "stackedArea") {
@@ -2024,6 +2376,13 @@ const formatCurrencyMetricNumber = (value: number | null | undefined, isCurrency
 
 const formatCurrencyNumber = (value: number | null | undefined, decimals: number, isCurrency: boolean, isQuantity = false): string =>
   `${isCurrency && value !== null && value !== undefined && Math.abs(value) > 1_000 ? formatCurrencyInWan(value) : formatMetricNumber(value, decimals)}${isCurrency ? " ¥" : isQuantity ? " 件" : ""}`;
+
+const productMovementTextProp = (props: Readonly<Record<string, unknown>>, key: string, fallback: string): string =>
+  typeof props[key] === "string" ? props[key] as string : fallback;
+
+const formatProductMovementValue = (value: number, format: string): string => format === "compact"
+  ? formatCompactMetricNumber(value)
+  : new Intl.NumberFormat("zh-CN", { maximumFractionDigits: Number.isInteger(value) ? 0 : 2 }).format(value);
 
 const formatKpiValue = (value: number | null | undefined, decimals: number, isCurrency: boolean): string => {
   if (value === null || value === undefined) return "—";
@@ -2416,6 +2775,7 @@ export const DashboardComponentRenderer = ({
   activeTreemapMeasure: externallySelectedTreemapMeasure,
   onTreemapMeasureChange,
   dashboardFilterValues,
+  dashboardFilters,
   dashboardFilterOptions,
   onDashboardFilterChange,
   dashboardFiltersLoading,
@@ -2455,10 +2815,10 @@ export const DashboardComponentRenderer = ({
     if (matchingRule === undefined) return;
     onChartJump(matchingRule, rowForChartPoint(point));
   };
-  const handleMetricJump = (fieldKey: string) => {
+  const handleMetricJump = (fieldKey: string, row: Row = rows[0] ?? {}) => {
     const matchingRule = jumpRuleForMetric(fieldKey);
     if (matchingRule === undefined || onChartJump === undefined) return;
-    onChartJump(matchingRule, rows[0] ?? {});
+    onChartJump(matchingRule, row);
   };
   if (component.type === "dashboardHeader") return <DashboardHeaderSurface component={component} rows={rows} dashboardFilterValues={dashboardFilterValues} dashboardFilterOptions={dashboardFilterOptions} onDashboardFilterChange={onDashboardFilterChange} dashboardFiltersLoading={dashboardFiltersLoading} onDashboardFiltersApply={onDashboardFiltersApply} />;
   if (component.type === "analysisGroup") {
@@ -2735,6 +3095,59 @@ export const DashboardComponentRenderer = ({
   if (component.type === "ringBar") {
     return <EChart option={buildRingBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "环形柱图"}图表`} onPointClick={handleChartPointClick} />;
   }
+  if (component.type === "productMovementRanking") {
+    const model = buildProductMovementRankingModel(component, rows, fields);
+    const primaryRowLabel = productMovementTextProp(component.props, "primaryRowLabel", "金额");
+    const secondaryRowLabel = productMovementTextProp(component.props, "secondaryRowLabel", "数量");
+    const actualValueLabel = productMovementTextProp(component.props, "actualValueLabel", "销");
+    const referenceValueLabel = productMovementTextProp(component.props, "referenceValueLabel", "库");
+    const primaryPrefix = productMovementTextProp(component.props, "primaryPrefix", "¥");
+    const primarySuffix = productMovementTextProp(component.props, "primarySuffix", "");
+    const secondaryPrefix = productMovementTextProp(component.props, "secondaryPrefix", "");
+    const secondarySuffix = productMovementTextProp(component.props, "secondarySuffix", "件");
+    const primaryNumberFormat = productMovementTextProp(component.props, "primaryNumberFormat", "compact");
+    const secondaryNumberFormat = productMovementTextProp(component.props, "secondaryNumberFormat", "number");
+    const primaryValue = (value: number) => `${primaryPrefix}${formatProductMovementValue(value, primaryNumberFormat)}${primarySuffix}`;
+    const secondaryValue = (value: number) => `${secondaryPrefix}${formatProductMovementValue(value, secondaryNumberFormat)}${secondarySuffix}`;
+    const legend = [
+      { label: model.metrics.salesAmount.label, color: "#2f6bff" }, { label: model.metrics.inventoryAmount.label, color: "#cfe2ff" },
+      { label: model.metrics.salesQuantity.label, color: "#20ae5b" }, { label: model.metrics.inventoryQuantity.label, color: "#c8f7d9" },
+    ];
+    return (
+      <section aria-label={`${component.title || "双指标对比排行"}图表`} data-testid="product-movement-ranking-surface" style={productMovementShellStyle}>
+        <div aria-label="双指标对比排行图例" style={productMovementLegendStyle}>
+          {legend.map((item) => <span key={item.label} style={productMovementLegendItemStyle}><i aria-hidden="true" style={{ ...productMovementLegendMarkStyle, background: item.color }} />{item.label}</span>)}
+        </div>
+        <div style={productMovementListStyle}>
+          {model.items.map((item) => (
+            <article key={item.label} style={productMovementItemStyle}>
+              <span style={productMovementLabelStyle} title={item.label}>{item.label}</span>
+              <div style={productMovementBarsStyle}>
+                <div style={productMovementBarRowStyle}>
+                  <span style={productMovementBarLabelStyle}>{primaryRowLabel}</span>
+                  <span aria-label={`${item.label}销售额与库存金额对比`} style={productMovementLaneStyle}>
+                    <i aria-hidden="true" style={{ ...productMovementBackgroundBarStyle, background: "#cfe2ff", width: "100%" }} />
+                    <i aria-hidden="true" style={{ ...productMovementForegroundBarStyle, background: "#2f6bff", width: `${item.salesAmountRatio * 100}%` }} />
+                  </span>
+                </div>
+                <div style={productMovementBarRowStyle}>
+                  <span style={productMovementBarLabelStyle}>{secondaryRowLabel}</span>
+                  <span aria-label={`${item.label}销量与库存数量对比`} style={productMovementLaneStyle}>
+                    <i aria-hidden="true" style={{ ...productMovementBackgroundBarStyle, background: "#c8f7d9", width: "100%" }} />
+                    <i aria-hidden="true" style={{ ...productMovementForegroundBarStyle, background: "#20ae5b", width: `${item.salesQuantityRatio * 100}%` }} />
+                  </span>
+                </div>
+              </div>
+              <div style={productMovementValuesStyle}>
+                <span style={productMovementValueRowStyle}><span style={productMovementSalesValueStyle}>{actualValueLabel} {primaryValue(item.salesAmount)}</span><span>{referenceValueLabel} {primaryValue(item.inventoryAmount)}</span></span>
+                <span style={productMovementValueRowStyle}><span style={productMovementSalesValueStyle}>{actualValueLabel} {secondaryValue(item.salesQuantity)}</span><span>{referenceValueLabel} {secondaryValue(item.inventoryQuantity)}</span></span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
   if (component.type === "ranking") {
     const model = buildRankingModel(component, rows, fields);
     const gridTemplateColumns = `28px minmax(144px, 1fr) repeat(${Math.max(1, model.measures.length)}, minmax(72px, 0.7fr))`;
@@ -2891,27 +3304,84 @@ export const DashboardComponentRenderer = ({
   }
   if (component.type === "kpiInsight") {
     const measureKeys = bindingFieldKeys(component, "measure");
+    const dimensionKey = bindingFieldKeys(component, "dimension")[0];
+    const dimensionLabel = dimensionKey === undefined
+      ? ""
+      : fields.find((field) => field.key === dimensionKey)?.label ?? dimensionKey;
     const decimals = numberProp(component, "decimals", 0);
-    return (
-      <section data-testid="kpi-insight-surface" style={insightGridStyle}>
-        {measureKeys.map((measureKey, index) => {
-          const model = buildKpiModelForFields(component, rows, measureKey, undefined, undefined, kpiInsightAggregation(component, measureKey));
-          const measureIsCurrency = isCurrencyMetric(measureKey, fields);
+    const topLabel = stringProp(component, "topLabel", "").trim() || `TOP ${dimensionLabel}`;
+    const insightCards = measureKeys.map((measureKey) => {
+          const aggregation = kpiInsightAggregation(component, measureKey);
+          const top = dimensionKey === undefined ? undefined : kpiInsightTopDimension(component, rows, dimensionKey, measureKey, aggregation, rowsAreAggregated);
+          const model = buildKpiModelForFields(component, rows, measureKey, undefined, undefined, aggregation);
+          // A field such as salesQuantity contains the word "sales", but it
+          // is still a quantity. Quantity semantics take precedence over the
+          // broad monetary-name heuristic for these insight cards.
+          const measureIsQuantity = isQuantityMetric(measureKey, fields);
+          const measureIsCurrency = !measureIsQuantity && isCurrencyMetric(measureKey, fields);
           const affixes = currencyAffixes(
             stringProp(component, "prefix", ""),
             stringProp(component, "suffix", ""),
             measureIsCurrency,
-            isQuantityMetric(measureKey, fields),
+            measureIsQuantity,
           );
           const formatted = formatKpiValue(model.value, decimals, measureIsCurrency);
-          const displayName = fields.find((field) => field.key === measureKey)?.label || (measureKeys.length === 1 ? component.title : measureKey) || "指标洞察";
+          const metricSettings = Array.isArray(component.props.metricSettings) ? component.props.metricSettings : [];
+          const metricSetting = metricSettings.find((setting) => setting !== null && typeof setting === "object" && !Array.isArray(setting) && (setting as Readonly<Record<string, unknown>>).measureKey === measureKey) as Readonly<Record<string, unknown>> | undefined;
+          const metricDisplayName = typeof metricSetting?.displayName === "string" ? metricSetting.displayName.trim() : "";
+          const legacyDisplayName = measureKeys.length === 1 ? stringProp(component, "displayName", "").trim() : "";
+          const displayName = metricDisplayName || legacyDisplayName || fields.find((field) => field.key === measureKey)?.label || (measureKeys.length === 1 ? component.title : measureKey) || "指标洞察";
+          const metricDescription = typeof metricSetting?.description === "string" ? metricSetting.description.trim() : "";
+          const legacyDescription = measureKeys.length === 1 ? stringProp(component, "description", "").trim() : "";
+          const description = metricDescription || legacyDescription;
           const jumpRule = jumpRuleForMetric(measureKey);
           const canJump = jumpRule !== undefined && onChartJump !== undefined;
+          if (top !== undefined) {
+            const topMetric = `${displayName} ${affixes.prefix}${formatKpiValue(top.value, decimals, measureIsCurrency)}${affixes.suffix}`;
+            return <section key={measureKey} aria-label={`${topLabel} ${displayName}${canJump ? "，点击跳转" : ""}`} role={canJump ? "button" : undefined} tabIndex={canJump ? 0 : undefined} onClick={canJump ? () => handleMetricJump(measureKey, top.row) : undefined} onKeyDown={canJump ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleMetricJump(measureKey, top.row); } } : undefined} style={{ ...insightTopMetricCardStyle, ...(canJump ? { cursor: "pointer", outline: "none" } : {}) }}>
+              <div aria-label={`${displayName}最高${dimensionLabel}`} style={insightTopDimensionStyle} title={top.dimension}>{top.dimension}</div>
+              <div style={insightTopMetricStyle} title={topMetric}>{topMetric}</div>
+              {description.length > 0 && <div style={kpiDescriptionStyle} title={description}>{description}</div>}
+            </section>;
+          }
           return <section key={measureKey} aria-label={`${displayName}指标${canJump ? "，点击跳转" : ""}`} role={canJump ? "button" : undefined} tabIndex={canJump ? 0 : undefined} onClick={canJump ? () => handleMetricJump(measureKey) : undefined} onKeyDown={canJump ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleMetricJump(measureKey); } } : undefined} style={{ ...insightShellStyle, ...(canJump ? { cursor: "pointer", outline: "none" } : {}) }}>
             <div style={insightTitleStyle} title={displayName}>{displayName}</div>
             <div aria-label={`${displayName}指标值`} style={insightValueStyle}>{affixes.prefix}{formatted}{affixes.suffix}</div>
+            {description.length > 0 && <div style={kpiDescriptionStyle} title={description}>{description}</div>}
           </section>;
-        })}
+        });
+    return dimensionKey === undefined
+      ? <section data-testid="kpi-insight-surface" style={insightGridStyle}>{insightCards}</section>
+      : <section data-testid="kpi-insight-surface" style={insightTopSurfaceStyle}>
+        <div aria-label="Top 标题" style={insightTopHeadingStyle} title={topLabel}>{topLabel}</div>
+        <div data-testid="kpi-insight-top-metrics" style={insightTopMetricGridStyle}>{insightCards}</div>
+      </section>;
+  }
+  if (component.type === "globalFilterSummary") {
+    const savedFilterIds = component.props.filterIds;
+    const filterIds: string[] = Array.isArray(savedFilterIds)
+      ? savedFilterIds.filter((filterId): filterId is string => typeof filterId === "string" && filterId.length > 0)
+      : [stringProp(component, "filterId", "")].filter(Boolean);
+    const label = stringProp(component, "label", "当前筛选");
+    const emptyValue = stringProp(component, "emptyValue", "全部范围");
+    const description = stringProp(component, "description", "");
+    const items = filterIds.map((filterId) => {
+      const filter = dashboardFilters?.find((candidate) => candidate.id === filterId);
+      const currentValue = globalFilterSummaryValue(dashboardFilterValues?.[filterId]);
+      return { id: filterId, label: filter?.label ?? filterId, value: currentValue ?? emptyValue };
+    });
+    const isMultiple = items.length > 1;
+    const shownValue = items[0]?.value ?? emptyValue;
+    return (
+      <section aria-label={`${label}摘要`} data-testid="global-filter-summary-surface" style={kpiShellStyle}>
+        <div style={kpiLabelStyle} title={label}>{label}</div>
+        {isMultiple ? <div aria-label={`${label}当前值`} style={globalFilterSummaryListStyle}>
+          {items.map((item) => <div key={item.id} style={globalFilterSummaryRowStyle}>
+            <span style={globalFilterSummaryRowLabelStyle} title={item.label}>{item.label}</span>
+            <strong style={globalFilterSummaryRowValueStyle} title={item.value}>{item.value}</strong>
+          </div>)}
+        </div> : <div aria-label={`${label}当前值`} style={globalFilterSummaryValueStyle} title={shownValue}>{shownValue}</div>}
+        {description.length > 0 && <div style={globalFilterSummaryDescriptionStyle} title={description}>{description}</div>}
       </section>
     );
   }
@@ -2957,6 +3427,8 @@ export const DashboardComponentRenderer = ({
       isQuantityMetric(measureKey, fields),
     );
     const decimals = numberProp(component, "decimals", 0);
+    const displayName = stringProp(component, "displayName", "").trim() || component.title?.trim() || "指标";
+    const description = stringProp(component, "description", "").trim();
     const formatted = formatKpiValue(model.value, decimals, isCurrencyMetric(measureKey, fields));
     const progressWidth = model.target?.progress === null || model.target?.progress === undefined
       ? 0
@@ -2966,9 +3438,11 @@ export const DashboardComponentRenderer = ({
       : model.comparison.delta > 0 ? kpiPositiveStyle : kpiNegativeStyle;
     return (
       <div style={kpiShellStyle}>
+        {!hideSurfaceHeaders && <div style={kpiLabelStyle} title={displayName}>{displayName}</div>}
         <div aria-label={`${component.title ?? "指标"}指标值`} style={kpiValueStyle}>
           {affixes.prefix}{formatted}{affixes.suffix}
         </div>
+        {description.length > 0 && <div style={kpiDescriptionStyle} title={description}>{description}</div>}
         {(model.comparison !== null || model.target !== null) && (
           <div style={kpiMetaStackStyle}>
             {model.comparison !== null && (

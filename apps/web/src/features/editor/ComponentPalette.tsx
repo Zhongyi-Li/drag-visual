@@ -34,6 +34,7 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
     category: "内容",
     items: [
       { id: "dashboard-header", type: "dashboardHeader", title: "看板信息栏", instanceTitle: "", icon: "metric-board" },
+      { id: "global-filter-summary", type: "globalFilterSummary", title: "全局筛选摘要", instanceTitle: "", icon: <FilterOutlined /> },
       { id: "analysis-group", type: "analysisGroup", title: "复合分析", icon: <ApartmentOutlined /> },
     ],
   },
@@ -59,7 +60,7 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
       // TODO(chart-palette): 翻牌器待后续开发完成后再恢复展示。
       // { id: "flip-number", type: "flipNumber", title: "翻牌器", icon: "flip-number" },
       { id: "progress", type: "progressBar", title: "进度条", icon: "progress" },
-      { id: "goal-task-progress", type: "goalTaskProgress", title: "目标任务进度", icon: <NodeIndexOutlined /> },
+      { id: "goal-task-progress", type: "goalTaskProgress", title: "大盘任务进度看板", icon: <NodeIndexOutlined /> },
       { id: "target-progress", type: "targetProgress", title: "目标完成率", icon: "target-progress" },
       { id: "gauge", type: "gauge", title: "仪表盘", icon: "gauge" },
       // TODO(chart-palette): 水波图、指标拆解待后续开发完成后再恢复展示。
@@ -92,6 +93,7 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
       { id: "percent-bar", type: "percentBar", title: "百分比", icon: "percent-bar" },
       { id: "ring-bar", type: "ringBar", title: "环形柱图", icon: "ring-bar" },
       { id: "ranking", type: "ranking", title: "排行榜", icon: "ranking" },
+      { id: "product-movement-ranking", type: "productMovementRanking", title: "双指标对比排行", instanceTitle: "", icon: <StockOutlined /> },
       // 暂不在组件面板展示：堆积条形、百分比条形、动态条形、瀑布、子弹、箱形、直方图。
       // { id: "stacked-strip", type: "bar", title: "堆积", icon: "stacked-strip" },
       // { id: "percent-strip", type: "bar", title: "百分比", icon: "percent-strip" },

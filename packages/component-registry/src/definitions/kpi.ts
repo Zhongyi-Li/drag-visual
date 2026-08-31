@@ -46,6 +46,11 @@ const KpiInsightRowSchema = z.discriminatedUnion("type", [
 
 const KpiPropsSchema = z.object({
   aggregation: z.enum(["first", "sum", "avg", "max", "min"]),
+  // The component title describes the canvas item; this optional name is the
+  // business-facing metric label shown on a published dashboard.
+  displayName: z.string().max(40).default(""),
+  /** Supporting copy displayed directly below the KPI value. */
+  description: z.string().max(120).default(""),
   prefix: z.string(),
   suffix: z.string(),
   decimals: z.number().int().min(0).max(6),
@@ -61,6 +66,8 @@ export const kpiDefinition: ComponentDefinition<z.infer<typeof KpiPropsSchema>> 
   defaultLayout: Object.freeze({ w: 3, h: 3 }),
   createDefaults: (): z.infer<typeof KpiPropsSchema> => ({
     aggregation: "first",
+    displayName: "",
+    description: "",
     prefix: "",
     suffix: "",
     decimals: 0,

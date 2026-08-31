@@ -1,5 +1,5 @@
 import type { ComponentDefinition } from "@drag-visual/component-registry";
-import type { ComponentInstance } from "@drag-visual/contracts";
+import { DashboardGlobalFilterConfig, type ComponentInstance } from "@drag-visual/contracts";
 import {
   EyeOutlined,
   InfoCircleOutlined,
@@ -36,6 +36,9 @@ const propertyLabels: Readonly<Record<string, string>> = {
   color: "主题颜色",
   content: "文本内容",
   decimals: "小数位数",
+  displayName: "指标显示名称",
+  description: "指标说明",
+  topLabel: "Top 标题",
   fontSize: "字号",
   fontWeight: "字重",
   hideZeroValues: "隐藏全零类目",
@@ -55,6 +58,20 @@ const propertyLabels: Readonly<Record<string, string>> = {
   striped: "斑马纹",
   suffix: "数值后缀",
   periodLabel: "周期标签",
+  primarySeriesLabel: "主指标图例名称",
+  primaryReferenceSeriesLabel: "主指标对比图例名称",
+  secondarySeriesLabel: "次指标图例名称",
+  secondaryReferenceSeriesLabel: "次指标对比图例名称",
+  primaryRowLabel: "第一行标签",
+  secondaryRowLabel: "第二行标签",
+  actualValueLabel: "实色数值标签",
+  referenceValueLabel: "底色数值标签",
+  primaryPrefix: "第一行数值前缀",
+  primarySuffix: "第一行数值后缀",
+  secondaryPrefix: "第二行数值前缀",
+  secondarySuffix: "第二行数值后缀",
+  primaryNumberFormat: "第一行数值格式",
+  secondaryNumberFormat: "第二行数值格式",
   textAlign: "文本对齐",
 };
 
@@ -88,6 +105,14 @@ const selectOptions: Readonly<Record<string, readonly { readonly label: string; 
     { label: "等于", value: "eq" },
     { label: "不等于", value: "neq" },
   ],
+  primaryNumberFormat: [
+    { label: "万级紧凑显示", value: "compact" },
+    { label: "完整数字", value: "number" },
+  ],
+  secondaryNumberFormat: [
+    { label: "万级紧凑显示", value: "compact" },
+    { label: "完整数字", value: "number" },
+  ],
 };
 
 const numberBounds = (key: string): { readonly min: number; readonly max: number } | undefined => {
@@ -107,6 +132,7 @@ const isEditable = (key: string): boolean =>
   && key !== "timeGranularity"
   && key !== "metricWeights"
   && key !== "metricSettings"
+  && key !== "insightRows"
   && key !== "rankingMode";
 
 const schemaProps = (
@@ -277,6 +303,58 @@ interface MetricAlertStylePanelProps {
   readonly props: Readonly<Record<string, unknown>>;
   readonly update: (key: string, value: string | number | boolean) => void;
 }
+
+interface GlobalFilterSummaryStylePanelProps {
+  readonly filters: readonly { readonly id: string; readonly label: string }[];
+  readonly props: Readonly<Record<string, unknown>>;
+  readonly update: (key: string, value: string | number | boolean | readonly string[]) => void;
+}
+
+const GlobalFilterSummaryStylePanel = ({ filters, props, update }: GlobalFilterSummaryStylePanelProps) => {
+  const savedFilterIds = Array.isArray(props.filterIds)
+    ? props.filterIds.filter((filterId): filterId is string => typeof filterId === "string" && filterId.length > 0)
+    : [];
+  const filterIds = Array.isArray(props.filterIds)
+    ? savedFilterIds
+    : typeof props.filterId === "string" && props.filterId.length > 0 ? [props.filterId] : [];
+  const label = typeof props.label === "string" ? props.label : "当前筛选";
+  const emptyValue = typeof props.emptyValue === "string" ? props.emptyValue : "全部范围";
+  const description = typeof props.description === "string" ? props.description : "";
+  const missingFilters = filterIds.filter((filterId) => !filters.some((filter) => filter.id === filterId));
+
+  return (
+    <section className="component-style-panel" aria-label="全局筛选摘要配置">
+      <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
+        <div className="binding-field">
+          <div className="binding-field__label"><Typography.Text strong>关联全局查询条件</Typography.Text></div>
+          <Select
+            allowClear
+            aria-label="关联全局查询条件"
+            mode="multiple"
+            options={filters.map((filter) => ({ label: filter.label, value: filter.id }))}
+            placeholder={filters.length === 0 ? "请先在看板信息栏添加查询条件" : "选择一个或多个查询条件"}
+            style={{ width: "100%" }}
+            value={filterIds}
+            onChange={(nextValue: string[]) => update("filterIds", nextValue)}
+          />
+          {filters.length === 0 ? <Typography.Text type="secondary">看板信息栏中还没有可关联的全局查询条件。</Typography.Text> : missingFilters.length > 0 ? <Typography.Text type="warning">部分原关联条件已不存在，请重新选择。</Typography.Text> : null}
+        </div>
+        <div className="binding-field">
+          <div className="binding-field__label"><Typography.Text strong>卡片标签</Typography.Text></div>
+          <DeferredTextControl ariaLabel="卡片标签" multiline={false} value={label} onCommit={(value) => update("label", value)} />
+        </div>
+        <div className="binding-field">
+          <div className="binding-field__label"><Typography.Text strong>未选择时显示</Typography.Text></div>
+          <DeferredTextControl ariaLabel="未选择时显示" multiline={false} value={emptyValue} onCommit={(value) => update("emptyValue", value)} />
+        </div>
+        <div className="binding-field">
+          <div className="binding-field__label"><Typography.Text strong>说明文字</Typography.Text></div>
+          <DeferredTextControl ariaLabel="说明文字" multiline={false} value={description} onCommit={(value) => update("description", value)} />
+        </div>
+      </Space>
+    </section>
+  );
+};
 
 const MetricAlertStylePanel = ({ props, update }: MetricAlertStylePanelProps) => {
   const [activeTab, setActiveTab] = useState<"summary" | "detail">("summary");
@@ -472,7 +550,7 @@ export const ComponentStylePanel = ({ store, component, definition }: ComponentS
   // Runtime-only values such as resultLimit and dataRefreshVersion share the
   // component props record, but are not visual style controls.
   const props = schemaProps(defaults, component.props);
-  const update = (key: string, value: string | number | boolean) => {
+  const update = (key: string, value: string | number | boolean | readonly string[]) => {
     const latestComponent = store.getState().history.present.components.find((candidate) => candidate.id === component.id);
     const latestProps = latestComponent?.props ?? {};
     const parsed = definition.propsSchema.safeParse({ ...schemaProps(defaults, latestProps), [key]: value });
@@ -486,6 +564,12 @@ export const ComponentStylePanel = ({ store, component, definition }: ComponentS
 
   if (definition.type === "metricAlert") {
     return <MetricAlertStylePanel props={props} update={update} />;
+  }
+
+  if (definition.type === "globalFilterSummary") {
+    const header = store.getState().history.present.components.find((candidate) => candidate.type === "dashboardHeader");
+    const parsedFilters = DashboardGlobalFilterConfig.array().safeParse(header?.props.globalFilters);
+    return <GlobalFilterSummaryStylePanel filters={parsedFilters.success ? parsedFilters.data : []} props={props} update={update} />;
   }
 
   return (
@@ -538,7 +622,7 @@ export const ComponentStylePanel = ({ store, component, definition }: ComponentS
           const textControl = multiline ? (
             <Input.TextArea aria-label={label} autoSize={{ minRows: 2, maxRows: 6 }} value={textValue} onChange={(event) => update(key, event.target.value)} />
           ) : (
-            <Input aria-label={label} value={textValue} onChange={(event) => update(key, event.target.value)} />
+            <DeferredTextControl ariaLabel={label} multiline={false} value={textValue} onCommit={(nextValue) => update(key, nextValue)} />
           );
           return (
             <div className="binding-field" key={key}>

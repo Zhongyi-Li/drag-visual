@@ -1,0 +1,46 @@
+- main [ref=e3]:
+  - img "SloganBi" [ref=e5]
+  - region "SloganBi 账号入口" [ref=e7]:
+    - complementary [ref=e8]:
+      - paragraph [ref=e9]: SMART BUSINESS INTELLIGENCE
+      - heading "让每个决策都有 数据依据" [level=1] [ref=e10]: 让每个决策都有数据依据
+      - paragraph [ref=e11]: SloganBi 帮助团队连通数据、洞察趋势，让每一次业务选择都更笃定。
+      - list [ref=e12]:
+        - listitem [ref=e13]:
+          - generic [ref=e18]:
+            - strong [ref=e19]: 连通全域数据
+            - generic [ref=e20]: 连接多源数据，统一治理，打破数据孤岛。
+        - listitem [ref=e21]:
+          - generic [ref=e26]:
+            - strong [ref=e27]: 洞察业务趋势
+            - generic [ref=e28]: 丰富分析模型与可视化，洞察趋势，发现机会。
+        - listitem [ref=e29]:
+          - generic [ref=e34]:
+            - strong [ref=e35]: 驱动高效决策
+            - generic [ref=e36]: 数据驱动业务闭环，提升效率，加速增长。
+    - generic [ref=e37]:
+      - tablist "账号入口模式" [ref=e38]:
+        - tab "登录" [ref=e39] [cursor=pointer]
+        - tab "注册" [active] [selected] [ref=e40] [cursor=pointer]
+      - paragraph [ref=e41]: 使用账号和密码创建你的 SloganBi 工作台入口
+      - generic [ref=e71]:
+        - generic [ref=e72]: 账号
+        - textbox "账号" [ref=e78]:
+          - /placeholder: 请输入账号
+        - generic [ref=e79]: 密码
+        - generic [ref=e80]:
+          - textbox "密码" [ref=e85]:
+            - /placeholder: 请输入符合规则的密码
+          - button "显示密码" [ref=e87] [cursor=pointer]:
+            - img "eye-invisible" [ref=e88]
+        - paragraph [ref=e92]: 至少 8 位，且包含大写字母、小写字母、数字和符号。
+        - generic [ref=e93]: 确认密码
+        - textbox "确认密码" [ref=e99]:
+          - /placeholder: 请再次输入密码
+        - generic [ref=e100] [cursor=pointer]:
+          - checkbox "记住我" [checked] [ref=e102]
+          - generic [ref=e103]: 记住我
+        - button "创建账号" [ref=e104] [cursor=pointer]
+      - paragraph [ref=e69]:
+        - text: 已有账号？
+        - button "去登录" [ref=e106] [cursor=pointer]

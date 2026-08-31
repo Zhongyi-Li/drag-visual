@@ -77,7 +77,7 @@ const ResolvedComponent = ({ component, dataset, rows, rowsAreAggregated = false
   const transformed = applyTransforms(calculatedRows, bindingForRender, fields);
   return <div style={{ position: "relative", display: "flex", flex: "1 1 auto", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
     <ResponsiveChartContainer>
-      <DashboardComponentRenderer component={component} fields={fields} rows={transformed} rowsAreAggregated={rowsAreAggregated} dashboardFilterValues={globalFilterValues} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} />
+      <DashboardComponentRenderer component={component} fields={fields} rows={transformed} rowsAreAggregated={rowsAreAggregated} dashboardFilterValues={globalFilterValues} dashboardFilters={globalFilters} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} />
     </ResponsiveChartContainer>
     {component.type !== "analysisGroup" && component.type !== "dashboardHeader" && <ChartDisplayHints component={component} />}
   </div>;
@@ -106,6 +106,7 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
   const runtimeParameterKeys = new Set(runtimeParameterDefinitions.map((parameter) => parameter.key));
   const configuredParameters = Object.fromEntries(Object.entries(savedDataset?.parameters ?? {}).filter(([key]) => !runtimeParameterKeys.has(key)));
   const runtimeQueryParameters = buildRuntimeParameters(runtimeParameterDefinitions, appliedRuntimeParameters);
+  const shouldShowDateFilterControl = dateFilterControl?.showControl ?? component.type !== "goalTaskProgress";
   const queryParameters = { ...configuredParameters, ...runtimeQueryParameters };
   const aggregation = buildDatasetAggregation(component);
   const activeGlobalFilters = filtersForComponent(component, globalFilters, globalFilterValues);
@@ -195,7 +196,7 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
     fields: resolvedResult.columns,
   };
   return <div className="viewer-component">
-    {dateFilterControl !== undefined && !isDateBoundByGlobalFilter && <DateRangeFilterBar
+    {dateFilterControl !== undefined && shouldShowDateFilterControl && !isDateBoundByGlobalFilter && <DateRangeFilterBar
       control={dateFilterControl}
       fieldLabel={resolvedSchema.fields.find((field) => field.key === dateFilterControl.fieldKey)?.label ?? dateFilterControl.fieldKey}
       value={activeDateFilter}
@@ -250,8 +251,8 @@ export const ViewerComponent = ({ component, savedDataset, currentDataset, globa
     }
   }, [component.binding, component.id, currentDataset, globalFilterApplyVersion, hasGlobalFilterTarget, onGlobalFilterQuerySettled]);
   if (component.props.throwInViewer === true) throw new Error("VIEWER_COMPONENT_TEST_ERROR");
-  if (component.type === "text") {
-    return <ResponsiveChartContainer><DashboardComponentRenderer component={component} rows={[]} dashboardFilterValues={globalFilterValues} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} /></ResponsiveChartContainer>;
+  if (component.type === "text" || component.type === "globalFilterSummary") {
+    return <ResponsiveChartContainer><DashboardComponentRenderer component={component} rows={[]} dashboardFilterValues={globalFilterValues} dashboardFilters={globalFilters} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} /></ResponsiveChartContainer>;
   }
   if (component.type === "dashboardHeader" && component.binding === undefined) {
     return <ResponsiveChartContainer><DashboardComponentRenderer

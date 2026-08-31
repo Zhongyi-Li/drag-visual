@@ -17,6 +17,7 @@ export const AnalysisGroupDateFilterBar = ({ control, value, loading = false, on
   return <div className="analysis-group-date-filter" aria-label="复合分析时间筛选">
     <DatePicker.RangePicker
       allowClear={control.allowCustom}
+      allowEmpty={[true, true]}
       aria-label="复合分析时间范围"
       disabled={loading}
       format="YYYY-MM-DD"

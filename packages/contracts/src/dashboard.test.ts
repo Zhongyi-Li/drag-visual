@@ -115,6 +115,22 @@ describe("DashboardSchema", () => {
     expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
   });
 
+  it("accepts product movement ranking components as first-class dashboard components", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "product-movement-1", x: 0, y: 0, w: 12, h: 7 }],
+      components: [{
+        id: "product-movement-1",
+        type: "productMovementRanking",
+        title: "",
+        props: { aggregation: "sum", maxItems: 6 },
+      }],
+    };
+
+    expect(ComponentType.parse("productMovementRanking")).toBe("productMovementRanking");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
   it("accepts standalone KPI insight components", () => {
     const dashboard = {
       ...validDashboard(),
@@ -128,6 +144,22 @@ describe("DashboardSchema", () => {
     };
 
     expect(ComponentType.parse("kpiInsight")).toBe("kpiInsight");
+    expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
+  });
+
+  it("accepts global filter summary components without a data binding", () => {
+    const dashboard = {
+      ...validDashboard(),
+      layout: [{ i: "filter-summary-1", x: 0, y: 0, w: 3, h: 3 }],
+      components: [{
+        id: "filter-summary-1",
+        type: "globalFilterSummary",
+        title: "",
+        props: { filterId: "store", label: "当前门店", emptyValue: "全部店铺", description: "全部员工" },
+      }],
+    };
+
+    expect(ComponentType.parse("globalFilterSummary")).toBe("globalFilterSummary");
     expect(DashboardSchema.parse(dashboard)).toEqual(dashboard);
   });
 

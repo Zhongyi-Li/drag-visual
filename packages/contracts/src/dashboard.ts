@@ -14,6 +14,7 @@ export const ComponentType = z.enum([
   "barLine",
   "ringBar",
   "ranking",
+  "productMovementRanking",
   "crosstab",
   "trend",
   "multidimensional",
@@ -29,6 +30,7 @@ export const ComponentType = z.enum([
   "radar",
   "treemap",
   "kpi",
+  "globalFilterSummary",
   "metricAlert",
   "kpiInsight",
   "metricTrend",
@@ -126,6 +128,8 @@ export const DateFilterControl = z
       end: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     }).strict().optional(),
     allowCustom: z.boolean(),
+    /** Whether the chart-level date picker is rendered. Hidden controls still apply their configured default range. */
+    showControl: z.boolean().optional(),
     timezone: z.literal("Asia/Shanghai"),
   })
   .strict();
@@ -218,6 +222,18 @@ export const ComponentDisplayAnnotations = z.object({
 
 export type ComponentDisplayAnnotations = z.infer<typeof ComponentDisplayAnnotations>;
 
+/** Presentation settings for a component title, shared by the editor and viewer. */
+export const ComponentTitleStyle = z.object({
+  visible: z.boolean().default(true),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).default("#262626"),
+  fontSize: z.number().int().min(12).max(32).default(13),
+  fontWeight: z.enum(["normal", "bold"]).default("normal"),
+  fontStyle: z.enum(["normal", "italic"]).default("normal"),
+  textAlign: z.enum(["left", "center", "right"]).default("left"),
+}).strict();
+
+export type ComponentTitleStyle = z.infer<typeof ComponentTitleStyle>;
+
 export const DataBinding = z.object({
   datasetId: nonEmptyString,
   slots: safeRecord(z.union([FieldBinding, z.array(FieldBinding)])),
@@ -286,6 +302,7 @@ export const ComponentInstance = z.object({
   parentId: nonEmptyString.optional(),
   type: ComponentType,
   title: z.string().optional(),
+  titleStyle: ComponentTitleStyle.optional(),
   /** Optional helper text rendered directly below a chart title. */
   subtitle: z.string().max(180).optional(),
   displayAnnotations: ComponentDisplayAnnotations.optional(),
