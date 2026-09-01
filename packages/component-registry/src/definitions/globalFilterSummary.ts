@@ -14,7 +14,7 @@ const GlobalFilterSummaryPropsSchema = z.object({
 
 export const globalFilterSummaryDefinition: ComponentDefinition<z.infer<typeof GlobalFilterSummaryPropsSchema>> = Object.freeze({
   type: "globalFilterSummary",
-  title: "全局筛选摘要",
+  title: "条件摘要",
   category: "内容",
   defaultLayout: Object.freeze({ w: 3, h: 3 }),
   createDefaults: (): z.infer<typeof GlobalFilterSummaryPropsSchema> => ({

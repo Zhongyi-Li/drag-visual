@@ -34,7 +34,7 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
     category: "内容",
     items: [
       { id: "dashboard-header", type: "dashboardHeader", title: "看板信息栏", instanceTitle: "", icon: "metric-board" },
-      { id: "global-filter-summary", type: "globalFilterSummary", title: "全局筛选摘要", instanceTitle: "", icon: <FilterOutlined /> },
+      { id: "global-filter-summary", type: "globalFilterSummary", title: "条件摘要", instanceTitle: "", icon: <FilterOutlined /> },
       { id: "analysis-group", type: "analysisGroup", title: "复合分析", icon: <ApartmentOutlined /> },
     ],
   },

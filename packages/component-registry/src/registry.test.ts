@@ -88,7 +88,7 @@ describe("component registry", () => {
   });
 
   it("defines a data-free summary card for dashboard-wide query controls", () => {
-    expect(globalFilterSummaryDefinition.title).toBe("全局筛选摘要");
+    expect(globalFilterSummaryDefinition.title).toBe("条件摘要");
     expect(globalFilterSummaryDefinition.defaultLayout).toEqual({ w: 3, h: 3 });
     expect(globalFilterSummaryDefinition.createDefaults()).toEqual({
       filterId: "", filterIds: [], label: "当前筛选", emptyValue: "全部范围", description: "",

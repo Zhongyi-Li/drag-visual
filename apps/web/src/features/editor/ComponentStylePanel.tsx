@@ -323,7 +323,7 @@ const GlobalFilterSummaryStylePanel = ({ filters, props, update }: GlobalFilterS
   const missingFilters = filterIds.filter((filterId) => !filters.some((filter) => filter.id === filterId));
 
   return (
-    <section className="component-style-panel" aria-label="全局筛选摘要配置">
+    <section className="component-style-panel" aria-label="条件摘要配置">
       <Space orientation="vertical" size="middle" style={{ width: "100%" }}>
         <div className="binding-field">
           <div className="binding-field__label"><Typography.Text strong>关联全局查询条件</Typography.Text></div>

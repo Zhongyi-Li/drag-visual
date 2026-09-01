@@ -46,7 +46,7 @@ export const AuthRoute = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const submitLabel = mode === "login" ? "登录" : "创建账号";
-  const helper = useMemo(() => mode === "login" ? "登录后即可进入 SloganBi 数据工作台" : "使用账号和密码创建你的 SloganBi 工作台入口", [mode]);
+  const helper = useMemo(() => mode === "login" ? "登录后即可进入极眸数据工作台" : "使用账号和密码创建你的极眸工作台入口", [mode]);
 
   const switchMode = (nextMode: AuthMode) => {
     if (submitting || mode === nextMode) return;
@@ -97,14 +97,17 @@ export const AuthRoute = () => {
   return (
     <main className="auth-page">
       <header className="auth-page__header">
-        <img className="auth-page__brand" src="/images/sloganbi-logo.png" alt="SloganBi" />
+        <div className="auth-page__brand" aria-label="极眸">
+          <img className="auth-page__brand-mark" src="/images/jimou-orbit-lens-mark.png" alt="" />
+          <span>极眸</span>
+        </div>
       </header>
       <div className="auth-page__backdrop" aria-hidden="true" />
-      <section className="auth-page__gateway" aria-label="SloganBi 账号入口">
+      <section className="auth-page__gateway" aria-label="极眸账号入口">
         <aside className="auth-page__intro">
           <p className="auth-page__eyebrow">SMART BUSINESS INTELLIGENCE</p>
           <h1>让每个决策都有<br />数据依据</h1>
-          <p>SloganBi 帮助团队连通数据、洞察趋势，让每一次业务选择都更笃定。</p>
+          <p>极眸帮助团队连通数据、洞察趋势，让每一次业务选择都更笃定。</p>
           <ul>
             {featureItems.map(([title, description, icon]) => (
               <li key={title}>

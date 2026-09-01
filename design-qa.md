@@ -39,6 +39,43 @@ final result: blocked
 
 ---
 
+# Latest QA — 极眸轨道光束 Logo
+
+- Source visual truth: `/Users/ethan/.codex/generated_images/01a05aa3-0491-7021-8305-eba5b421ccec/exec-8d9d001c-4caa-4123-b843-bfd5d1dcbdfe.png`（用户选定的第 1 个生成方案）。
+- Implemented asset: `apps/web/public/images/jimou-orbit-lens-mark.png`；源图以透明 PNG 保存后，居中裁切为 `1240 × 760`，保留轨道、水平扫描光束与焦点。
+- Implementation screenshot: `/private/tmp/jimou-login-orbit-lens.png`（`1280 × 720`，浏览器 CSS 视口 `1280 × 720`，device scale factor 1）。
+- Comparison evidence: `/private/tmp/jimou-logo-design-comparison.png`（`1320 × 230`；左侧为选定 Logo 资产，右侧为登录页顶部实际渲染）。
+- State: 桌面端登录页默认状态；看板中心复用同一 PNG 品牌资产及等价的“极眸”字标布局，`DashboardHome.test.tsx` 已通过。
+
+**Findings**
+
+- 无可操作的 P0、P1 或 P2 差异。实现保留了选定方案的深蓝轨道、青色扫描光束与右偏发光焦点；浅色登录页背景下轮廓清晰，并且没有黑色底板或透明边缘色晕。
+- [P3] 生成图标本身带有柔和的焦点光晕；在未来需要 16–24px favicon 尺寸时，可另导出简化版图标，但这不影响当前 42–52px 顶部品牌位。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: “极眸”沿用产品的 `PingFang SC` / `Microsoft YaHei` 回退栈，登录页为 29px、看板中心为 25px；字重 760，未发生截断或换行。
+- Spacing and layout rhythm: 登录页图标显示为 84 × 52px，看板中心为 70 × 48px；均与字标居中对齐，未增加导航栏高度或挤压相邻控件。
+- Colors and visual tokens: Logo 使用深蓝、皇家蓝与青色焦点，和现有 `#17203C`、`#245AF1`、浅色页面背景保持一致；高亮仅用于轨道交点。
+- Image quality and asset fidelity: 使用用户选定的真实生成 PNG，而非 CSS、文本字符或手绘 SVG 近似图形；PNG 具备 alpha 通道，白色页面中透明区域正常。
+- Copy and content: 登录页和看板中心均继续使用产品名“极眸”；可访问名称为“极眸”。
+
+**Verification**
+
+- `pnpm --filter @drag-visual/web typecheck`: passed。
+- `pnpm --filter @drag-visual/web exec vitest run src/features/dashboards/DashboardHome.test.tsx`: 11/11 passed。
+- 浏览器渲染：登录页顶部品牌位已捕获并与所选方案同屏对照；控制台未见新增错误。
+
+**Implementation Checklist**
+
+1. 选定方案的 PNG 已部署到登录页和看板中心。
+2. 品牌文案、可访问名称、桌面与移动端尺寸已同步。
+3. 类型检查、相关看板中心测试和浏览器视觉对照均已完成。
+
+final result: passed
+
+---
+
 # Latest QA — 单图表日期筛选配置
 
 - Source visual truth: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-c7ec65f3-50a1-4c59-b5a6-fd92a7064238.png` 与 `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-a6eb8eeb-2348-4d00-bd68-7524f77b8fd9.png`。
@@ -1491,3 +1528,39 @@ final result: blocked
 - Browser visual comparison: blocked by local preview authentication.
 
 final result: blocked
+
+---
+
+# Latest QA — 极眸轨道光束 Logo
+
+- Source visual truth: `/Users/ethan/.codex/generated_images/01a05aa3-0491-7021-8305-eba5b421ccec/exec-8d9d001c-4caa-4123-b843-bfd5d1dcbdfe.png`（用户选定的第 1 个生成方案）。
+- Implementation screenshot: `/private/tmp/jimou-login-orbit-lens.png`（`1280 × 720`，CSS 视口 `1280 × 720`，device scale factor 1）；同屏对照：`/private/tmp/jimou-logo-design-comparison.png`（`1320 × 230`）。
+- Implemented asset: `apps/web/public/images/jimou-orbit-lens-mark.png`，由选定透明 PNG 居中裁切为 `1240 × 760`，保留深蓝轨道、水平扫描光束与右偏焦点。
+- State: 登录页桌面端默认状态。看板中心复用同一生成资产与等价“极眸”字标布局，相关组件测试通过。
+
+**Findings**
+
+- 无可操作的 P0、P1 或 P2 差异。生成图标在浅色背景上无黑色底板或透明边缘色晕；轨道、光束和焦点均与所选视觉稿一致。
+- [P3] 若后续需要 16–24px favicon，可从该资产另导出简化图标；当前 42–52px 品牌位清晰可辨。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: “极眸”使用现有 `PingFang SC` / `Microsoft YaHei` 字体栈，登录页 29px、看板中心 25px，字重 760；无截断或换行。
+- Spacing and layout rhythm: 登录页图标为 84 × 52px，看板中心为 70 × 48px；均与字标居中对齐，未改变导航栏高度或挤压相邻控件。
+- Colors and visual tokens: 深蓝、皇家蓝与青色焦点匹配既有 `#17203C` 与 `#245AF1` 主色体系，白色页面上对比充足。
+- Image quality and asset fidelity: 使用用户选定的真实生成 PNG，而非 CSS、文本字符或手绘 SVG；资产包含 alpha 通道。
+- Copy and content: 登录页和看板中心保持产品名“极眸”，可访问名称同步为“极眸”。
+
+**Verification**
+
+- `pnpm --filter @drag-visual/web typecheck`: passed。
+- `pnpm --filter @drag-visual/web exec vitest run src/features/dashboards/DashboardHome.test.tsx`: 11/11 passed。
+- 浏览器渲染和同屏视觉对照：passed；控制台未见新增错误。
+
+**Implementation Checklist**
+
+1. 选定方案已部署到登录页和看板中心。
+2. 桌面与移动端品牌尺寸、文案与无障碍名称已同步。
+3. 类型检查、相关组件测试和浏览器视觉验收均已完成。
+
+final result: passed

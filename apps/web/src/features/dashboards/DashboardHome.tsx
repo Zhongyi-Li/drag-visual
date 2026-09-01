@@ -115,7 +115,10 @@ export const DashboardHome = () => {
   return (
     <div className="dashboard-home">
       <header className="dashboard-home__header">
-        <img className="dashboard-home__brand" src={appPath("images/sloganbi-logo.png")} alt="SloganBi" />
+        <div className="dashboard-home__brand" aria-label="极眸">
+          <img className="dashboard-home__brand-mark" src={appPath("images/jimou-orbit-lens-mark.png")} alt="" />
+          <span>极眸</span>
+        </div>
         <Input
           className="dashboard-home__header-search"
           aria-label="搜索看板"
