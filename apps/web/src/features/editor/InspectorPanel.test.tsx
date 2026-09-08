@@ -2,7 +2,7 @@
 
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -23,7 +23,7 @@ const dashboard = DashboardSchema.parse({
 });
 
 describe("InspectorPanel", () => {
-  it("shows the component and analysis configuration tabs", () => {
+  it("shows dashboard-level settings when no component is selected", () => {
     const store = createEditorStore(dashboard);
     render(
       <AppProviders>
@@ -31,9 +31,28 @@ describe("InspectorPanel", () => {
       </AppProviders>,
     );
 
-    expect(screen.getByRole("tab", { name: "字段" })).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "分析" })).toBeInTheDocument();
-    expect(screen.queryByRole("tab", { name: "主题" })).not.toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "主题" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "高级" })).toBeInTheDocument();
+    expect(screen.queryByRole("tab", { name: "字段" })).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "搜索全局配置" })).toBeInTheDocument();
+    ["仪表板主题", "全局样式", "页面布局", "仪表板背景", "组件", "通用内容样式"].forEach((label) => {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    });
+  });
+
+  it("filters global settings and updates persisted theme colors", async () => {
+    const store = createEditorStore(dashboard);
+    render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
+
+    await userEvent.type(screen.getByRole("textbox", { name: "搜索全局配置" }), "背景");
+    expect(screen.getByText("仪表板背景")).toBeInTheDocument();
+    expect(screen.queryByText("页面布局")).not.toBeInTheDocument();
+
+    await userEvent.clear(screen.getByRole("textbox", { name: "搜索全局配置" }));
+    await userEvent.click(screen.getByText("仪表板主题"));
+    const color = screen.getByLabelText("主题色");
+    fireEvent.change(color, { target: { value: "#112233" } });
+    expect(store.getState().history.present.theme.primaryColor).toBe("#112233");
   });
 
   it("keeps the data panel available when only configuration is collapsed", () => {
@@ -117,7 +136,7 @@ describe("InspectorPanel", () => {
     expect(screen.getByText("复合分析的共享筛选条件请前往「字段 → 筛选条件配置」设置。")).toBeInTheDocument();
   });
 
-  it("explains that a chart must be selected before configuring data interaction", async () => {
+  it("keeps advanced dashboard settings available without pretending they are configured", async () => {
     const store = createEditorStore(dashboard);
     render(
       <AppProviders>
@@ -125,12 +144,10 @@ describe("InspectorPanel", () => {
       </AppProviders>,
     );
 
-    await userEvent.click(screen.getByRole("tab", { name: "分析" }));
-    await userEvent.click(screen.getByText("数据交互"));
+    await userEvent.click(screen.getByRole("tab", { name: "高级" }));
 
-    expect(screen.getByText("选择图表后配置日期筛选。")).toBeInTheDocument();
-    expect(screen.queryByText("高级设置")).not.toBeInTheDocument();
-    expect(document.querySelector(".inspector-analysis")).toBeInTheDocument();
+    expect(screen.getByText("暂无高级配置")).toBeInTheDocument();
+    expect(screen.queryByText("数据交互")).not.toBeInTheDocument();
   });
 
   it("groups linkage and chart jumps into separate collapsible sections", async () => {

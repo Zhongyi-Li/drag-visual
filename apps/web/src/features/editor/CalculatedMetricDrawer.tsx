@@ -111,7 +111,7 @@ export const CalculatedMetricDrawer = ({ open, fields, initialMetric, onClose, o
     open={open}
     placement="right"
     title={initialMetric === undefined ? "新建计算指标" : "编辑计算指标"}
-    width={420}
+    size={420}
     onClose={onClose}
   >
     <section className="calculated-metric-form" aria-label="计算指标配置">

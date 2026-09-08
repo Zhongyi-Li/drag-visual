@@ -32,6 +32,7 @@ describe("EditorShell", () => {
     expect(screen.getByRole("complementary", { name: "图表组件" })).toBeInTheDocument();
     expect(screen.getByRole("main", { name: "看板画布" })).toBeInTheDocument();
     expect(screen.getByRole("complementary", { name: "配置与数据面板" })).toBeInTheDocument();
+    expect(screen.queryByText("数据")).not.toBeInTheDocument();
     expect(screen.queryByText("官方")).not.toBeInTheDocument();
     expect(screen.queryByText("自定义")).not.toBeInTheDocument();
     expect(screen.getByText("表格")).toBeInTheDocument();
@@ -45,7 +46,8 @@ describe("EditorShell", () => {
     expect(screen.queryByRole("button", { name: "添加线图" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "添加柱图" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "添加饼图" })).toBeEnabled();
-    expect(screen.getByText("尚未选择组件")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "主题" })).toBeInTheDocument();
+    expect(screen.getByText("仪表板主题")).toBeInTheDocument();
     expect(screen.getByRole("status", { name: "保存状态" })).toHaveAttribute("aria-live", "polite");
     expect(screen.getByRole("complementary", { name: "图表组件" })).toHaveClass("editor-panel-scroll");
     expect(screen.getByRole("region", { name: "配置面板" })).toHaveClass("editor-panel-scroll");
@@ -53,11 +55,15 @@ describe("EditorShell", () => {
 
   it("keeps exact panel widths with independently scrolling side panels", () => {
     expect(editorCss).toContain("grid-template-columns: 240px minmax(400px, 1fr) 520px");
+    expect(editorCss).toContain(".editor-inspector { min-height: 0; display: grid; grid-template-columns: 250px minmax(180px, 1fr);");
+    expect(editorCss).toContain(".editor-inspector--data-collapsed { grid-template-columns: minmax(0, 1fr) 48px;");
     expect(editorCss).toContain(".editor-workbench--inspector-collapsed");
     expect(editorCss).toContain("grid-template-columns: 240px minmax(672px, 1fr) 248px");
     expect(editorCss).toContain(".editor-workbench--data-panel-collapsed");
     expect(editorCss).toContain(".editor-workbench--inspector-collapsed.editor-workbench--data-panel-collapsed");
     expect(editorCss).not.toContain("transition: grid-template-columns");
+    expect(editorCss).not.toContain(".editor-inspector:has(.metric-alert-style-panel) { grid-template-columns");
+    expect(editorCss).not.toContain(".editor-inspector--data-collapsed:has(.metric-alert-style-panel) { grid-template-columns");
     expect(editorCss).toContain(".editor-panel-scroll");
     expect(editorCss).toContain("overflow-y: auto");
     expect(editorCss).not.toContain("html, body");
@@ -88,17 +94,18 @@ describe("EditorShell", () => {
     await userEvent.click(screen.getByRole("button", { name: "收起配置栏" }));
     expect(workbench).toHaveClass("editor-workbench--inspector-collapsed");
     expect(screen.queryByRole("tab", { name: "字段" })).not.toBeInTheDocument();
-    expect(screen.getByText("数据")).toBeInTheDocument();
+    expect(screen.queryByText("数据")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: "展开配置栏" }));
     expect(workbench).not.toHaveClass("editor-workbench--inspector-collapsed");
-    expect(screen.getByRole("tab", { name: "字段" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "主题" })).toBeInTheDocument();
   });
 
   it("collapses and expands the data panel independently", async () => {
     renderShell(<EditorShell store={createEditorStore(initial)} />);
     const workbench = screen.getByTestId("editor-workbench");
 
+    await userEvent.click(screen.getByRole("button", { name: "添加柱图" }));
     expect(workbench).not.toHaveClass("editor-workbench--data-panel-collapsed");
     await userEvent.click(screen.getByRole("button", { name: "收起数据栏" }));
     expect(workbench).toHaveClass("editor-workbench--data-panel-collapsed");

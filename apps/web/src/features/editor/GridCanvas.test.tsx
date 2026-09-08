@@ -75,6 +75,25 @@ describe("GridCanvas", () => {
     expect(onStartFromLibrary).toHaveBeenCalledOnce();
   });
 
+  it("clears the selected component when the canvas background is clicked", () => {
+    const store = createEditorStore(populated);
+    store.getState().select("bar-1");
+    renderCanvas(<GridCanvas store={store} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={({ children }) => <div>{children}</div>} />);
+
+    fireEvent.click(screen.getByRole("main", { name: "看板画布" }));
+
+    expect(store.getState().selectedComponentId).toBeNull();
+  });
+
+  it("keeps the component selected when a component frame is clicked", () => {
+    const store = createEditorStore(populated);
+    renderCanvas(<GridCanvas store={store} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} GridRenderer={({ children }) => <div>{children}</div>} />);
+
+    fireEvent.click(screen.getByRole("group", { name: "销售额" }));
+
+    expect(store.getState().selectedComponentId).toBe("bar-1");
+  });
+
   it("passes controlled 12-column layout and compact resize minimums to the grid", () => {
     let received: GridRendererProps | undefined;
     const FakeGrid = (props: GridRendererProps) => { received = props; return <div>{props.children}</div>; };

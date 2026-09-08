@@ -239,6 +239,28 @@ const applyKnownCommand = (
             : { ...component, titleStyle: command.nextTitleStyle },
         ),
       });
+    case "component.field-style.update":
+      return validateDashboardSnapshot({
+        ...dashboard,
+        components: replaceComponent(
+          dashboard,
+          command.componentId,
+          (component) => command.nextFieldStyle === undefined
+            ? (({ fieldStyle: _fieldStyle, ...rest }) => rest)(component)
+            : { ...component, fieldStyle: command.nextFieldStyle },
+        ),
+      });
+    case "component.container-style.update":
+      return validateDashboardSnapshot({
+        ...dashboard,
+        components: replaceComponent(
+          dashboard,
+          command.componentId,
+          (component) => command.nextContainerStyle === undefined
+            ? (({ containerStyle: _containerStyle, ...rest }) => rest)(component)
+            : { ...component, containerStyle: command.nextContainerStyle },
+        ),
+      });
     case "component.subtitle.update":
       return validateDashboardSnapshot({
         ...dashboard,

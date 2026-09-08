@@ -1,7 +1,9 @@
 import type {
   ComponentInstance,
   ComponentDisplayAnnotations,
+  ComponentFieldStyle,
   ComponentInteraction,
+  ComponentContainerStyle,
   ComponentTitleStyle,
   Dashboard,
   DataBinding,
@@ -52,6 +54,18 @@ export interface ComponentTitleStyleUpdateCommand {
   readonly nextTitleStyle: ComponentTitleStyle | undefined;
 }
 
+export interface ComponentFieldStyleUpdateCommand {
+  readonly type: "component.field-style.update";
+  readonly componentId: string;
+  readonly nextFieldStyle: ComponentFieldStyle | undefined;
+}
+
+export interface ComponentContainerStyleUpdateCommand {
+  readonly type: "component.container-style.update";
+  readonly componentId: string;
+  readonly nextContainerStyle: ComponentContainerStyle | undefined;
+}
+
 export interface ComponentSubtitleUpdateCommand {
   readonly type: "component.subtitle.update";
   readonly componentId: string;
@@ -100,6 +114,8 @@ export type EditorCommand =
   | ComponentPropsUpdateCommand
   | ComponentTitleUpdateCommand
   | ComponentTitleStyleUpdateCommand
+  | ComponentFieldStyleUpdateCommand
+  | ComponentContainerStyleUpdateCommand
   | ComponentSubtitleUpdateCommand
   | ComponentDisplayAnnotationsUpdateCommand
   | ComponentInteractionUpdateCommand

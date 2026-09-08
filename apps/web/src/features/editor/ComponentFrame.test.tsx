@@ -103,6 +103,21 @@ const ShortcutFrame = ({ store, onSave }: { store: ReturnType<typeof createEdito
 const renderFrame = (ui: ReactElement) => render(<AppProviders>{ui}</AppProviders>);
 
 describe("ComponentFrame", () => {
+  it("applies a saved custom container background to the component card", () => {
+    const store = createEditorStore(DashboardSchema.parse({
+      ...dashboard,
+      components: [{
+        ...dashboard.components[0]!,
+        containerStyle: { customBackground: true, backgroundColor: "#E6F7FF", borderRadius: 12 },
+      }],
+    }));
+
+    renderFrame(<ComponentFrame component={store.getState().history.present.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    expect(screen.getByRole("group", { name: "销售额" })).toHaveClass("component-frame--custom-background");
+    expect(screen.getByRole("group", { name: "销售额" })).toHaveStyle({ backgroundColor: "rgb(230, 247, 255)", borderRadius: "12px" });
+  });
+
   it("selects by click without rendering a separate drag handle", async () => {
     const store = createEditorStore(dashboard);
     renderFrame(<ComponentFrame component={dashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);

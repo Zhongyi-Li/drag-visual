@@ -12,7 +12,7 @@ import ReactGridLayout, {
   type LayoutItem,
   type ReactGridLayoutProps,
 } from "react-grid-layout";
-import type { ComponentType as ReactComponentType } from "react";
+import type { ComponentType as ReactComponentType, CSSProperties } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "zustand";
 import "react-grid-layout/css/styles.css";
@@ -215,13 +215,20 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
     clearInteraction();
   };
   const stopResizeInteraction: EventCallback = (nextLayout, _oldItem, nextItem) => dispatchStoppedLayout(nextLayout, nextItem, true);
+  const clearComponentSelection = (event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target;
+    if (target instanceof Element && target.closest(".component-frame")) return;
+    store.getState().select(null);
+  };
 
   return (
     <main
       ref={setNodeRef}
       className={`editor-canvas${isOver ? " editor-canvas--drop-target" : ""}`}
+      style={{ "--dashboard-background": dashboard.theme.backgroundColor } as CSSProperties}
       aria-label="看板画布"
       data-drop-zone-id={PALETTE_DROP_ID}
+      onClick={clearComponentSelection}
     >
       {globalFilterQuery.pendingComponentIds.length > 0 && (
         <div className="global-filter-query-overlay" role="status" aria-live="polite" aria-label="正在更新全局筛选结果">

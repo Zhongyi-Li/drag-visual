@@ -79,7 +79,7 @@ it("keeps long alert details in a vertically scrollable region", () => {
   expect(screen.getByText("门店 36")).toBeTruthy();
 });
 
-it("does not render an alert panel when no dimension matches the rule", () => {
+it("shows a clear state when no dimension matches the rule", () => {
   render(<DashboardComponentRenderer
     component={riskAlert}
     fields={[
@@ -89,6 +89,22 @@ it("does not render an alert panel when no dimension matches the rule", () => {
     rows={[{ store: "华东店", riskCount: 8 }, { store: "华南店", riskCount: 3 }]}
   />);
 
-  expect(screen.queryByTestId("metric-alert-surface")).toBeNull();
+  expect(screen.getByTestId("metric-alert-clear")).toBeTruthy();
+  expect(screen.getByText("当前没有命中预警条件")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "查看库存周转与滞销风险预警详情" })).toBeNull();
+});
+
+it("shows a useful empty state while the bound data is unavailable", () => {
+  render(<DashboardComponentRenderer
+    component={riskAlert}
+    fields={[
+      { key: "store", label: "店铺", type: "string", nullable: false },
+      { key: "riskCount", label: "库存周转与滞销风险", type: "number", nullable: false },
+    ]}
+    rows={[]}
+  />);
+
+  expect(screen.getByTestId("metric-alert-empty")).toBeTruthy();
+  expect(screen.getByText("等待数据后计算预警")).toBeTruthy();
+  expect(screen.getByText("当前没有可用于计算“库存周转与滞销风险”的数据，请检查数据集和字段绑定。")).toBeTruthy();
 });

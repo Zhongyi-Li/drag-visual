@@ -1,10 +1,11 @@
 import { BarChart, GaugeChart, LineChart, PieChart, RadarChart, SunburstChart, TreemapChart } from "echarts/charts";
-import { GridComponent, LegendComponent, TitleComponent, TooltipComponent } from "echarts/components";
+import { GridComponent, LegendComponent, TitleComponent, TooltipComponent, VisualMapComponent } from "echarts/components";
 import { init, use, type EChartsCoreOption } from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useMemo, useRef } from "react";
+import { applyChartTheme, ChartThemeContext } from "./chartTheme.js";
 
-use([BarChart, GaugeChart, LineChart, PieChart, RadarChart, SunburstChart, TreemapChart, GridComponent, LegendComponent, TitleComponent, TooltipComponent, CanvasRenderer]);
+use([BarChart, GaugeChart, LineChart, PieChart, RadarChart, SunburstChart, TreemapChart, GridComponent, LegendComponent, TitleComponent, TooltipComponent, VisualMapComponent, CanvasRenderer]);
 
 export interface EChartPointClick {
   readonly dataIndex?: number | undefined;
@@ -13,6 +14,8 @@ export interface EChartPointClick {
 }
 
 export const EChart = ({ option, ariaLabel, onPointClick }: { readonly option: EChartsCoreOption; readonly ariaLabel: string; readonly onPointClick?: ((point: EChartPointClick) => void) | undefined }) => {
+  const theme = useContext(ChartThemeContext);
+  const themedOption = useMemo(() => applyChartTheme(option, theme) as EChartsCoreOption, [option, theme]);
   const container = useRef<HTMLDivElement>(null);
   const chartRef = useRef<ReturnType<typeof init> | null>(null);
 
@@ -39,12 +42,12 @@ export const EChart = ({ option, ariaLabel, onPointClick }: { readonly option: E
   useEffect(() => {
     const chart = chartRef.current;
     if (chart === null) return;
-    chart.setOption(option, { notMerge: true });
+    chart.setOption(themedOption, { notMerge: true });
     // Apply the option against the settled flex/grid dimensions as well as on
     // later ResizeObserver events. This avoids preserving a smaller initial
     // plot rectangle in a preview card that has just received its final height.
     chart.resize();
-  }, [option]);
+  }, [themedOption]);
 
   useEffect(() => {
     const chart = chartRef.current;

@@ -224,10 +224,10 @@ const hasWidelyDifferentBarScales = (rows: readonly Row[], measures: readonly st
   return Math.max(...maxima) / Math.min(...maxima) >= 50;
 };
 
-const barGridInsets = (containerHeight: number | undefined, showLegend: boolean, angledCategoryLabels: boolean) => {
+const barGridInsets = (containerHeight: number | undefined, showLegend: boolean, angledCategoryLabels: boolean, denseCategoryLabels = false) => {
   const regular = {
     top: showLegend ? 44 : 18,
-    bottom: angledCategoryLabels ? 60 : 40,
+    bottom: denseCategoryLabels ? 60 : 40,
   };
   // The viewer can reserve part of a short card for a runtime date filter.
   // Fixed 44px/68px insets then leave almost no plot area, even though the
@@ -235,7 +235,7 @@ const barGridInsets = (containerHeight: number | undefined, showLegend: boolean,
   if (containerHeight === undefined || containerHeight >= 240) return regular;
   return {
     top: showLegend ? 34 : 16,
-    bottom: angledCategoryLabels ? 54 : 32,
+    bottom: denseCategoryLabels ? 54 : 32,
   };
 };
 
@@ -368,7 +368,7 @@ export const buildBarOption = (
   const denseCategories = aggregatedRows.length > 8;
   const angledCategoryLabels = denseCategories || hasLongCategoryLabels(categoryLabels);
   const showLegend = propBoolean(component, "showLegend", true);
-  const gridInsets = barGridInsets(containerHeight, showLegend, angledCategoryLabels);
+  const gridInsets = barGridInsets(containerHeight, showLegend, angledCategoryLabels, denseCategories);
   const barMaxWidth = responsiveBarMaximumWidth(categoryLabels.length, measures.length, stacked);
   // A taller card can support more grid lines. Derive the target interval from
   // the actual chart container rather than preserving the same three segments
@@ -400,20 +400,18 @@ export const buildBarOption = (
     grid: {
       top: gridInsets.top,
       right: independentScales ? 18 + Math.max(0, Math.floor(measures.length / 2) - 1) * 44 : 18,
-      // Leave room for every dense category label. In particular, a grouped
-      // result with 10 products must not visually look like it only has five.
-      // The vertical space belongs to the plotting area. Dense labels still
-      // need room, but the old 80px reservation left tall preview cards mostly
-      // empty below the chart.
+      // Keep the plot area compact. Long category names are shortened on the
+      // axis and remain available in the full-name hover tooltip.
       bottom: gridInsets.bottom,
       left: independentScales ? 52 + Math.max(0, Math.ceil(measures.length / 2) - 1) * 44 : 52,
-      containLabel: true,
+      outerBoundsMode: "same",
+      outerBoundsContain: "axisLabel",
     },
     tooltip: percentage
       ? { trigger: "item", formatter: (params: Parameters<typeof percentTooltipFormatter>[0]) => percentTooltipFormatter(params, aggregatedRows, currencyMeasures, quantityMeasures) }
       : stacked
         ? { trigger: "item", formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, currencySeriesNames, quantitySeriesNames) }
-        : { trigger: "axis", axisPointer: { type: "shadow" } },
+        : { trigger: "axis", axisPointer: { type: "shadow" }, formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, currencySeriesNames, quantitySeriesNames) },
     xAxis: {
       type: "category",
       boundaryGap: true,
@@ -425,14 +423,13 @@ export const buildBarOption = (
       axisTick: { show: false },
       axisLabel: {
         color: "#64748b",
-        // A category is data, rather than decoration: never let ECharts drop
-        // labels for a normal dense result set. Compact and slightly rotate
-        // them instead, while keeping the full name available in the tooltip.
+        // Keep labels compact so they do not consume the chart's plot area.
+        // The raw category value is preserved in the axis tooltip.
         interval: 0,
-        rotate: hasLongCategoryLabels(categoryLabels) ? 32 : denseCategories ? 24 : 0,
-        hideOverlap: false,
-        margin: angledCategoryLabels ? 12 : 8,
-        formatter: (value: string) => compactCategoryLabel(value, denseCategories ? 7 : angledCategoryLabels ? 16 : 18),
+        rotate: denseCategories ? 24 : 0,
+        hideOverlap: true,
+        margin: 8,
+        formatter: (value: string) => compactCategoryLabel(value, denseCategories ? 7 : angledCategoryLabels ? 8 : 18),
       },
       data: categoryLabels,
     },
@@ -575,7 +572,8 @@ export const buildHorizontalBarOption = (
       right: showValue ? 72 : 20,
       bottom: useIndependentScales ? 28 : 14,
       left: 12,
-      containLabel: true,
+      outerBoundsMode: "same",
+      outerBoundsContain: "axisLabel",
     },
     tooltip: {
       trigger: "axis",
@@ -701,7 +699,8 @@ export const buildBarLineOption = (
       right: showBar && showLine ? 72 : 28,
       bottom: useDataZoom ? 66 : angledCategoryLabels ? 68 : 42,
       left: 64,
-      containLabel: true,
+      outerBoundsMode: "same",
+      outerBoundsContain: "axisLabel",
     },
     tooltip: {
       trigger: "axis",
@@ -841,7 +840,7 @@ export const buildLineOption = (
       itemGap: 18,
       textStyle: { color: "#475569", fontSize: 12 },
     },
-    grid: { top: 44, right: 18, bottom: angledCategoryLabels ? 68 : 48, left: 52, containLabel: true },
+    grid: { top: 44, right: 18, bottom: angledCategoryLabels ? 68 : 48, left: 52, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
     tooltip: percentage
       ? { trigger: "item", formatter: (params: Parameters<typeof percentTooltipFormatter>[0]) => percentTooltipFormatter(params, rows, currencyMeasures, quantityMeasures) }
       : { trigger: "axis", axisPointer: { type: "line" } },
@@ -1524,7 +1523,7 @@ export const buildRankingOption = (
   const values = model.items.map((item) => isWeighted ? item.score : item.values[0]?.value ?? 0);
   const maximum = Math.max(0, ...values);
   return {
-    grid: { top: 12, right: showValue ? 64 : 20, bottom: 12, left: 88, containLabel: true },
+    grid: { top: 12, right: showValue ? 64 : 20, bottom: 12, left: 88, outerBoundsMode: "same", outerBoundsContain: "axisLabel" },
     tooltip: { trigger: "axis", axisPointer: { type: "shadow" }, formatter: (params: Parameters<typeof metricTooltipFormatter>[0]) => metricTooltipFormatter(params, isCurrency ? new Set([primaryMeasureLabel]) : new Set(), isQuantity ? new Set([primaryMeasureLabel]) : new Set()) },
     xAxis: {
       type: "value",

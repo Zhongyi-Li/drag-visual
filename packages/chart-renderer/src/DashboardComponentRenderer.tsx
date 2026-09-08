@@ -1,4 +1,4 @@
-import { DashboardGlobalFilterConfig, type ChartJumpRule, type ComponentInstance, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetField } from "@drag-visual/contracts";
+import { ComponentFieldStyle, DashboardGlobalFilterConfig, type ChartJumpRule, type ComponentFieldTextStyle, type ComponentInstance, type DashboardGlobalFilterConfig as DashboardGlobalFilterConfigValue, type DatasetField } from "@drag-visual/contracts";
 import { BarChartOutlined, InfoCircleOutlined, RightOutlined } from "@ant-design/icons";
 import { Avatar, Button, Checkbox, DatePicker, Input, InputNumber, Modal, Progress, Segmented, Select, Tag } from "antd";
 import zhCN from "antd/es/date-picker/locale/zh_CN.js";
@@ -7,6 +7,8 @@ import "dayjs/locale/zh-cn.js";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { EChart, type EChartPointClick } from "./EChart.js";
+import { applyComponentFieldStyle } from "./fieldStyle.js";
+import { ChartThemeContext, type ChartTheme } from "./chartTheme.js";
 import {
   buildBarOption,
   buildBarLineOption,
@@ -73,6 +75,7 @@ interface Props {
   readonly onComponentPropsChange?: ((props: ComponentInstance["props"]) => void) | undefined;
   /** Viewer bridge for point-click navigation configured in the analysis panel. */
   readonly onChartJump?: ((rule: ChartJumpRule, values: Row) => void) | undefined;
+  readonly theme?: ChartTheme | undefined;
 }
 
 type Row = Readonly<Record<string, unknown>>;
@@ -85,6 +88,8 @@ const bindingFieldKeys = (component: ComponentInstance, slot: keyof BindingSlots
 };
 
 const EMPTY_DATA_NOTICE = "当前图表无数据";
+const PRODUCT_MOVEMENT_BINDING_NOTICE = "请先选择数据源并完成分类维度和四个指标字段绑定";
+const PROGRESS_BAR_BINDING_NOTICE = "请先选择数据源，并在右侧数据栏绑定至少一个指标/度量";
 
 const emptyDataWrapperStyle: CSSProperties = {
   height: "100%",
@@ -150,6 +155,7 @@ const analysisGroupShellStyle: CSSProperties = { boxSizing: "border-box", displa
 const analysisGroupHeadingStyle: CSSProperties = { color: "#172033", fontSize: 18, fontWeight: 700, lineHeight: 1.35, margin: 0 };
 const analysisGroupDescriptionStyle: CSSProperties = { color: "#64748b", fontSize: 13, lineHeight: 1.5, margin: "4px 0 0" };
 const analysisGroupEmptyStyle: CSSProperties = { flex: "1 1 auto", minHeight: 120, display: "flex", alignItems: "center", justifyContent: "center", border: "1px dashed #c9d7e8", borderRadius: 8, color: "#7c8da5", background: "#fff", boxShadow: "0 1px 3px rgba(15, 23, 42, .04)", fontSize: 13 };
+const fieldTextCss = (style: ComponentFieldTextStyle): CSSProperties => ({ color: style.color, fontSize: style.fontSize, fontStyle: style.fontStyle, fontWeight: style.fontWeight });
 
 const isDashboardHeaderFilterField = (value: unknown): value is { fieldKey: string; label: string } =>
   typeof value === "object"
@@ -279,6 +285,12 @@ const renderEmptyDataDemo = (content: React.ReactNode) => (
   <div style={emptyDataWrapperStyle}>
     <div aria-hidden="true" style={emptyDataDemoStyle}>{content}</div>
     <div role="status" style={emptyDataNoticeStyle}>{EMPTY_DATA_NOTICE}</div>
+  </div>
+);
+
+const renderConfigurationNotice = (notice: string) => (
+  <div style={emptyDataWrapperStyle}>
+    <div role="status" style={emptyDataNoticeStyle}>{notice}</div>
   </div>
 );
 
@@ -607,28 +619,28 @@ const trendSummaryItemStyle: CSSProperties = {
 const trendLatestSummaryItemStyle: CSSProperties = {
   ...trendSummaryItemStyle,
   background: "#f5f9ff",
-  borderColor: "#cfe2ff",
+  border: "1px solid #cfe2ff",
   boxShadow: "inset 3px 0 0 #1677ff",
 };
 
 const trendPositiveSummaryItemStyle: CSSProperties = {
   ...trendSummaryItemStyle,
   background: "#f4fcf8",
-  borderColor: "#cceedd",
+  border: "1px solid #cceedd",
   boxShadow: "inset 3px 0 0 #12a06a",
 };
 
 const trendNegativeSummaryItemStyle: CSSProperties = {
   ...trendSummaryItemStyle,
   background: "#fff7f6",
-  borderColor: "#ffd9d5",
+  border: "1px solid #ffd9d5",
   boxShadow: "inset 3px 0 0 #e05252",
 };
 
 const trendPeakSummaryItemStyle: CSSProperties = {
   ...trendSummaryItemStyle,
   background: "#fafcff",
-  borderColor: "#e0eaf7",
+  border: "1px solid #e0eaf7",
   boxShadow: "inset 3px 0 0 #7b9bc8",
 };
 
@@ -949,6 +961,8 @@ const metricAlertShellStyle: CSSProperties = {
 };
 
 const metricAlertShellActiveStyle: CSSProperties = { ...metricAlertShellStyle, boxShadow: "0 0 0 3px rgba(255, 122, 69, 0.12)" };
+const metricAlertEmptyStyle: CSSProperties = { ...metricAlertShellStyle, background: "#f8fafc", border: "1px solid #dbe3ee", cursor: "default", gridTemplateColumns: "1fr" };
+const metricAlertClearStyle: CSSProperties = { ...metricAlertEmptyStyle, background: "#f6ffed", border: "1px solid #b7eb8f" };
 const metricAlertCopyStyle: CSSProperties = { minWidth: 0 };
 const metricAlertHeadlineStyle: CSSProperties = { alignItems: "center", color: "#1f2937", display: "flex", fontSize: 15, fontWeight: 700, gap: 8, lineHeight: 1.45, minWidth: 0 };
 const metricAlertBadgeStyle: CSSProperties = { background: "#ff721b", borderRadius: 12, color: "#fff", flex: "0 0 auto", fontSize: 12, fontWeight: 700, lineHeight: "22px", maxWidth: 150, overflow: "hidden", padding: "0 9px", textOverflow: "ellipsis", whiteSpace: "nowrap" };
@@ -2467,7 +2481,29 @@ const MetricAlertSurface = ({ component, fields, rows }: { readonly component: C
   const message = metricAlertTemplate(stringProp(component, "messageTemplate", "{{scope}}｜共 {{count}} 个{{dimensionLabel}}命中预警。"), variables);
   const detail = metricAlertTemplate(stringProp(component, "detailTemplate", "{{dimension}}的{{metric}}当前值为 {{value}}。预警条件：{{metric}} {{operator}} {{threshold}}。"), variables);
 
-  if (triggeredGroups.length === 0) return null;
+  if (rows.length === 0) {
+    return <section aria-label="指标预警暂无数据" data-testid="metric-alert-empty" style={metricAlertEmptyStyle}>
+      <div style={metricAlertCopyStyle}>
+        <div style={metricAlertHeadlineStyle}>
+          <span style={{ ...metricAlertBadgeStyle, background: "#94a3b8" }}>指标预警</span>
+          <span style={metricAlertHeadlineTextStyle}>等待数据后计算预警</span>
+        </div>
+        <p style={metricAlertMessageStyle}>当前没有可用于计算“{metric}”的数据，请检查数据集和字段绑定。</p>
+      </div>
+    </section>;
+  }
+
+  if (triggeredGroups.length === 0) {
+    return <section aria-label="指标预警暂无命中" data-testid="metric-alert-clear" style={metricAlertClearStyle}>
+      <div style={metricAlertCopyStyle}>
+        <div style={metricAlertHeadlineStyle}>
+          <span style={{ ...metricAlertBadgeStyle, background: "#52c41a" }}>暂无预警</span>
+          <span style={metricAlertHeadlineTextStyle}>当前没有命中预警条件</span>
+        </div>
+        <p style={metricAlertMessageStyle}>已检查 {groups.length} 个{dimensionLabel}，条件为“{operatorLabel} {thresholdDisplay}”。</p>
+      </div>
+    </section>;
+  }
 
   return <>
     <section
@@ -2613,9 +2649,9 @@ const isLegacyGaugeKpi = (component: ComponentInstance): boolean =>
 
 const SurfaceChip = ({ children, tone = "blue" }: { readonly children: React.ReactNode; readonly tone?: "blue" | "teal" | "amber" }) => {
   const toneStyle: CSSProperties = tone === "teal"
-    ? { background: "#effdf8", borderColor: "#c7f0df", color: "#08705d" }
+    ? { background: "#effdf8", border: "1px solid #c7f0df", color: "#08705d" }
     : tone === "amber"
-      ? { background: "#fff8e6", borderColor: "#fde8a7", color: "#8a5a00" }
+      ? { background: "#fff8e6", border: "1px solid #fde8a7", color: "#8a5a00" }
       : {};
   return <span style={{ ...chipStyle, ...toneStyle }}>{children}</span>;
 };
@@ -2712,7 +2748,7 @@ const ResponsiveBarChart = ({ component, fields, rows, rowsAreAggregated, ariaLa
 
   return (
     <div ref={container} style={responsiveBarChartStyle}>
-      <EChart option={buildBarOption(component, rows, fields, rowsAreAggregated, height)} ariaLabel={ariaLabel} onPointClick={onPointClick} />
+      <EChart option={applyComponentFieldStyle(buildBarOption(component, rows, fields, rowsAreAggregated, height), component)} ariaLabel={ariaLabel} onPointClick={onPointClick} />
     </div>
   );
 };
@@ -2756,7 +2792,7 @@ const BarLineChart = ({
       </div>
       <EChart
         key={displayMode}
-        option={buildBarLineOption(component, rows, fields, rowsAreAggregated, displayMode)}
+        option={applyComponentFieldStyle(buildBarLineOption(component, rows, fields, rowsAreAggregated, displayMode), component)}
         ariaLabel={`${component.title ?? "柱状折线组合图"}图表`}
         onPointClick={onPointClick}
       />
@@ -2764,7 +2800,7 @@ const BarLineChart = ({
   );
 };
 
-export const DashboardComponentRenderer = ({
+const DashboardComponentRendererBody = ({
   component,
   fields = [],
   rows,
@@ -2782,11 +2818,16 @@ export const DashboardComponentRenderer = ({
   onDashboardFiltersApply,
   onComponentPropsChange,
   onChartJump,
+  theme: _theme,
 }: Props) => {
   const [tablePage, setTablePage] = useState(1);
   const [activeMetricTrendMeasure, setActiveMetricTrendMeasure] = useState<string | null>(null);
   const [activeSunburstMeasure, setActiveSunburstMeasure] = useState<string | null>(null);
   const [activeTreemapMeasure, setActiveTreemapMeasure] = useState<string | null>(null);
+  const configuredFieldStyle = component.fieldStyle === undefined ? undefined : ComponentFieldStyle.parse(component.fieldStyle);
+  const dimensionTextStyle = configuredFieldStyle === undefined ? {} : fieldTextCss(configuredFieldStyle.dimension);
+  const metricNameTextStyle = configuredFieldStyle === undefined ? {} : fieldTextCss(configuredFieldStyle.metricName);
+  const metricValueTextStyle = configuredFieldStyle === undefined ? {} : fieldTextCss(configuredFieldStyle.metricValue);
   // Dashboards created before the first-class type used a pie with an 旭日图
   // title. Keep those saved dashboards functional after the upgrade.
   const isSunburst = component.type === "sunburst" || (component.type === "pie" && titleIncludes(component, "旭日"));
@@ -2824,7 +2865,7 @@ export const DashboardComponentRenderer = ({
   if (component.type === "analysisGroup") {
     const description = stringProp(component, "description", "用于组织同一业务主题下的多个图表与明细。");
     const showSurface = component.props.showSurface !== false;
-    return <section aria-label={`${component.title ?? "复合分析"}容器`} style={{ ...analysisGroupShellStyle, ...(showSurface ? {} : { borderColor: "transparent", background: "transparent" }) }}>
+    return <section aria-label={`${component.title ?? "复合分析"}容器`} style={{ ...analysisGroupShellStyle, ...(showSurface ? {} : { border: "1px solid transparent", background: "transparent" }) }}>
       <div>
         <h3 style={analysisGroupHeadingStyle}>{component.title || "复合分析"}</h3>
         {description.length > 0 && <p style={analysisGroupDescriptionStyle}>{description}</p>}
@@ -2832,12 +2873,23 @@ export const DashboardComponentRenderer = ({
       <div style={analysisGroupEmptyStyle}>双击容器，开始添加并编排图表</div>
     </section>;
   }
+  if (component.type === "productMovementRanking") {
+    const hasDataset = (component.binding?.datasetId.trim().length ?? 0) > 0;
+    const hasRequiredFields = ["dimension", "salesAmount", "inventoryAmount", "salesQuantity", "inventoryQuantity"]
+      .every((slot) => bindingFieldKeys(component, slot as keyof BindingSlots).length > 0);
+    if (!hasDataset || !hasRequiredFields) return renderConfigurationNotice(PRODUCT_MOVEMENT_BINDING_NOTICE);
+  }
+  if (component.type === "progressBar") {
+    const hasDataset = (component.binding?.datasetId.trim().length ?? 0) > 0;
+    const hasMeasure = bindingFieldKeys(component, "measure").length > 0 || bindingFieldKeys(component, "value").length > 0;
+    if (!hasDataset || !hasMeasure) return renderConfigurationNotice(PROGRESS_BAR_BINDING_NOTICE);
+  }
+  if (component.type === "metricAlert") return <MetricAlertSurface component={component} fields={fields} rows={rows} />;
   const isEmptyData = rows.length === 0;
   if (isEmptyData) {
     const demo = buildEmptyDataDemo(component);
     if (demo !== null) return renderEmptyDataDemo(demo);
   }
-  if (component.type === "metricAlert") return <MetricAlertSurface component={component} fields={fields} rows={rows} />;
   if (component.type === "bar" || component.type === "stackedBar" || component.type === "percentBar") {
     const fallbackTitle = component.type === "stackedBar"
       ? "堆积柱图"
@@ -2856,7 +2908,7 @@ export const DashboardComponentRenderer = ({
     );
   }
   if (component.type === "horizontalBar") {
-    return <EChart option={buildHorizontalBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "条形图"}图表`} onPointClick={handleChartPointClick} />;
+    return <EChart option={applyComponentFieldStyle(buildHorizontalBarOption(component, rows, fields, rowsAreAggregated), component)} ariaLabel={`${component.title ?? "条形图"}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "barLine") {
     return <BarLineChart component={component} fields={fields} rows={rows} rowsAreAggregated={rowsAreAggregated} onPointClick={handleChartPointClick} />;
@@ -2869,7 +2921,7 @@ export const DashboardComponentRenderer = ({
         : component.type === "percentArea"
           ? "百分比堆积面积图"
           : "折线图";
-    return <EChart option={buildLineOption(component, rows, fields)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
+    return <EChart option={applyComponentFieldStyle(buildLineOption(component, rows, fields), component)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "trend") {
     const model = buildTrendModel(component, rows, fields);
@@ -2906,7 +2958,7 @@ export const DashboardComponentRenderer = ({
             </div>
           )}
           <div style={trendChartStyle}>
-            <EChart option={buildTrendOption(component, model)} ariaLabel={`${component.title ?? "趋势分析"}趋势图表`} onPointClick={handleChartPointClick} />
+            <EChart option={applyComponentFieldStyle(buildTrendOption(component, model), component)} ariaLabel={`${component.title ?? "趋势分析"}趋势图表`} onPointClick={handleChartPointClick} />
           </div>
         </div>
       </DataSurface>
@@ -2954,7 +3006,7 @@ export const DashboardComponentRenderer = ({
             </div>
           </div>
           <div style={metricTrendChartStyle}>
-            <EChart key={activeMeasureKey ?? "empty"} option={buildMetricTrendOption(component, model, activeMeasureKey)} ariaLabel={`${component.title ?? "指标趋势"}趋势图表`} onPointClick={handleChartPointClick} />
+            <EChart key={activeMeasureKey ?? "empty"} option={applyComponentFieldStyle(buildMetricTrendOption(component, model, activeMeasureKey), component)} ariaLabel={`${component.title ?? "指标趋势"}趋势图表`} onPointClick={handleChartPointClick} />
           </div>
         </div>
       </DataSurface>
@@ -3019,7 +3071,7 @@ export const DashboardComponentRenderer = ({
           </div>
         )}
         <div style={sunburstChartStyle}>
-          <EChart option={buildRadarOption(component, rows, fields)} ariaLabel={`${component.title ?? "雷达图"}图表`} onPointClick={handleChartPointClick} />
+          <EChart option={applyComponentFieldStyle(buildRadarOption(component, rows, fields), component)} ariaLabel={`${component.title ?? "雷达图"}图表`} onPointClick={handleChartPointClick} />
         </div>
       </div>
     );
@@ -3043,7 +3095,7 @@ export const DashboardComponentRenderer = ({
             {measures.map((measure) => <option key={measure} value={measure}>{labels.get(measure) ?? measure}</option>)}
           </select>
         )}
-        <EChart option={buildTreemapOption(component, rows, fields, activeMeasureKey)} ariaLabel={`${component.title ?? "矩形树图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
+        <EChart option={applyComponentFieldStyle(buildTreemapOption(component, rows, fields, activeMeasureKey), component)} ariaLabel={`${component.title ?? "矩形树图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
       </div>
     );
   }
@@ -3083,17 +3135,17 @@ export const DashboardComponentRenderer = ({
           </div>
         )}
         <div style={sunburstChartStyle}>
-          <EChart option={buildSunburstOption(component, rows, fields, activeMeasureKey)} ariaLabel={`${component.title ?? "旭日图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
+          <EChart option={applyComponentFieldStyle(buildSunburstOption(component, rows, fields, activeMeasureKey), component)} ariaLabel={`${component.title ?? "旭日图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
         </div>
       </div>
     );
   }
   if (component.type === "pie" || component.type === "donut" || component.type === "rose") {
     const fallbackTitle = component.type === "rose" ? "玫瑰图" : component.type === "donut" ? "环形图" : "饼图";
-    return <EChart option={buildPieOption(component, rows, fields)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
+    return <EChart option={applyComponentFieldStyle(buildPieOption(component, rows, fields), component)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "ringBar") {
-    return <EChart option={buildRingBarOption(component, rows, fields, rowsAreAggregated)} ariaLabel={`${component.title ?? "环形柱图"}图表`} onPointClick={handleChartPointClick} />;
+    return <EChart option={applyComponentFieldStyle(buildRingBarOption(component, rows, fields, rowsAreAggregated), component)} ariaLabel={`${component.title ?? "环形柱图"}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "productMovementRanking") {
     const model = buildProductMovementRankingModel(component, rows, fields);
@@ -3270,14 +3322,14 @@ export const DashboardComponentRenderer = ({
     const models = buildGaugeModels(component, rows, fields);
     if (models.length === 1 && models[0]?.label === undefined) {
       const model = buildGaugeModel(component, rows, fields);
-      return <EChart option={buildGaugeOption(component, model)} ariaLabel={`${component.title ?? "仪表盘"}图表`} onPointClick={handleChartPointClick} />;
+      return <EChart option={applyComponentFieldStyle(buildGaugeOption(component, model), component)} ariaLabel={`${component.title ?? "仪表盘"}图表`} onPointClick={handleChartPointClick} />;
     }
     return (
       <section data-testid="gauge-chart-grid" style={metricChartGridStyle}>
         {models.map(({ key, label, model }) => (
           <div key={key} style={metricChartCellStyle}>
             <EChart
-              option={buildGaugeOption(component, model, label ?? model.label)}
+              option={applyComponentFieldStyle(buildGaugeOption(component, model, label ?? model.label), component)}
               ariaLabel={`${component.title ?? "仪表盘"}${label === undefined ? "" : ` ${label}`}图表`}
               onPointClick={handleChartPointClick}
             />
@@ -3514,7 +3566,10 @@ export const DashboardComponentRenderer = ({
       >
         <div style={tableScrollStyle}>
           <table aria-label={`${component.title ?? "明细表"}数据表`} style={dataTableStyle}>
-            <thead><tr>{model.columns.map((column) => <th key={column.key} style={tableHeaderCellStyle}>{column.label}</th>)}</tr></thead>
+            <thead><tr>{model.columns.map((column) => {
+              const numeric = fields.find((field) => field.key === column.key)?.type === "number";
+              return <th key={column.key} style={{ ...tableHeaderCellStyle, ...(numeric ? metricNameTextStyle : dimensionTextStyle) }}>{column.label}</th>;
+            })}</tr></thead>
             <tbody>{pagedRows.map((row, index) => (
               <tr key={index} style={{ background: "#ffffff" }}>
                 {model.columns.map((column) => {
@@ -3522,7 +3577,7 @@ export const DashboardComponentRenderer = ({
                   const display = typeof value === "number" && (isCurrencyMetric(column.key, fields) || isQuantityMetric(column.key, fields))
                     ? formatCrosstabMetric(value, isCurrencyMetric(column.key, fields), isQuantityMetric(column.key, fields))
                     : String(value ?? "—");
-                  return <td key={column.key} style={tableCellStyle}>{display}</td>;
+                  return <td key={column.key} style={{ ...tableCellStyle, ...(typeof value === "number" ? metricValueTextStyle : dimensionTextStyle) }}>{display}</td>;
                 })}
               </tr>
             ))}</tbody>
@@ -3559,28 +3614,28 @@ export const DashboardComponentRenderer = ({
           <table aria-label={`${component.title ?? "交叉表"}二维交叉表`} style={dataTableStyle}>
             <thead>
               <tr>
-                <th style={tableTotalHeaderCellStyle}>{model.rowHeader} \ {model.columnHeader}</th>
-                {model.columns.map((column) => <th key={column.key} style={tableHeaderCellStyle}>{column.label}</th>)}
-                {model.showTotals && <th style={tableTotalHeaderCellStyle}>合计</th>}
+                <th style={{ ...tableTotalHeaderCellStyle, ...dimensionTextStyle }}>{model.rowHeader} \ {model.columnHeader}</th>
+                {model.columns.map((column) => <th key={column.key} style={{ ...tableHeaderCellStyle, ...dimensionTextStyle }}>{column.label}</th>)}
+                {model.showTotals && <th style={{ ...tableTotalHeaderCellStyle, ...metricNameTextStyle }}>合计</th>}
               </tr>
             </thead>
             <tbody>
               {model.rows.map((row) => (
                 <tr key={row.label}>
-                  <th scope="row" style={tableRowHeaderCellStyle}>{row.label}</th>
+                  <th scope="row" style={{ ...tableRowHeaderCellStyle, ...dimensionTextStyle }}>{row.label}</th>
                   {row.values.map((value, index) => (
-                    <td key={model.columns[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabMetric(value, model.measureIsCurrency, model.measureIsQuantity)}</td>
+                    <td key={model.columns[index]?.key ?? index} style={{ ...tableNumericCellStyle, ...metricValueTextStyle }}>{formatCrosstabMetric(value, model.measureIsCurrency, model.measureIsQuantity)}</td>
                   ))}
-                  {model.showTotals && <td style={tableTotalCellStyle}>{formatCrosstabMetric(row.total, model.measureIsCurrency, model.measureIsQuantity)}</td>}
+                  {model.showTotals && <td style={{ ...tableTotalCellStyle, ...metricValueTextStyle }}>{formatCrosstabMetric(row.total, model.measureIsCurrency, model.measureIsQuantity)}</td>}
                 </tr>
               ))}
               {model.showTotals && (
                 <tr>
-                  <th scope="row" style={tableTotalHeaderCellStyle}>合计</th>
+                  <th scope="row" style={{ ...tableTotalHeaderCellStyle, ...metricNameTextStyle }}>合计</th>
                   {model.columnTotals.map((value, index) => (
-                    <td key={model.columns[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabMetric(value, model.measureIsCurrency, model.measureIsQuantity)}</td>
+                    <td key={model.columns[index]?.key ?? index} style={{ ...tableTotalCellStyle, ...metricValueTextStyle }}>{formatCrosstabMetric(value, model.measureIsCurrency, model.measureIsQuantity)}</td>
                   ))}
-                  <td style={tableTotalCellStyle}>{formatCrosstabMetric(model.grandTotal, model.measureIsCurrency, model.measureIsQuantity)}</td>
+                  <td style={{ ...tableTotalCellStyle, ...metricValueTextStyle }}>{formatCrosstabMetric(model.grandTotal, model.measureIsCurrency, model.measureIsQuantity)}</td>
                 </tr>
               )}
             </tbody>
@@ -3634,14 +3689,14 @@ export const DashboardComponentRenderer = ({
           <table aria-label={`${component.title ?? "热力图"}热力矩阵`} style={dataTableStyle}>
             <thead>
               <tr>
-                <th style={tableTotalHeaderCellStyle}>{model.rowHeader} \ {model.columnHeader}</th>
-                {model.columns.map((column) => <th key={column.key} style={tableHeaderCellStyle}>{column.label}</th>)}
+                <th style={{ ...tableTotalHeaderCellStyle, ...dimensionTextStyle }}>{model.rowHeader} \ {model.columnHeader}</th>
+                {model.columns.map((column) => <th key={column.key} style={{ ...tableHeaderCellStyle, ...dimensionTextStyle }}>{column.label}</th>)}
               </tr>
             </thead>
             <tbody>
               {model.rows.map((row) => (
                 <tr key={row.label}>
-                  <th scope="row" style={tableRowHeaderCellStyle}>{row.label}</th>
+                  <th scope="row" style={{ ...tableRowHeaderCellStyle, ...dimensionTextStyle }}>{row.label}</th>
                   {row.cells.map((cell) => (
                     <td
                       key={cell.columnKey}
@@ -3659,6 +3714,7 @@ export const DashboardComponentRenderer = ({
                       })}
                       style={{
                         ...heatmapCellBaseStyle,
+                        ...metricValueTextStyle,
                         background: heatmapCellFill(cell.intensity),
                         color: cell.intensity > 0.7 ? "#fff" : "#0f172a",
                         cursor: handleHeatmapCellClick === undefined ? undefined : "pointer",
@@ -3702,15 +3758,15 @@ export const DashboardComponentRenderer = ({
           <table aria-label={`${component.title ?? "多维分析"}多维分析表`} style={dataTableStyle}>
             <thead>
               <tr>
-                <th colSpan={model.dimensions.length} style={tableTotalHeaderCellStyle}>维度</th>
-                <th colSpan={model.measures.length} style={{ ...tableTotalHeaderCellStyle, color: "#08705d" }}>度量</th>
+                <th colSpan={model.dimensions.length} style={{ ...tableTotalHeaderCellStyle, ...dimensionTextStyle }}>维度</th>
+                <th colSpan={model.measures.length} style={{ ...tableTotalHeaderCellStyle, ...metricNameTextStyle }}>度量</th>
               </tr>
               <tr>
                 {model.dimensions.map((dimension) => (
-                  <th key={dimension.key} style={tableHeaderCellStyle}>{dimension.label}</th>
+                  <th key={dimension.key} style={{ ...tableHeaderCellStyle, ...dimensionTextStyle }}>{dimension.label}</th>
                 ))}
                 {model.measures.map((measure) => (
-                  <th key={measure.key} style={tableHeaderCellStyle}>{measure.label}</th>
+                  <th key={measure.key} style={{ ...tableHeaderCellStyle, ...metricNameTextStyle }}>{measure.label}</th>
                 ))}
               </tr>
             </thead>
@@ -3718,23 +3774,23 @@ export const DashboardComponentRenderer = ({
               {model.rows.map((row) => (
                 <tr key={row.key}>
                   {row.dimensions.map((value, index) => index === 0 ? (
-                    <th key={model.dimensions[index]?.key ?? index} scope="row" style={tableRowHeaderCellStyle}>{value}</th>
+                    <th key={model.dimensions[index]?.key ?? index} scope="row" style={{ ...tableRowHeaderCellStyle, ...dimensionTextStyle }}>{value}</th>
                   ) : (
-                    <td key={model.dimensions[index]?.key ?? index} style={tableCellStyle}>{value}</td>
+                    <td key={model.dimensions[index]?.key ?? index} style={{ ...tableCellStyle, ...dimensionTextStyle }}>{value}</td>
                   ))}
                   {row.values.map((value, index) => (
-                    <td key={model.measures[index]?.key ?? index} style={tableNumericCellStyle}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false, model.measures[index]?.isQuantity ?? false)}</td>
+                    <td key={model.measures[index]?.key ?? index} style={{ ...tableNumericCellStyle, ...metricValueTextStyle }}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false, model.measures[index]?.isQuantity ?? false)}</td>
                   ))}
                 </tr>
               ))}
               {model.showTotals && (
                 <tr>
-                  <th scope="row" style={tableTotalHeaderCellStyle}>合计</th>
+                  <th scope="row" style={{ ...tableTotalHeaderCellStyle, ...metricNameTextStyle }}>合计</th>
                   {model.dimensions.slice(1).map((dimension) => (
-                    <td key={dimension.key} style={tableTotalHeaderCellStyle}>—</td>
+                    <td key={dimension.key} style={{ ...tableTotalHeaderCellStyle, ...dimensionTextStyle }}>—</td>
                   ))}
                   {model.totals.map((value, index) => (
-                    <td key={model.measures[index]?.key ?? index} style={tableTotalCellStyle}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false, model.measures[index]?.isQuantity ?? false)}</td>
+                    <td key={model.measures[index]?.key ?? index} style={{ ...tableTotalCellStyle, ...metricValueTextStyle }}>{formatCrosstabMetric(value, model.measures[index]?.isCurrency ?? false, model.measures[index]?.isQuantity ?? false)}</td>
                   ))}
                 </tr>
               )}
@@ -3753,3 +3809,9 @@ export const DashboardComponentRenderer = ({
   };
   return <div style={style}>{stringProp(component, "content", "")}</div>;
 };
+
+export const DashboardComponentRenderer = (props: Props) => (
+  <ChartThemeContext.Provider value={props.theme}>
+    <DashboardComponentRendererBody {...props} />
+  </ChartThemeContext.Provider>
+);

@@ -565,6 +565,35 @@ it("renders product movement ranking as paired amount and quantity bars", () => 
   expect(screen.getByTestId("product-movement-ranking-surface").querySelector("article")?.style.borderWidth).toBe("0px");
 });
 
+it("does not render default metric labels before product movement ranking is bound", () => {
+  render(<DashboardComponentRenderer component={{
+    id: "product-movement-unbound", type: "productMovementRanking", title: "", props: { aggregation: "sum", maxItems: 6 },
+  }} fields={[
+    { key: "product", label: "商品", type: "string", nullable: false }, { key: "salesAmount", label: "销售额", type: "number", nullable: false },
+  ]} rows={[
+    { product: "小米", salesAmount: 445000 },
+  ]} />);
+
+  expect(screen.getByRole("status").textContent).toContain("请先选择数据源并完成分类维度和四个指标字段绑定");
+  expect(screen.queryByLabelText("双指标对比排行图例")).toBeNull();
+  expect(screen.queryByText("销售额")).toBeNull();
+  expect(screen.queryByText("未分类")).toBeNull();
+});
+
+it("shows a configuration notice instead of a blank progress bar before its measure is bound", () => {
+  render(<DashboardComponentRenderer component={{
+    id: "progress-unbound", type: "progressBar", title: "进度条", props: { aggregation: "sum", decimals: 1, showValue: true },
+    binding: { datasetId: "sales", slots: {} },
+  }} fields={[
+    { key: "revenue", label: "销售额", type: "number", nullable: false },
+  ]} rows={[
+    { revenue: 445000 },
+  ]} />);
+
+  expect(screen.getByRole("status").textContent).toContain("请先选择数据源，并在右侧数据栏绑定至少一个指标/度量");
+  expect(screen.queryByTestId("progress-bar-surface")).toBeNull();
+});
+
 it("configures movement ranking labels and right-side units independently from the bound fields", () => {
   render(<DashboardComponentRenderer component={{
     id: "movement-configurable", type: "productMovementRanking", title: "", props: {

@@ -16,6 +16,7 @@ import { AnalysisGroupPanel } from "./AnalysisGroupPanel.js";
 import { AnalysisGroupDisplayPanel } from "./AnalysisGroupDisplayPanel.js";
 import { QueryFiltersPanel } from "./QueryFiltersPanel.js";
 import { ChartJumpConfigurationPanel } from "./ChartJumpConfigurationPanel.js";
+import { DashboardSettingsPanel } from "./DashboardSettingsPanel.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
 
 interface InspectorPanelProps {
@@ -25,6 +26,7 @@ interface InspectorPanelProps {
   readonly onToggleCollapsed: () => void;
   readonly dataCollapsed?: boolean;
   readonly onToggleDataCollapsed?: () => void;
+  readonly showDataPanel?: boolean;
 }
 
 export const InspectorPanel = ({
@@ -34,13 +36,12 @@ export const InspectorPanel = ({
   onToggleCollapsed,
   dataCollapsed = false,
   onToggleDataCollapsed = () => undefined,
+  showDataPanel = true,
 }: InspectorPanelProps) => {
   const selected = useStore(store, editorSelectors.selectedComponent);
   const [insightSettingsOpen, setInsightSettingsOpen] = useState(false);
-  const configurationTitle = selected === null ? "配置" : `${selected.title?.trim() || registry.get(selected.type).title}配置`;
-  const content = selected === null ? (
-    <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="尚未选择组件" />
-  ) : (() => {
+  const configurationTitle = selected === null ? "页面配置" : `${selected.title?.trim() || registry.get(selected.type).title}配置`;
+  const content = selected === null ? null : (() => {
     const definition = registry.get(selected.type);
     return (
       <div className="inspector-selected">
@@ -197,7 +198,7 @@ export const InspectorPanel = ({
 
   if (collapsed) {
     return (
-      <aside className={`editor-inspector editor-inspector--config-collapsed${dataCollapsed ? " editor-inspector--data-collapsed" : ""}`} aria-label="配置与数据面板">
+      <aside className={`editor-inspector editor-inspector--config-collapsed${dataCollapsed && showDataPanel ? " editor-inspector--data-collapsed" : ""}${!showDataPanel ? " editor-inspector--page-settings" : ""}`} aria-label="配置与数据面板">
         <section className="inspector-config inspector-config--collapsed" aria-label="配置面板">
           <Tooltip title="展开配置栏" placement="left">
             <Button
@@ -208,18 +209,18 @@ export const InspectorPanel = ({
             />
           </Tooltip>
         </section>
-        <ComponentDataPanel
+        {showDataPanel ? <ComponentDataPanel
           store={store}
           registry={registry}
           collapsed={dataCollapsed}
           onToggleCollapsed={onToggleDataCollapsed}
-        />
+        /> : null}
       </aside>
     );
   }
 
   return (
-    <aside className={`editor-inspector${dataCollapsed ? " editor-inspector--data-collapsed" : ""}`} aria-label="配置与数据面板">
+    <aside className={`editor-inspector${dataCollapsed && showDataPanel ? " editor-inspector--data-collapsed" : ""}${!showDataPanel ? " editor-inspector--page-settings" : ""}`} aria-label="配置与数据面板">
       <section className="inspector-config editor-panel-scroll" aria-label="配置面板">
         <div className="inspector-heading">
         <strong>{configurationTitle}</strong>
@@ -235,20 +236,31 @@ export const InspectorPanel = ({
           </Tooltip>
         </span>
         </div>
-        <Tabs size="small" defaultActiveKey="component" items={selected?.type === "dashboardHeader"
-          ? [{ key: "component", label: "设置", children: content }]
-          : [
+        <Tabs
+          className={selected === null ? "dashboard-settings-tabs" : ""}
+          size="small"
+          key={selected?.id ?? "dashboard"}
+          defaultActiveKey={selected === null ? "theme" : "component"}
+          items={selected === null
+          ? [
+              { key: "theme", label: "主题", children: <DashboardSettingsPanel store={store} /> },
+              { key: "advanced", label: "高级", children: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无高级配置" /> },
+            ]
+          : selected.type === "dashboardHeader"
+            ? [{ key: "component", label: "设置", children: content }]
+            : [
               { key: "component", label: "字段", children: content },
               { key: "display", label: "显示", children: displayContent },
               { key: "analysis", label: "分析", children: analysisContent },
-            ]} />
+            ]}
+        />
       </section>
-      <ComponentDataPanel
+      {showDataPanel ? <ComponentDataPanel
         store={store}
         registry={registry}
         collapsed={dataCollapsed}
         onToggleCollapsed={onToggleDataCollapsed}
-      />
+      /> : null}
     </aside>
   );
 };

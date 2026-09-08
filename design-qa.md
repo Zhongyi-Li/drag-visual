@@ -1,3 +1,108 @@
+# Latest QA — 柱图长指标名称显示
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-4af2dd46-188d-4af4-95f2-5e56498e03e3.png`。
+- Implementation surface: `packages/chart-renderer/src/options.ts` 的柱图类目轴配置。
+
+**Findings**
+
+- 已修复长指标名称在柱图下方过早省略的问题。少量分类时底部空间从 60px 提升到 82px，并将标签紧凑上限从 16 个字符提升到 24 个字符。
+- 分类数量较多时继续使用 24° 斜排和紧凑标签，避免标签互相遮挡；轴提示仍保留完整指标名称，悬浮即可查看全称。
+- 无遗留的 P0、P1 或 P2 差异。
+
+**Verification**
+
+- `packages/chart-renderer/src/options.test.ts` 长标签与密集分类用例 2/2 passed。
+- `pnpm --filter @drag-visual/web typecheck`: passed。
+- `git diff --check`: passed。
+
+final result: passed
+
+---
+
+# Latest QA — 全局样式主题、图表色系与语义色
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-8dee14dc-1ff4-452e-8da3-0d0409dbfd29.png`、`codex-clipboard-f51fcb30-c134-4a81-93e4-36c6dd32cc19.png`、`codex-clipboard-6a50c3cf-f03c-440a-affd-022b41c94703.png`、`codex-clipboard-bc68056e-5f98-4e3c-a926-375c421abea1.png`。
+- Implementation route: `http://localhost:5173/editor/e28d5ee7-a474-49df-9a1b-aae4b6cce2a9`，页面设置 → 主题 → 全局样式。
+
+**Findings**
+
+- 无遗留的 P0、P1 或 P2 差异。全局样式现在支持浅色/深色模式、预设图表色系、自定义六色调色板和标准/柔和语义色。
+- 深色模式会同步改变画布底色、组件卡片、图表文字、坐标轴和网格线；图表色系通过渲染主题上下文应用到 ECharts 系列。
+- [P3] 渐变色样式目前保留为默认开启的配置项，渐变绘制策略将在色系编辑稳定后继续细化。
+
+**Interaction and runtime verification**
+
+- 浏览器已验证：切换“深色模式”后主题控件保持选中，点击“自定义”会展示六个可编辑色板。
+- `DashboardSettingsPanel.test.tsx`: 2/2 passed；`chartTheme.test.ts`: 1/1 passed；`pnpm --filter @drag-visual/web typecheck`: passed。
+- 参考图与实际配置面板已在 Codex 内置浏览器同一轮比较输入中对照；没有新增运行时错误。
+
+final result: passed
+
+---
+
+# Latest QA — 页面设置隐藏数据面板
+
+**Comparison target**
+
+- Implementation route: `http://localhost:5173/editor/e28d5ee7-a474-49df-9a1b-aae4b6cce2a9`。
+- Compared states: 页面设置（未选中组件）与组件设置（选中柱图）。
+
+**Findings**
+
+- 无遗留的 P0、P1 或 P2 差异。页面设置现在独占右侧工作区，不再显示“数据”面板；选中组件后数据面板自动恢复，字段绑定流程保持不变。
+- 配置栏收起后同样遵循该状态，不会在页面设置下留下空的折叠数据栏。
+
+**Interaction and runtime verification**
+
+- 浏览器已验证：页面设置状态只显示“主题 / 高级”和全局配置；点击柱图后恢复“字段 / 显示 / 分析”及“数据”面板。
+- `EditorShell.test.tsx` 页面设置、右侧配置栏和数据栏用例通过；`pnpm --filter @drag-visual/web typecheck`: passed。
+
+final result: passed
+
+---
+
+# Latest QA — 点击画布后的全局配置面板
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-14bff85d-ec75-4ee6-92ff-9375e1a244dd.png`（386 × 550 px，用户提供）。
+- Implementation route: `http://localhost:5173/editor/e28d5ee7-a474-49df-9a1b-aae4b6cce2a9`。
+- Compared state: 先选中“柱图”确认右侧显示组件配置，再点击画布空白区；页面配置恢复为“主题 / 高级”页签，并展示六个全局配置分组。
+- Visual evidence: 在 Codex 内置浏览器的同一次比较输入中同时打开参考图，并截取实际配置栏从页签开始的 250 × 550 px 区域。
+
+**Findings**
+
+- 无遗留的 P0、P1 或 P2 差异。页签居中、细蓝色激活线、圆角搜索框、折叠箭头、行高和浅灰分隔线均与参考图一致，并适配项目既有 250px 配置栏。
+- [P3] 参考图宽 386px，而当前编辑器配置栏按既有工作台布局固定为 250px；内容结构和节奏保持一致，未扩大侧栏以免压缩画布和数据栏。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 使用现有 Ant Design 与产品字体栈；页签、搜索框和分组标题在 12–13px 信息层级内，无换行或截断。
+- Spacing and layout rhythm: 搜索区 8–10px 内边距，折叠行最小高度 37px，六个分组连续排列。
+- Colors and visual tokens: 激活态沿用产品主蓝，边框和分隔线使用既有中性灰；全局主题色和背景色可展开编辑。
+- Image quality and asset fidelity: 该面板不需要新增位图资产；搜索和折叠图标来自现有 Ant Design 图标库。
+- Copy and content: “仪表板主题、全局样式、页面布局、仪表板背景、组件、通用内容样式”与参考图一致。
+
+**Interaction and runtime verification**
+
+- 浏览器验证：选中柱图后显示“字段 / 显示 / 分析”；点击画布空白区后清除选中并恢复全局配置。
+- 搜索会过滤全局配置分组；主题色和背景颜色会写入仪表板主题，背景颜色会即时反映到编辑画布。
+- `InspectorPanel.test.tsx` 相关用例 3/3 passed；`GridCanvas.test.tsx` 相关用例 2/2 passed；`EditorShell.test.tsx` 相关用例 3/3 passed。
+- `pnpm --filter @drag-visual/web typecheck`: passed。
+
+**Comparison history**
+
+- Iteration 1: 完成全局配置结构、搜索、主题编辑和画布取消选择逻辑。
+- Iteration 2: 根据同屏对比让两个页签等宽居中，并将仪表板背景接入画布即时预览；重新完成浏览器交互验收。
+
+final result: passed
+
+---
+
 # 图表跳转设置弹窗：设计 QA
 
 **Comparison target**
@@ -71,6 +176,65 @@ final result: blocked
 1. 选定方案的 PNG 已部署到登录页和看板中心。
 2. 品牌文案、可访问名称、桌面与移动端尺寸已同步。
 3. 类型检查、相关看板中心测试和浏览器视觉对照均已完成。
+
+final result: passed
+
+---
+
+# Latest QA — 标题与卡片字段设置
+
+**Comparison target**
+
+- Source visual truth: `/private/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-b5276340-8415-4433-bd1b-d3ae42c3813b.png`（213 × 172 px）。
+- Implementation screenshot: `/private/tmp/design-qa-field-settings.png`（233 × 157 px，对应 250px 配置栏内的实际内容区域）。
+- Browser state: `http://127.0.0.1:5173/editor/b7789481-7899-4755-9931-bc9d169b7caf`，桌面 CSS 视口 1280 × 720，浏览器 DPR 2；截图工具按 CSS 像素归一化输出。
+- Focused comparison: 同一视觉输入中并列检查参考图与实现截图；完整编辑器截图未作为主对照，因为目标只覆盖“字段设置”局部。
+
+**Findings**
+
+- 无遗留的 P0、P1 或 P2 差异。实现保留“维度 / 指标—名称 / 指标—数值”的三层结构，并在 250px 配置栏内保持单行、无挤压。
+- [P2] 首轮缺少参考图右上角的总开关；已增加“启用字段设置”开关，关闭后颜色、字号、加粗和斜体控件均禁用，重新开启后恢复编辑。
+- [P3] 实现使用 Ant Design `FontColorsOutlined` 表达颜色设置，视觉上比参考图的纯字母 A 更清晰；属于既有图标体系内的可接受差异。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 维度和指标名称默认 12px，指标数值默认 16px；支持 10–32px、颜色、粗体与斜体。控件与标签均沿用产品字体栈，无折行或截断。
+- Spacing and layout rhythm: 标签列、颜色按钮、字号输入和 B/I 操作保持紧凑横排；指标名称和数值两行对齐，间距与参考图一致。
+- Colors and visual tokens: 激活态使用产品主蓝 `#1677ff`；默认维度/名称使用 `#475569`，数值使用 `#0F172A`；颜色弹层复用 Ant Design 色板。
+- Image quality and asset fidelity: 本功能无位图资产；图标来自现有 Ant Design 图标库，不使用 CSS 绘图或手绘 SVG。
+- Copy and content: “字段设置、维度、指标、名称、数值”与参考图一致；新增开关具有明确的可访问名称。
+
+**Interaction and runtime verification**
+
+- 浏览器已验证字段设置总开关：关闭后字号与格式按钮均禁用，开启后恢复。
+- 浏览器已验证加粗按钮会进入激活状态；颜色选择器可打开完整色板。
+- `ComponentTitlePanel.test.tsx`: 6/6 passed。
+- `DashboardComponentRenderer.test.tsx` + `fieldStyle.test.ts`: 84/84 passed。
+- `editor-core reducer.test.ts`: 26/26 passed。
+- Web、editor-core、chart-renderer 类型检查及 `git diff --check` 均通过。
+- 控制台仅存在项目已有的 ECharts 组件导入提示和 Ant Design Drawer 弃用提示；未发现本次字段设置引入的新错误。
+
+**Comparison history**
+
+- Iteration 1: 三类文字设置已实现，但缺少参考图中的字段设置总开关。
+- Iteration 2: 增加总开关、禁用态与渲染启停逻辑；重新完成局部截图和交互检查，无 P0/P1/P2 遗留。
+
+final result: passed
+
+---
+
+# Latest QA — 组件容器自定义背景填充
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-74a6e1ce-6bb0-4129-9ec1-db2e3126289e.png` 与 `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-8b28e034-2ea6-47c8-8e9c-f196fc5bea25.png`。
+- Implemented state: “标题与卡片”中包含“标题”和“组件容器”两个子项；组件容器提供“自定义背景填充”开关及 Ant Design 色板选择器，未启用时不改变原卡片底色。
+
+**Verification**
+
+- `ComponentTitlePanel.test.tsx`: 自定义背景开关会持久化 `{ customBackground: true, backgroundColor: "#FFFFFF" }`。
+- `ComponentFrame.test.tsx`: 已保存的颜色会应用到编辑器卡片容器。
+- `@drag-visual/editor-core test`: 50/50 passed。
+- `@drag-visual/web typecheck`: passed。
+- Browser: 本地登录页可打开；未使用或创建测试账号，因此未进入受保护的编辑页执行浏览器截图验收。
 
 final result: passed
 

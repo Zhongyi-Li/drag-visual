@@ -336,6 +336,24 @@ describe("applyCommand", () => {
     expect(next.components[0]?.titleStyle).toEqual({ visible: true, color: "#1677ff", fontSize: 18, fontWeight: "bold", fontStyle: "italic", textAlign: "center" });
   });
 
+  it("stores semantic field typography without changing data bindings", () => {
+    const initial = populatedDashboard();
+    const nextFieldStyle = {
+      enabled: true,
+      dimension: { color: "#475569", fontSize: 12, fontWeight: "normal" as const, fontStyle: "normal" as const },
+      metricName: { color: "#1677FF", fontSize: 13, fontWeight: "bold" as const, fontStyle: "normal" as const },
+      metricValue: { color: "#0F172A", fontSize: 18, fontWeight: "bold" as const, fontStyle: "italic" as const },
+    };
+    const next = applyCommand(initial, {
+      type: "component.field-style.update",
+      componentId: "chart-1",
+      nextFieldStyle,
+    });
+
+    expect(next.components[0]?.fieldStyle).toEqual(nextFieldStyle);
+    expect(next.components[0]?.binding).toEqual(initial.components[0]?.binding);
+  });
+
   it("updates a component subtitle without changing its props or binding", () => {
     const initial = populatedDashboard();
     const next = applyCommand(initial, {

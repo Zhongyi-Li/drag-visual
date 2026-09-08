@@ -266,7 +266,7 @@ describe("component option builders", () => {
       binding: { datasetId: "inventory", slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "inventoryAmount" }, lineMeasure: { fieldKey: "inventoryQuantity" } } },
     }), chartRows, chartFields);
     expect(combo.yAxis).toHaveLength(2);
-    expect(combo.grid).toMatchObject({ top: 68, left: 64, right: 72, containLabel: true });
+    expect(combo.grid).toMatchObject({ top: 68, left: 64, right: 72, outerBoundsMode: "same", outerBoundsContain: "axisLabel" });
     expect(combo.series).toEqual([
       expect.objectContaining({ type: "bar", name: "库存金额", data: [1660, 1420, 1074], label: expect.objectContaining({ show: true, position: "top" }) }),
       expect.objectContaining({ type: "line", name: "库存数量", yAxisIndex: 1, data: [120, 80, 36], label: expect.objectContaining({ show: true, position: "top" }) }),
@@ -348,7 +348,7 @@ describe("component option builders", () => {
       binding: { datasetId: "sales", slots: { dimension: { fieldKey: "product" }, barMeasure: { fieldKey: "amount" }, lineMeasure: { fieldKey: "orders" } } },
     }), rows, fields);
 
-    expect(bar.xAxis).toMatchObject({ axisLabel: { rotate: 32, interval: 0, hideOverlap: false }, data: [rows[0]!.product, rows[1]!.product] });
+    expect(bar.xAxis).toMatchObject({ axisLabel: { rotate: 0, interval: 0, hideOverlap: true }, data: [rows[0]!.product, rows[1]!.product] });
     expect(line.xAxis).toMatchObject({ axisLabel: { rotate: 32, interval: 0, hideOverlap: false } });
     expect(combo.xAxis).toMatchObject({ axisLabel: { rotate: 32, interval: 0, hideOverlap: false } });
   });
@@ -391,7 +391,7 @@ describe("component option builders", () => {
     }), rows, lineFields);
     expect(lineOption.series).toHaveLength(2);
     expect(lineOption.legend).toMatchObject({ top: 8, left: 12, orient: "horizontal", icon: "circle" });
-    expect(lineOption.grid).toMatchObject({ top: 44, bottom: 48, containLabel: true });
+    expect(lineOption.grid).toMatchObject({ top: 44, bottom: 48, outerBoundsMode: "same", outerBoundsContain: "axisLabel" });
     expect(lineOption.xAxis).toMatchObject({
       boundaryGap: false,
       name: "月份",
@@ -742,9 +742,23 @@ describe("component option builders", () => {
     })), lineFields);
 
     expect(option.grid).toMatchObject({ bottom: 60 });
-    expect(option.xAxis).toMatchObject({ axisLabel: { interval: 0, rotate: 24, hideOverlap: false } });
+    expect(option.xAxis).toMatchObject({ axisLabel: { interval: 0, rotate: 24, hideOverlap: true } });
     expect(option.xAxis.data).toHaveLength(20);
     expect(option.series[0]).toMatchObject({ barMinHeight: 2, itemStyle: { color: "#1677ff" } });
+  });
+
+  it("gives a small set of long bar labels more room before compacting them", () => {
+    const option = buildBarOption(component({}), [
+      { month: "创建 43 个批量采购订单", revenue: 100 },
+      { month: "创建 40 个批量采购订单", revenue: 200 },
+      { month: "创建 45 个批量采购订单", revenue: 300 },
+    ], lineFields);
+    const axisLabel = option.xAxis.axisLabel as { formatter?: (value: string) => string };
+    expect(option.grid).toMatchObject({ bottom: 40 });
+    expect(option.xAxis).toMatchObject({ axisLabel: { rotate: 0, hideOverlap: true } });
+    expect(axisLabel.formatter?.("创建 43 个批量采购订单")).toBe("创建 43 个…");
+    const tooltip = option.tooltip as { formatter?: (params: unknown) => string };
+    expect(tooltip.formatter?.([{ axisValueLabel: "创建 43 个批量采购订单", seriesName: "柱图", value: 100 }])).toContain("创建 43 个批量采购订单");
   });
 
   it("uses more vertical axis intervals when a bar chart receives a taller container", () => {

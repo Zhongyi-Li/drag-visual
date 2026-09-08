@@ -1,7 +1,7 @@
 import { MoreOutlined } from "@ant-design/icons";
 import { DashboardComponentRenderer, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
 import type { ComponentRegistry } from "@drag-visual/component-registry";
-import { ComponentTitleStyle, DashboardGlobalFilterConfig, type ComponentInstance, type DatasetFilter, type DatasetQueryRequest, type DatasetQueryResult } from "@drag-visual/contracts";
+import { ComponentContainerStyle, ComponentTitleStyle, DashboardGlobalFilterConfig, type ComponentInstance, type DatasetFilter, type DatasetQueryRequest, type DatasetQueryResult } from "@drag-visual/contracts";
 import { applyTransforms } from "@drag-visual/data-engine";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, Drawer, Empty, Dropdown, Space, Spin, Typography, type MenuProps } from "antd";
@@ -33,6 +33,8 @@ interface ComponentFrameProps {
     readonly type: ComponentInstance["type"];
     readonly title?: ComponentInstance["title"];
     readonly titleStyle?: ComponentInstance["titleStyle"];
+    readonly fieldStyle?: ComponentInstance["fieldStyle"];
+    readonly containerStyle?: ComponentInstance["containerStyle"];
     readonly subtitle?: ComponentInstance["subtitle"];
     readonly props: Readonly<Record<string, unknown>>;
     readonly binding?: unknown;
@@ -91,6 +93,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const component = useStore(store, (state) =>
     state.history.present.components.find((candidate) => candidate.id === suppliedComponent.id) ?? suppliedComponent,
   );
+  const dashboardTheme = useStore(store, (state) => state.history.present.theme);
   const selected = useStore(store, (state) => state.selectedComponentId === component.id);
   const isDateBoundByGlobalFilter = useStore(store, (state) => isDateBoundByDashboardHeader(component.id, state.history.present.components));
   // An empty string is an intentional, saved title state. Do not fall back to
@@ -98,6 +101,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   // chart title after it has been created.
   const title = component.title ?? component.type;
   const titleStyle = ComponentTitleStyle.parse(component.titleStyle ?? {});
+  const containerStyle = ComponentContainerStyle.parse(component.containerStyle ?? {});
   const hasTitle = titleStyle.visible && title.trim().length > 0;
   const isDashboardHeader = component.type === "dashboardHeader";
   const topLeftHint = isDashboardHeader || component.type === "analysisGroup" ? undefined : chartTopLeftHint(component as ComponentInstance);
@@ -342,8 +346,9 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   return (
     <section
       aria-label={hasTitle ? title : topLeftHint ?? component.type}
-      className={`component-frame${selected ? " component-frame--selected" : ""}${hasTitle ? "" : " component-frame--untitled"}${hasHeaderHint ? " component-frame--has-header-hint" : ""}${isDashboardHeader ? " component-frame--dashboard-header" : ""}${chartComponent.type === "analysisGroup" ? " component-frame--analysis-group" : ""}${chartComponent.type === "kpiInsight" ? " component-frame--kpi-insight" : ""}${chartComponent.type === "globalFilterSummary" ? " component-frame--global-filter-summary" : ""}`}
+      className={`component-frame${selected ? " component-frame--selected" : ""}${hasTitle ? "" : " component-frame--untitled"}${hasHeaderHint ? " component-frame--has-header-hint" : ""}${isDashboardHeader ? " component-frame--dashboard-header" : ""}${chartComponent.type === "analysisGroup" ? " component-frame--analysis-group" : ""}${chartComponent.type === "kpiInsight" ? " component-frame--kpi-insight" : ""}${chartComponent.type === "globalFilterSummary" ? " component-frame--global-filter-summary" : ""}${containerStyle.customBackground ? " component-frame--custom-background" : ""}${dashboardTheme.mode === "dark" ? " component-frame--dark" : ""}`}
       role="group"
+      style={{ borderRadius: containerStyle.borderRadius, padding: `${containerStyle.padding.top}px ${containerStyle.padding.right}px ${containerStyle.padding.bottom}px ${containerStyle.padding.left}px`, ...(containerStyle.customBackground ? { backgroundColor: containerStyle.backgroundColor } : {}) }}
       tabIndex={0}
       onClick={select}
       onFocus={(event) => { if (event.target === event.currentTarget) select(); }}
@@ -450,6 +455,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
               <DashboardComponentRenderer
                 key={renderVersion}
                 component={chartComponent}
+                theme={dashboardTheme}
                 fields={fields}
                 rows={transformedRows}
                 rowsAreAggregated={rowsAreAggregated}

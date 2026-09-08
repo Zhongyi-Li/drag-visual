@@ -6,6 +6,19 @@ import { DatasetFilter } from "./dataset.js";
 const nonEmptyString = z.string().min(1);
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
+export const DashboardThemeMode = z.enum(["light", "dark"]);
+export type DashboardThemeMode = z.infer<typeof DashboardThemeMode>;
+
+export const DashboardChartPalette = z.array(hexColor).min(3).max(12);
+export type DashboardChartPalette = z.infer<typeof DashboardChartPalette>;
+
+export const DashboardSemanticColors = z.object({
+  positive: hexColor,
+  negative: hexColor,
+  neutral: hexColor,
+}).strict();
+export type DashboardSemanticColors = z.infer<typeof DashboardSemanticColors>;
+
 export const ComponentType = z.enum([
   "bar",
   "stackedBar",
@@ -234,6 +247,45 @@ export const ComponentTitleStyle = z.object({
 
 export type ComponentTitleStyle = z.infer<typeof ComponentTitleStyle>;
 
+/** Typography shared by dimension labels, metric names, and metric values. */
+export const ComponentFieldTextStyle = z.object({
+  color: hexColor,
+  fontSize: z.number().int().min(10).max(32),
+  fontWeight: z.enum(["normal", "bold"]),
+  fontStyle: z.enum(["normal", "italic"]),
+}).strict();
+
+export type ComponentFieldTextStyle = z.infer<typeof ComponentFieldTextStyle>;
+
+/** Presentation settings for data-related text inside a component. */
+export const ComponentFieldStyle = z.object({
+  enabled: z.boolean().default(true),
+  dimension: ComponentFieldTextStyle.default({ color: "#475569", fontSize: 12, fontWeight: "normal", fontStyle: "normal" }),
+  metricName: ComponentFieldTextStyle.default({ color: "#475569", fontSize: 12, fontWeight: "normal", fontStyle: "normal" }),
+  metricValue: ComponentFieldTextStyle.default({ color: "#0F172A", fontSize: 16, fontWeight: "normal", fontStyle: "normal" }),
+}).strict();
+
+export type ComponentFieldStyle = z.infer<typeof ComponentFieldStyle>;
+
+/** Presentation settings for the component card surrounding its title and content. */
+export const ComponentContainerPadding = z.object({
+  top: z.number().int().min(0).max(64).default(0),
+  right: z.number().int().min(0).max(64).default(0),
+  bottom: z.number().int().min(0).max(64).default(0),
+  left: z.number().int().min(0).max(64).default(0),
+}).strict();
+
+export type ComponentContainerPadding = z.infer<typeof ComponentContainerPadding>;
+
+export const ComponentContainerStyle = z.object({
+  customBackground: z.boolean().default(false),
+  backgroundColor: hexColor.default("#FFFFFF"),
+  borderRadius: z.number().int().min(0).max(32).default(6),
+  padding: ComponentContainerPadding.default({ top: 0, right: 0, bottom: 0, left: 0 }),
+}).strict();
+
+export type ComponentContainerStyle = z.infer<typeof ComponentContainerStyle>;
+
 export const DataBinding = z.object({
   datasetId: nonEmptyString,
   slots: safeRecord(z.union([FieldBinding, z.array(FieldBinding)])),
@@ -303,6 +355,8 @@ export const ComponentInstance = z.object({
   type: ComponentType,
   title: z.string().optional(),
   titleStyle: ComponentTitleStyle.optional(),
+  fieldStyle: ComponentFieldStyle.optional(),
+  containerStyle: ComponentContainerStyle.optional(),
   /** Optional helper text rendered directly below a chart title. */
   subtitle: z.string().max(180).optional(),
   displayAnnotations: ComponentDisplayAnnotations.optional(),
@@ -323,6 +377,9 @@ export const DashboardSchema = z
       .object({
         primaryColor: hexColor,
         backgroundColor: hexColor,
+        mode: DashboardThemeMode.optional(),
+        chartPalette: DashboardChartPalette.optional(),
+        semanticColors: DashboardSemanticColors.optional(),
       })
       .strict(),
     layout: z.array(GridItem).max(100),

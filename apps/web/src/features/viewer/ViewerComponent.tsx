@@ -37,6 +37,7 @@ interface ViewerComponentProps {
   /** Invoked by chart renderers when a configured data point is selected. */
   readonly onChartJump?: ((rule: ChartJumpRule, values: Readonly<Record<string, unknown>>) => void) | undefined;
   readonly analysisGroupFilters?: readonly DatasetFilter[] | undefined;
+  readonly theme?: Dashboard["theme"] | undefined;
 }
 
 interface ResolvedComponentProps extends ViewerComponentProps {
@@ -50,7 +51,7 @@ const formatBindingMessage = (message: string): string => {
   return missingField ? `字段 ${missingField[1]} 已不存在` : message;
 };
 
-const ResolvedComponent = ({ component, dataset, rows, rowsAreAggregated = false, globalFilterValues, globalFilters, globalFilterOptions, onGlobalFilterChange, globalFiltersLoading, onGlobalFiltersApply, onChartJump }: ResolvedComponentProps) => {
+const ResolvedComponent = ({ component, dataset, rows, rowsAreAggregated = false, globalFilterValues, globalFilters, globalFilterOptions, onGlobalFilterChange, globalFiltersLoading, onGlobalFiltersApply, onChartJump, theme }: ResolvedComponentProps) => {
   const definition = createDefaultRegistry().get(component.type);
   const fields = calculatedMetricFields(dataset.fields, component.binding);
   const validation = validateBinding(component.binding, fields, definition.dataSlots);
@@ -77,13 +78,13 @@ const ResolvedComponent = ({ component, dataset, rows, rowsAreAggregated = false
   const transformed = applyTransforms(calculatedRows, bindingForRender, fields);
   return <div style={{ position: "relative", display: "flex", flex: "1 1 auto", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
     <ResponsiveChartContainer>
-      <DashboardComponentRenderer component={component} fields={fields} rows={transformed} rowsAreAggregated={rowsAreAggregated} dashboardFilterValues={globalFilterValues} dashboardFilters={globalFilters} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} />
+      <DashboardComponentRenderer component={component} fields={fields} rows={transformed} rowsAreAggregated={rowsAreAggregated} theme={theme} dashboardFilterValues={globalFilterValues} dashboardFilters={globalFilters} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} />
     </ResponsiveChartContainer>
     {component.type !== "analysisGroup" && component.type !== "dashboardHeader" && <ChartDisplayHints component={component} />}
   </div>;
 };
 
-const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}, globalFilters = [], onGlobalFilterChange, globalFilterApplyVersion = 0, onGlobalFilterQuerySettled, globalFiltersLoading = false, onGlobalFiltersApply, onChartJump, analysisGroupFilters = [] }: ViewerComponentProps) => {
+const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}, globalFilters = [], onGlobalFilterChange, globalFilterApplyVersion = 0, onGlobalFilterQuerySettled, globalFiltersLoading = false, onGlobalFiltersApply, onChartJump, analysisGroupFilters = [], theme }: ViewerComponentProps) => {
   const localDatasets = useLocalDatasets();
   const datasetId = component.binding!.datasetId;
   const [runtimeDraftParameters, setRuntimeDraftParameters] = useState<RuntimeParameterValues>({});
@@ -229,6 +230,7 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
           dataset={resultDataset}
           rows={resolvedResult.rows}
           rowsAreAggregated={aggregation !== undefined && (localResult === undefined || hasActiveCalculatedMetrics(component.binding))}
+          theme={theme}
           globalFilterValues={globalFilterValues}
           globalFilters={globalFilters}
           globalFilterOptions={headerOptions}
@@ -236,11 +238,12 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
           globalFiltersLoading={globalFiltersLoading}
           onGlobalFiltersApply={onGlobalFiltersApply}
           onChartJump={onChartJump}
+          onGlobalFilterQuerySettled={onGlobalFilterQuerySettled}
         />}
   </div>;
 };
 
-export const ViewerComponent = ({ component, savedDataset, currentDataset, globalFilterValues, globalFilters, globalFilterOptions, onGlobalFilterChange, globalFilterApplyVersion, onGlobalFilterQuerySettled, globalFiltersLoading, onGlobalFiltersApply, onChartJump, analysisGroupFilters }: ViewerComponentProps) => {
+export const ViewerComponent = ({ component, savedDataset, currentDataset, globalFilterValues, globalFilters, globalFilterOptions, onGlobalFilterChange, globalFilterApplyVersion, onGlobalFilterQuerySettled, globalFiltersLoading, onGlobalFiltersApply, onChartJump, analysisGroupFilters, theme }: ViewerComponentProps) => {
   const hasGlobalFilterTarget = (globalFilters ?? []).some((filter) => filter.targets.some((target) => target.componentId === component.id));
   // Preview callers can provide a materialized dataset directly. Those
   // components have no query lifecycle to report, so acknowledge the global
@@ -252,12 +255,13 @@ export const ViewerComponent = ({ component, savedDataset, currentDataset, globa
   }, [component.binding, component.id, currentDataset, globalFilterApplyVersion, hasGlobalFilterTarget, onGlobalFilterQuerySettled]);
   if (component.props.throwInViewer === true) throw new Error("VIEWER_COMPONENT_TEST_ERROR");
   if (component.type === "text" || component.type === "globalFilterSummary") {
-    return <ResponsiveChartContainer><DashboardComponentRenderer component={component} rows={[]} dashboardFilterValues={globalFilterValues} dashboardFilters={globalFilters} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} /></ResponsiveChartContainer>;
+    return <ResponsiveChartContainer><DashboardComponentRenderer component={component} rows={[]} theme={theme} dashboardFilterValues={globalFilterValues} dashboardFilters={globalFilters} dashboardFilterOptions={globalFilterOptions} onDashboardFilterChange={onGlobalFilterChange} dashboardFiltersLoading={globalFiltersLoading} onDashboardFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} /></ResponsiveChartContainer>;
   }
   if (component.type === "dashboardHeader" && component.binding === undefined) {
     return <ResponsiveChartContainer><DashboardComponentRenderer
       component={component}
       rows={[]}
+      theme={theme}
       dashboardFilterValues={globalFilterValues}
       dashboardFilterOptions={globalFilterOptions}
       onDashboardFilterChange={onGlobalFilterChange}
@@ -270,7 +274,7 @@ export const ViewerComponent = ({ component, savedDataset, currentDataset, globa
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请配置数据绑定" />;
   }
   if (currentDataset !== undefined) {
-    return <ResolvedComponent component={component} savedDataset={savedDataset} dataset={currentDataset} rows={[]} globalFilterValues={globalFilterValues} globalFilters={globalFilters} globalFilterOptions={globalFilterOptions} onGlobalFilterChange={onGlobalFilterChange} globalFiltersLoading={globalFiltersLoading} onGlobalFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} />;
+    return <ResolvedComponent component={component} savedDataset={savedDataset} dataset={currentDataset} rows={[]} theme={theme} globalFilterValues={globalFilterValues} globalFilters={globalFilters} globalFilterOptions={globalFilterOptions} onGlobalFilterChange={onGlobalFilterChange} globalFiltersLoading={globalFiltersLoading} onGlobalFiltersApply={onGlobalFiltersApply} onChartJump={onChartJump} />;
   }
   return <BoundViewerComponent
     component={component}
@@ -284,5 +288,6 @@ export const ViewerComponent = ({ component, savedDataset, currentDataset, globa
     onGlobalFiltersApply={onGlobalFiltersApply}
     onChartJump={onChartJump}
     analysisGroupFilters={analysisGroupFilters}
+    theme={theme}
   />;
 };

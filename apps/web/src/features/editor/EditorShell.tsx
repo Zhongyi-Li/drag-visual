@@ -25,8 +25,10 @@ import { InspectorPanel } from "./InspectorPanel.js";
 import "./editor.css";
 import { PALETTE_DROP_ID, parseAnalysisGroupDropId, resolvePaletteDrop } from "./paletteDrag.js";
 import type { EditorStore } from "./store/editorStore.js";
+import { editorSelectors } from "./store/editorStore.js";
 import { useEditorShortcuts } from "./useEditorShortcuts.js";
 import { createBrowserUuid } from "../../app/browserUuid.js";
+import { useStore } from "zustand";
 
 interface EditorShellProps {
   store: EditorStore;
@@ -68,6 +70,7 @@ export const EditorShell = ({
   registry = defaultRegistry,
 }: EditorShellProps) => {
   const [activeTitle, setActiveTitle] = useState<string | null>(null);
+  const selectedComponent = useStore(store, editorSelectors.selectedComponent);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [dataPanelCollapsed, setDataPanelCollapsed] = useState(false);
   const [isPaletteHighlighted, setIsPaletteHighlighted] = useState(false);
@@ -208,6 +211,7 @@ export const EditorShell = ({
             onToggleCollapsed={() => setInspectorCollapsed((current) => !current)}
             dataCollapsed={dataPanelCollapsed}
             onToggleDataCollapsed={() => setDataPanelCollapsed((current) => !current)}
+            showDataPanel={selectedComponent !== null}
             store={store}
             registry={registry}
           />

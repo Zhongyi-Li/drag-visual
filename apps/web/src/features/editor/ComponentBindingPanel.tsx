@@ -766,6 +766,13 @@ export const ComponentBindingPanel = ({
     if (field?.type !== "number") return;
     updateProgressPair(index, slot, field.key);
   };
+  const dropFirstProgressMeasure = (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const fieldKey = event.dataTransfer.getData(FIELD_DRAG_TYPE);
+    const field = fields.find((candidate) => candidate.key === fieldKey);
+    if (field?.type !== "number") return;
+    updateProgressPairs([{ measure: field.key }]);
+  };
   const canAcceptProgressField = (event: DragEvent<HTMLDivElement>) => event.dataTransfer.types.includes(FIELD_DRAG_TYPE);
   const supportsResultLimit = schema.data?.parameters.some((parameter) => parameter.key === "limit" && parameter.type === "number") === true;
   const updateResultLimit = (limit: number | null) => {
@@ -872,6 +879,16 @@ export const ComponentBindingPanel = ({
         <div className="binding-field progress-pair-field">
           <BindingFieldLabel label="指标与目标配对" help="每一行对应一项已完成指标和它的目标指标。可从右侧数据栏双击添加，再拖动字段到对应一行完成配对。" />
           <div className="progress-pair-list">
+            {progressPairs.length === 0 && (
+              <div
+                className="binding-field__empty progress-pair__drop-measure"
+                data-testid="progress-pair-empty-measure"
+                onDragOver={(event) => { if (canAcceptProgressField(event)) event.preventDefault(); }}
+                onDrop={dropFirstProgressMeasure}
+              >
+                从右侧数据栏拖入实际指标，或双击度量字段添加进度
+              </div>
+            )}
             {progressPairs.map((pair, index) => {
               const measureAggregation = selectedMetricAggregation("measure", pair.measure) ?? "sum";
               const targetAggregation = pair.target === undefined
