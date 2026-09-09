@@ -319,6 +319,25 @@ describe("ComponentBindingPanel", () => {
     expect(screen.getByRole("button", { name: "进度 1实际指标聚合方式" })).toHaveTextContent("求和");
     expect(screen.queryByRole("combobox", { name: "添加进度指标" })).not.toBeInTheDocument();
     expect(screen.getByText("从右侧数据栏双击或拖入度量，添加进度")).toBeInTheDocument();
+
+    const targetDropZone = screen.getAllByText("从右侧数据栏双击或拖入目标值")[0]!;
+    const dataTransfer = {
+      types: ["application/x-drag-visual-field", "application/x-drag-visual-field-metadata"],
+      getData: (type: string) => type === "application/x-drag-visual-field"
+        ? "revenueTarget"
+        : type === "application/x-drag-visual-field-metadata"
+          ? JSON.stringify({ key: "revenueTarget", label: "revenueTarget", type: "number" })
+          : "",
+    };
+    fireEvent.dragOver(targetDropZone, { dataTransfer });
+    fireEvent.drop(targetDropZone, { dataTransfer });
+
+    await waitFor(() => {
+      expect(progressStore.getState().history.present.components[0]!.binding?.slots.target).toEqual([
+        { fieldKey: "revenueTarget" },
+      ]);
+    });
+    expect(screen.getByRole("button", { name: "进度 1目标值聚合方式" })).toHaveTextContent("最大值");
   });
 
   it("shows required actual and target metric controls for a gauge", async () => {
@@ -915,6 +934,7 @@ describe("ComponentBindingPanel", () => {
         binding: {
           datasetId: "sales",
           slots: { dimension: { fieldKey: "month" }, measure: [{ fieldKey: "revenue" }] },
+          dateFilter: { fieldKey: "businessDate", defaultPreset: "all", allowCustom: true, showControl: true, timezone: "Asia/Shanghai" },
         },
       }],
     });
@@ -933,11 +953,22 @@ describe("ComponentBindingPanel", () => {
         { fieldKey: "revenue", aggregation: "avg" },
       ]);
     });
+    expect(store.getState().history.present.components[0]!.binding?.dateFilter).toEqual(component.binding?.dateFilter);
     expect(screen.getByText("销售额（平均值）")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "更新" }));
     expect(store.getState().history.present.components[0]!.props).toMatchObject({
       dataRefreshVersion: 1,
     });
+
+    await userEvent.click(screen.getByRole("button", { name: "销售额更多操作" }));
+    await userEvent.click(await screen.findByText("求和"));
+    expect(await screen.findByText("销售额（求和）")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "更新" }));
+    expect(store.getState().history.present.components[0]!.props).toMatchObject({ dataRefreshVersion: 2 });
+    expect(store.getState().history.present.components[0]!.binding?.slots.measure).toEqual([
+      { fieldKey: "revenue", aggregation: "sum" },
+    ]);
+    expect(store.getState().history.present.components[0]!.binding?.dateFilter).toEqual(component.binding?.dateFilter);
 
     await userEvent.click(screen.getByRole("button", { name: "销售额更多操作" }));
     await userEvent.click(await screen.findByText("移除指标"));

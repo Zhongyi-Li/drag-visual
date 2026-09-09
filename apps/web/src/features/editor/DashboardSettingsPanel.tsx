@@ -23,11 +23,21 @@ const paletteGroups = {
   鲜明: ["#1677ff", "#19a7ce", "#f4c20d", "#f66d44", "#7b61ff", "#db3a7b"],
   舒适: ["#4db6ac", "#64b5f6", "#9575cd", "#ffb74d", "#90a4ae", "#81c784"],
   简约: ["#4f7cac", "#5fa8d3", "#89c2d9", "#f4a261", "#e76f51", "#a8dadc"],
+  色盲无障碍: ["#5278bb", "#f0a23a", "#385a9d", "#b9cde5", "#7b8797", "#e86f0e"],
 } as const;
 const semanticGroups = {
   标准: { positive: "#52c41a", negative: "#ff4d4f", neutral: "#faad14" },
   柔和: { positive: "#36b37e", negative: "#e76f51", neutral: "#f2c94c" },
 } as const;
+
+const PaletteLabel = ({ name, colors }: { readonly name: string; readonly colors: readonly string[] }) => (
+  <span className="dashboard-settings__palette-option">
+    <span className="dashboard-settings__palette-option-swatches" aria-hidden="true">
+      {colors.map((color) => <i key={color} style={{ backgroundColor: color }} />)}
+    </span>
+    <span>{name}</span>
+  </span>
+);
 
 const ThemeColorField = ({
   label,
@@ -68,6 +78,16 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
   const paletteName = Object.entries(paletteGroups).find(([, colors]) => JSON.stringify(colors) === JSON.stringify(palette))?.[0] ?? "自定义";
   const semantic = dashboard.theme.semanticColors ?? semanticGroups.标准;
   const semanticName = Object.entries(semanticGroups).find(([, colors]) => JSON.stringify(colors) === JSON.stringify(semantic))?.[0] ?? "标准";
+  const paletteOptions = [
+    {
+      label: "分析属性",
+      options: Object.entries(paletteGroups).slice(0, 5).map(([name, colors]) => ({ value: name, label: <PaletteLabel name={name} colors={colors} /> })),
+    },
+    {
+      label: "场景属性",
+      options: [{ value: "色盲无障碍", label: <PaletteLabel name="色盲无障碍" colors={paletteGroups.色盲无障碍} /> }],
+    },
+  ];
   const updateMode = (nextMode: "light" | "dark") => updateTheme({
     mode: nextMode,
     backgroundColor: nextMode === "dark" ? "#0f172a" : "#f5f7fa",
@@ -90,7 +110,7 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
       keywords: "全局样式 圆角 间距 字体",
       content: <div className="dashboard-settings__section-body">
         <div className="dashboard-settings__setting-row"><span>主题模式</span><Radio.Group value={mode} onChange={(event) => updateMode(event.target.value)} options={[{ label: "浅色模式", value: "light" }, { label: "深色模式", value: "dark" }]} /></div>
-        <div className="dashboard-settings__setting-row"><span>图表色系</span><div className="dashboard-settings__palette-actions"><Select size="small" value={paletteName} onChange={(value) => { if (value in paletteGroups) updateTheme({ chartPalette: [...paletteGroups[value as keyof typeof paletteGroups]] }); }} options={Object.keys(paletteGroups).map((name) => ({ value: name, label: name }))} /><Button size="small" onClick={() => setCustomPaletteOpen((open) => !open)}>自定义</Button></div></div>
+        <div className="dashboard-settings__setting-row"><span>图表色系</span><div className="dashboard-settings__palette-actions"><Select className="dashboard-settings__palette-select" popupClassName="dashboard-settings__palette-dropdown" size="small" value={paletteName} onChange={(value) => { if (value in paletteGroups) updateTheme({ chartPalette: [...paletteGroups[value as keyof typeof paletteGroups]] }); }} options={paletteOptions} /><Button size="small" onClick={() => setCustomPaletteOpen((open) => !open)}>自定义</Button></div></div>
         {customPaletteOpen && <div className="dashboard-settings__swatches" aria-label="自定义图表色系">{palette.map((color, index) => <input key={`${index}-${color}`} aria-label={`自定义颜色 ${index + 1}`} type="color" value={color} onChange={(event) => updateTheme({ chartPalette: palette.map((current, colorIndex) => colorIndex === index ? event.target.value : current) })} />)}</div>}
         <Checkbox checked>渐变色彩样式</Checkbox>
         <div className="dashboard-settings__setting-row"><span>语义色</span><Select size="small" value={semanticName} onChange={(value) => { if (value in semanticGroups) updateTheme({ semanticColors: { ...semanticGroups[value as keyof typeof semanticGroups] } }); }} options={Object.keys(semanticGroups).map((name) => ({ value: name, label: name }))} /></div>

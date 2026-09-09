@@ -7,6 +7,7 @@ import { requireSlot } from "./helpers.js";
 const GaugePropsSchema = z.object({
   aggregation: z.enum(["first", "sum", "avg", "max", "min"]),
   decimals: z.number().int().min(0).max(4),
+  targetValue: z.number().min(0).nullable(),
 }).strict();
 
 const dataSlots = Object.freeze([
@@ -28,7 +29,7 @@ const dataSlots = Object.freeze([
     key: "target",
     title: "目标值",
     acceptedTypes: ["number"] as const,
-    required: true,
+    required: false,
     multiple: false,
   },
 ]);
@@ -38,13 +39,12 @@ export const gaugeDefinition: ComponentDefinition<z.infer<typeof GaugePropsSchem
   title: "仪表盘",
   category: "指标",
   defaultLayout: Object.freeze({ w: 4, h: 4 }),
-  createDefaults: (): z.infer<typeof GaugePropsSchema> => ({ aggregation: "sum", decimals: 1 }),
+  createDefaults: (): z.infer<typeof GaugePropsSchema> => ({ aggregation: "sum", decimals: 1, targetValue: null }),
   dataSlots,
   propsSchema: GaugePropsSchema,
   validateBinding: (binding: DataBinding | undefined) => {
     const checks = [
       requireSlot(binding, "measure", "请选择实际值字段"),
-      requireSlot(binding, "target", "请选择目标值字段"),
     ];
     const messages = checks.flatMap((check) => check.messages);
     return Object.freeze({

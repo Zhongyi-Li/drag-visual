@@ -46,8 +46,14 @@ it("highlights a triggered metric alert and resolves its live copy variables in 
   expect(screen.getByText("库存周转与滞销风险偏高")).toBeTruthy();
   expect(screen.getByText("全部店铺｜全部员工｜华东店、华南店等 2 个店铺命中预警。")).toBeTruthy();
   expect(screen.getByText("预览查看")).toBeTruthy();
+  expect(screen.getByTestId("metric-alert-surface").style.border).toBe("0px");
+  expect(screen.getByTestId("metric-alert-surface").style.boxShadow).toBe("");
+  expect(screen.getByTestId("metric-alert-surface").getAttribute("role")).toBeNull();
 
   fireEvent.click(screen.getByTestId("metric-alert-surface"));
+  expect(screen.queryByRole("dialog")).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "查看库存周转与滞销风险预警详情" }));
 
   expect(screen.getByRole("dialog", { name: "库存风险 2 项详情" })).toBeTruthy();
   expect(screen.getByText("华东店、华南店的库存周转与滞销风险当前值 12，需要优先处理。")).toBeTruthy();
@@ -66,7 +72,7 @@ it("keeps long alert details in a vertically scrollable region", () => {
     rows={Array.from({ length: 36 }, (_, index) => ({ store: `门店 ${index + 1}`, riskCount: index + 12 }))}
   />);
 
-  fireEvent.click(screen.getByTestId("metric-alert-surface"));
+  fireEvent.click(screen.getByRole("button", { name: "查看库存周转与滞销风险预警详情" }));
 
   const details = screen.getByTestId("metric-alert-detail-content");
   const tableScroll = screen.getByTestId("metric-alert-triggered-table-scroll");
@@ -90,6 +96,7 @@ it("shows a clear state when no dimension matches the rule", () => {
   />);
 
   expect(screen.getByTestId("metric-alert-clear")).toBeTruthy();
+  expect(screen.getByTestId("metric-alert-clear").style.border).toBe("0px");
   expect(screen.getByText("当前没有命中预警条件")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "查看库存周转与滞销风险预警详情" })).toBeNull();
 });

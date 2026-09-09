@@ -84,6 +84,7 @@ describe("InspectorPanel", () => {
     render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
 
     await userEvent.click(screen.getByRole("tab", { name: "显示" }));
+    await userEvent.click(screen.getByRole("button", { name: "collapsed 图表样式" }));
 
     expect(screen.getByRole("switch", { name: "隐藏全零类目" })).toBeChecked();
     expect(screen.getByRole("switch", { name: "折线轴智能缩放" })).toBeChecked();
@@ -105,6 +106,8 @@ describe("InspectorPanel", () => {
     render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
 
     await userEvent.click(screen.getByRole("tab", { name: "显示" }));
+    await userEvent.click(screen.getByRole("button", { name: "collapsed 标题与卡片" }));
+    await userEvent.click(screen.getByRole("button", { name: "collapsed 容器展示" }));
 
     expect(screen.getByRole("textbox", { name: "图表标题" })).toHaveValue("复合分析");
     expect(screen.getByRole("textbox", { name: "复合分析说明" })).toHaveValue("按商品查看库存与销量。");
@@ -132,6 +135,7 @@ describe("InspectorPanel", () => {
     render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
 
     await userEvent.click(screen.getByRole("tab", { name: "分析" }));
+    await userEvent.click(screen.getByRole("button", { name: "collapsed 数据交互" }));
 
     expect(screen.getByText("复合分析的共享筛选条件请前往「字段 → 筛选条件配置」设置。")).toBeInTheDocument();
   });
@@ -163,10 +167,12 @@ describe("InspectorPanel", () => {
     render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
 
     await userEvent.click(screen.getByRole("tab", { name: "分析" }));
+    await userEvent.click(screen.getByRole("button", { name: "collapsed 数据交互" }));
+    await userEvent.click(screen.getByRole("button", { name: "collapsed 联动" }));
     expect(screen.getByText("联动")).toBeInTheDocument();
     expect(screen.getByText("跳转")).toBeInTheDocument();
-    expect(screen.getByText("日期筛选")).toBeVisible();
-    expect(screen.getByText("筛选条件配置")).toBeVisible();
+    expect(screen.getByText("日期筛选")).toBeInTheDocument();
+    expect(screen.getByText("筛选条件配置")).toBeInTheDocument();
     expect(screen.queryByText("请先在“字段”页绑定数据源，再配置图表跳转。")).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByText("跳转"));
@@ -290,9 +296,10 @@ describe("InspectorPanel", () => {
     );
 
     await userEvent.click(screen.getByRole("tab", { name: "分析" }));
-    await userEvent.click(screen.getByText("数据交互"));
+    await userEvent.click(screen.getByRole("button", { name: "collapsed 数据交互" }));
+    await userEvent.click(screen.getByRole("button", { name: "collapsed 联动" }));
     const dateFilterStatus = await screen.findByLabelText("日期筛选配置状态");
-    expect(within(dateFilterStatus).getByText("未配置")).toBeInTheDocument();
+    expect(within(dateFilterStatus).getByText("未绑定日期字段")).toBeInTheDocument();
     await userEvent.click(await screen.findByRole("button", { name: "业务日期" }));
 
     expect(store.getState().history.present.components[0]!.binding?.dateFilter).toEqual({

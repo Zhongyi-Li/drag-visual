@@ -98,7 +98,7 @@ export const InspectorPanel = ({
     <Collapse
       ghost
       className="inspector-analysis"
-      defaultActiveKey={["interaction"]}
+      defaultActiveKey={[]}
       items={[
         {
           key: "interaction",
@@ -112,7 +112,7 @@ export const InspectorPanel = ({
               : <Collapse
                   ghost
                   className="inspector-analysis__subcollapse"
-                  defaultActiveKey={["linkage"]}
+                  defaultActiveKey={[]}
                   items={[
                     {
                       key: "linkage",
@@ -155,7 +155,7 @@ export const InspectorPanel = ({
       ? <div className="display-configuration">
           <Collapse
             className="display-configuration__collapse"
-            defaultActiveKey={["title", "container"]}
+            defaultActiveKey={[]}
             ghost
           items={[
             {
@@ -174,7 +174,7 @@ export const InspectorPanel = ({
     : <div className="display-configuration">
         <Collapse
           className="display-configuration__collapse"
-          defaultActiveKey={["title", "style"]}
+          defaultActiveKey={[]}
           ghost
           items={[
             {

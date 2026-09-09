@@ -581,7 +581,7 @@ const tablePagerButtonStyle: CSSProperties = {
   border: "1px solid #d9d9d9",
   borderRadius: 4,
   color: "#262626",
-  cursor: "pointer",
+  cursor: "default",
   font: "inherit",
   height: 26,
   padding: "0 8px",
@@ -941,8 +941,8 @@ const kpiProgressBarStyle: CSSProperties = {
 
 const metricAlertShellStyle: CSSProperties = {
   alignItems: "center",
-  background: "#fff9f0",
-  border: "1px solid #ffd8a8",
+  background: "#fff8ed",
+  border: 0,
   borderRadius: 7,
   boxSizing: "border-box",
   color: "#1f2937",
@@ -956,28 +956,29 @@ const metricAlertShellStyle: CSSProperties = {
   overflow: "hidden",
   padding: "14px 16px",
   textAlign: "left",
-  transition: "border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease",
+  transition: "background-color 160ms ease",
   width: "100%",
 };
 
-const metricAlertShellActiveStyle: CSSProperties = { ...metricAlertShellStyle, boxShadow: "0 0 0 3px rgba(255, 122, 69, 0.12)" };
-const metricAlertEmptyStyle: CSSProperties = { ...metricAlertShellStyle, background: "#f8fafc", border: "1px solid #dbe3ee", cursor: "default", gridTemplateColumns: "1fr" };
-const metricAlertClearStyle: CSSProperties = { ...metricAlertEmptyStyle, background: "#f6ffed", border: "1px solid #b7eb8f" };
+const metricAlertShellActiveStyle: CSSProperties = { ...metricAlertShellStyle };
+const metricAlertEmptyStyle: CSSProperties = { ...metricAlertShellStyle, background: "#f8fafc", cursor: "default", gridTemplateColumns: "1fr" };
+const metricAlertClearStyle: CSSProperties = { ...metricAlertEmptyStyle, background: "#f6ffed" };
 const metricAlertCopyStyle: CSSProperties = { minWidth: 0 };
 const metricAlertHeadlineStyle: CSSProperties = { alignItems: "center", color: "#1f2937", display: "flex", fontSize: 15, fontWeight: 700, gap: 8, lineHeight: 1.45, minWidth: 0 };
 const metricAlertBadgeStyle: CSSProperties = { background: "#ff721b", borderRadius: 12, color: "#fff", flex: "0 0 auto", fontSize: 12, fontWeight: 700, lineHeight: "22px", maxWidth: 150, overflow: "hidden", padding: "0 9px", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const metricAlertHeadlineTextStyle: CSSProperties = { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const metricAlertMessageStyle: CSSProperties = { color: "#526176", fontSize: 12, lineHeight: 1.55, margin: "3px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" };
 const metricAlertActionStyle: CSSProperties = { alignItems: "center", appearance: "none", background: "transparent", border: 0, color: "#af7838", cursor: "pointer", display: "inline-flex", flex: "0 0 auto", fontFamily: "inherit", fontSize: 14, fontWeight: 600, gap: 8, height: 32, padding: "0 2px", whiteSpace: "nowrap" };
-const metricAlertDetailStyle: CSSProperties = { color: "#475569", fontSize: 14, lineHeight: 1.75, margin: 0, whiteSpace: "pre-wrap" };
-const metricAlertDetailListStyle: CSSProperties = { background: "#fffaf5", border: "1px solid #ffe1be", borderRadius: 8, display: "grid", gap: 8, marginTop: 18, padding: 14 };
-const metricAlertDetailRowStyle: CSSProperties = { alignItems: "baseline", display: "grid", gap: 12, gridTemplateColumns: "88px minmax(0, 1fr)" };
+const metricAlertDetailStyle: CSSProperties = { borderLeft: "3px solid #ff9c3a", color: "#475569", fontSize: 14, lineHeight: 1.75, margin: 0, padding: "10px 12px", whiteSpace: "pre-wrap" };
+const metricAlertDetailSectionTitleStyle: CSSProperties = { color: "#1f2937", fontSize: 13, fontWeight: 700, margin: "18px 0 8px" };
+const metricAlertDetailListStyle: CSSProperties = { background: "#fffaf5", border: "1px solid #f1e2d0", borderRadius: 8, display: "grid", gap: 10, padding: "12px 14px" };
+const metricAlertDetailRowStyle: CSSProperties = { alignItems: "baseline", display: "grid", gap: 16, gridTemplateColumns: "76px minmax(0, 1fr)" };
 const metricAlertDetailKeyStyle: CSSProperties = { color: "#8c6d46", fontSize: 12, fontWeight: 600 };
 const metricAlertDetailValueStyle: CSSProperties = { color: "#1f2937", fontSize: 13, minWidth: 0, overflowWrap: "anywhere" };
-const metricAlertTableWrapStyle: CSSProperties = { border: "1px solid #ffe1be", borderRadius: 8, flex: "1 1 auto", marginTop: 18, minHeight: 0, overflowX: "auto", overflowY: "auto", overscrollBehavior: "contain" };
-const metricAlertTableStyle: CSSProperties = { borderCollapse: "collapse", fontSize: 13, minWidth: "100%", width: "100%" };
-const metricAlertTableHeadCellStyle: CSSProperties = { background: "#fff8ef", borderBottom: "1px solid #ffe1be", color: "#8c6d46", fontSize: 12, fontWeight: 600, padding: "10px 12px", position: "sticky", textAlign: "left", top: 0, whiteSpace: "nowrap", zIndex: 1 };
-const metricAlertTableCellStyle: CSSProperties = { borderBottom: "1px solid #fff0dc", color: "#1f2937", padding: "10px 12px", textAlign: "left" };
+const metricAlertTableWrapStyle: CSSProperties = { border: "1px solid #f1e2d0", borderRadius: 8, flex: "1 1 auto", minHeight: 0, overflowX: "auto", overflowY: "auto", overscrollBehavior: "contain" };
+const metricAlertTableStyle: CSSProperties = { borderCollapse: "collapse", fontSize: 13, minWidth: "100%", tableLayout: "fixed", width: "100%" };
+const metricAlertTableHeadCellStyle: CSSProperties = { background: "#fffaf5", borderBottom: "1px solid #f1e2d0", color: "#8c6d46", fontSize: 12, fontWeight: 600, padding: "10px 12px", position: "sticky", textAlign: "left", top: 0, whiteSpace: "nowrap", zIndex: 1 };
+const metricAlertTableCellStyle: CSSProperties = { borderBottom: "1px solid #f5ede4", color: "#1f2937", padding: "10px 12px", textAlign: "left", verticalAlign: "top" };
 const metricAlertDetailContentStyle: CSSProperties = { display: "flex", flexDirection: "column", height: "68vh", maxHeight: 560, minHeight: 0, overflow: "hidden" };
 
 const insightShellStyle: CSSProperties = {
@@ -2507,18 +2508,9 @@ const MetricAlertSurface = ({ component, fields, rows }: { readonly component: C
 
   return <>
     <section
-      aria-label={`${label}，点击查看详情`}
+      aria-label={label}
       data-testid="metric-alert-surface"
-      role="button"
       style={metricAlertShellActiveStyle}
-      tabIndex={0}
-      onClick={() => setDetailsOpen(true)}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          setDetailsOpen(true);
-        }
-      }}
     >
       <div style={metricAlertCopyStyle}>
         <div style={metricAlertHeadlineStyle}>
@@ -2527,21 +2519,24 @@ const MetricAlertSurface = ({ component, fields, rows }: { readonly component: C
         </div>
         <p style={metricAlertMessageStyle}>{message}</p>
       </div>
-      <button aria-label={`查看${metric}预警详情`} style={metricAlertActionStyle} type="button" onClick={(event) => { event.stopPropagation(); setDetailsOpen(true); }}><span>预览查看</span><RightOutlined aria-hidden="true" style={{ fontSize: 13 }} /></button>
+      <button aria-label={`查看${metric}预警详情`} style={metricAlertActionStyle} type="button" onClick={() => setDetailsOpen(true)}><span>预览查看</span><RightOutlined aria-hidden="true" style={{ fontSize: 13 }} /></button>
     </section>
     <Modal footer={null} open={detailsOpen} title={`${label}详情`} onCancel={() => setDetailsOpen(false)}>
       <div aria-label="预警详情内容" data-testid="metric-alert-detail-content" style={metricAlertDetailContentStyle}>
         <p style={metricAlertDetailStyle}>{detail}</p>
+        <h3 style={metricAlertDetailSectionTitleStyle}>规则摘要</h3>
         <div style={metricAlertDetailListStyle}>
           <div style={metricAlertDetailRowStyle}><span style={metricAlertDetailKeyStyle}>预警维度</span><span style={metricAlertDetailValueStyle}>{dimensionLabel}</span></div>
           <div style={metricAlertDetailRowStyle}><span style={metricAlertDetailKeyStyle}>预警指标</span><span style={metricAlertDetailValueStyle}>{metric}</span></div>
           <div style={metricAlertDetailRowStyle}><span style={metricAlertDetailKeyStyle}>触发条件</span><span style={metricAlertDetailValueStyle}>{operatorLabel} {thresholdDisplay}</span></div>
           <div style={metricAlertDetailRowStyle}><span style={metricAlertDetailKeyStyle}>适用范围</span><span style={metricAlertDetailValueStyle}>{variables.scope}</span></div>
         </div>
+        <h3 style={metricAlertDetailSectionTitleStyle}>命中明细（{triggeredGroups.length}）</h3>
         <div aria-label="命中预警项，可纵向滚动" data-testid="metric-alert-triggered-table-scroll" style={metricAlertTableWrapStyle} tabIndex={0}>
           <table style={metricAlertTableStyle}>
+            <colgroup><col style={{ width: "48%" }} /><col style={{ width: "24%" }} /><col style={{ width: "28%" }} /></colgroup>
             <thead><tr><th style={metricAlertTableHeadCellStyle}>{dimensionLabel}</th><th style={metricAlertTableHeadCellStyle}>{metric}</th><th style={metricAlertTableHeadCellStyle}>预警条件</th></tr></thead>
-            <tbody>{triggeredGroups.map((group) => <tr key={group.key}><td style={metricAlertTableCellStyle}>{group.key}</td><td style={metricAlertTableCellStyle}>{formatCurrencyNumber(group.value, decimals, isCurrencyMetric(measureKey, fields), isQuantityMetric(measureKey, fields))}</td><td style={metricAlertTableCellStyle}>{operatorLabel} {thresholdDisplay}</td></tr>)}</tbody>
+            <tbody>{triggeredGroups.map((group) => <tr key={group.key}><td style={metricAlertTableCellStyle}>{group.key}</td><td style={{ ...metricAlertTableCellStyle, whiteSpace: "nowrap" }}>{formatCurrencyNumber(group.value, decimals, isCurrencyMetric(measureKey, fields), isQuantityMetric(measureKey, fields))}</td><td style={{ ...metricAlertTableCellStyle, whiteSpace: "nowrap" }}>{operatorLabel} {thresholdDisplay}</td></tr>)}</tbody>
           </table>
         </div>
       </div>

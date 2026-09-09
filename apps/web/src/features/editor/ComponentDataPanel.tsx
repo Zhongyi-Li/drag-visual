@@ -306,6 +306,9 @@ export const ComponentDataPanel = ({
                         onDragStart={(event) => {
                           event.dataTransfer.effectAllowed = "copy";
                           event.dataTransfer.setData(FIELD_DRAG_TYPE, field.key);
+                          // Keep a plain-text fallback for Chromium/native drag
+                          // paths that strip application/* payloads.
+                          event.dataTransfer.setData("text/plain", field.key);
                           event.dataTransfer.setData(FIELD_DRAG_METADATA_TYPE, JSON.stringify({ key: field.key, label: field.label, type: field.type }));
                         }}
                       >

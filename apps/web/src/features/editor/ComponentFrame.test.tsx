@@ -288,6 +288,44 @@ describe("ComponentFrame", () => {
     expect(store.getState().history.present.components[0]!.binding?.dateFilter).toEqual(filtered.components[0]!.binding?.dateFilter);
   });
 
+  it("shows a newly configured date picker immediately without re-querying before update", async () => {
+    const requests: unknown[] = [];
+    server.use(
+      http.post("http://localhost/datasets/sales/query", async ({ request }) => {
+        requests.push(await request.json());
+        return HttpResponse.json({
+          columns: [
+            { key: "businessDate", label: "下单时间", type: "date", nullable: false },
+            { key: "month", label: "月份", type: "string", nullable: false },
+            { key: "revenue", label: "销售额", type: "number", nullable: false },
+          ],
+          rows: [{ businessDate: "2026-09-08", month: "9月", revenue: 100 }],
+          total: 1,
+          sampledAt: "2026-09-08T00:00:00.000Z",
+        });
+      }),
+    );
+    const store = createEditorStore(remoteDashboard);
+    renderFrame(<ComponentFrame component={remoteDashboard.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    await act(async () => {
+      const current = store.getState().history.present.components[0]!;
+      store.getState().dispatch({
+        type: "component.binding.update",
+        componentId: "bar-1",
+        nextBinding: {
+          datasetId: current.binding!.datasetId,
+          slots: { dimension: { fieldKey: "month" }, measure: { fieldKey: "revenue" } },
+          dateFilter: { fieldKey: "businessDate", defaultPreset: "all", allowCustom: true, showControl: true, timezone: "Asia/Shanghai" },
+        },
+      });
+    });
+
+    expect(screen.getAllByRole("textbox", { name: "业务日期日期范围" })).toHaveLength(2);
+    expect(requests).toHaveLength(1);
+  });
+
   it("re-queries a chart with the global date field mapped to that chart", async () => {
     const requests: unknown[] = [];
     server.use(
@@ -331,7 +369,7 @@ describe("ComponentFrame", () => {
     expect(onGlobalFilterQuerySettled).toHaveBeenCalledWith("bar-1", 1);
   });
 
-  it("queries an edited aggregation only after the inspector applies its update", async () => {
+  it("queries edited metrics, dimensions, and conditions only after the inspector applies its update", async () => {
     const requests: unknown[] = [];
     server.use(
       http.post("http://localhost/datasets/sales/query", async ({ request }) => {
@@ -358,9 +396,18 @@ describe("ComponentFrame", () => {
         nextBinding: {
           datasetId: "sales",
           slots: {
-            dimension: { fieldKey: "month" },
+            dimension: { fieldKey: "region" },
             measure: { fieldKey: "revenue", aggregation: "avg" },
           },
+        },
+      });
+      const current = store.getState().history.present.components[0]!;
+      store.getState().dispatch({
+        type: "component.props.update",
+        componentId: "bar-1",
+        nextProps: {
+          ...current.props,
+          queryFilters: [{ kind: "fieldValue", fieldKey: "region", values: ["华东"] }],
         },
       });
     });
@@ -377,7 +424,8 @@ describe("ComponentFrame", () => {
     await waitFor(() => expect(requests).toHaveLength(2));
     expect(requests[1]).toEqual({
       parameters: { year: 2026, fromDate: "2026-01-01" },
-      aggregation: { groupBy: ["month"], measures: [{ fieldKey: "revenue", aggregation: "avg" }] },
+      componentFilters: [{ kind: "fieldValue", fieldKey: "region", values: ["华东"] }],
+      aggregation: { groupBy: ["region"], measures: [{ fieldKey: "revenue", aggregation: "avg" }] },
     });
   });
 
@@ -497,7 +545,7 @@ describe("ComponentFrame", () => {
     expect(screen.getByTestId("component-renderer")).toHaveAttribute("data-interacting", "true");
     expect(DashboardComponentRenderer).toHaveBeenCalledWith(expect.objectContaining({
       component: dashboard.components[0],
-      fields: undefined,
+      fields: [],
       rows: [],
     }), undefined);
   });

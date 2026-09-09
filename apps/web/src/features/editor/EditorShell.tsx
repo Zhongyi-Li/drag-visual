@@ -201,7 +201,7 @@ export const EditorShell = ({
       />
       <DndContext sensors={sensors} collisionDetection={paletteCollisionDetection} onDragStart={onDragStart} onDragCancel={() => { setActiveTitle(null); clearPaletteDropTarget(); }} onDragEnd={onDragEnd}>
         <div
-          className={`editor-workbench${inspectorCollapsed ? " editor-workbench--inspector-collapsed" : ""}${dataPanelCollapsed ? " editor-workbench--data-panel-collapsed" : ""}`}
+          className={`editor-workbench${selectedComponent === null ? " editor-workbench--page-settings" : ""}${inspectorCollapsed ? " editor-workbench--inspector-collapsed" : ""}${dataPanelCollapsed ? " editor-workbench--data-panel-collapsed" : ""}`}
           data-testid="editor-workbench"
         >
           <ComponentPalette store={store} createComponentId={createComponentId} registry={registry} highlighted={isPaletteHighlighted} />

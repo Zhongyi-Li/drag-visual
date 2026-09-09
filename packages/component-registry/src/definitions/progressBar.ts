@@ -8,6 +8,7 @@ const ProgressBarPropsSchema = z.object({
   aggregation: z.enum(["first", "sum", "avg", "count", "max", "min"]),
   decimals: z.number().int().min(0).max(6),
   showValue: z.boolean(),
+  targetValue: z.number().min(0).nullable(),
   progressPairs: z.array(z.union([
     z.tuple([z.string().min(1)]),
     z.tuple([z.string().min(1), z.string().min(1)]),
@@ -40,6 +41,7 @@ export const progressBarDefinition: ComponentDefinition<z.infer<typeof ProgressB
     aggregation: "sum",
     decimals: 1,
     showValue: true,
+    targetValue: null,
     progressPairs: [],
   }),
   dataSlots,

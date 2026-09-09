@@ -51,10 +51,12 @@ describe("EditorShell", () => {
     expect(screen.getByRole("status", { name: "保存状态" })).toHaveAttribute("aria-live", "polite");
     expect(screen.getByRole("complementary", { name: "图表组件" })).toHaveClass("editor-panel-scroll");
     expect(screen.getByRole("region", { name: "配置面板" })).toHaveClass("editor-panel-scroll");
+    expect(screen.getByTestId("editor-workbench")).toHaveClass("editor-workbench--page-settings");
   });
 
   it("keeps exact panel widths with independently scrolling side panels", () => {
     expect(editorCss).toContain("grid-template-columns: 240px minmax(400px, 1fr) 520px");
+    expect(editorCss).toContain(".editor-workbench--page-settings");
     expect(editorCss).toContain(".editor-inspector { min-height: 0; display: grid; grid-template-columns: 250px minmax(180px, 1fr);");
     expect(editorCss).toContain(".editor-inspector--data-collapsed { grid-template-columns: minmax(0, 1fr) 48px;");
     expect(editorCss).toContain(".editor-workbench--inspector-collapsed");

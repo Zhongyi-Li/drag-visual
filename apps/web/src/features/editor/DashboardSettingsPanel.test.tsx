@@ -25,6 +25,9 @@ describe("DashboardSettingsPanel", () => {
     await userEvent.click(screen.getByLabelText(/深色模式/));
     expect(store.getState().history.present.theme).toMatchObject({ mode: "dark", backgroundColor: "#0f172a" });
     await userEvent.click(screen.getAllByRole("combobox")[0]!);
+    expect(await screen.findByText("分析属性")).toBeInTheDocument();
+    expect(screen.getByText("场景属性")).toBeInTheDocument();
+    expect(screen.getByText("色盲无障碍")).toBeInTheDocument();
     await userEvent.click(await screen.findByText("鲜明"));
     expect(store.getState().history.present.theme.chartPalette).toEqual(["#1677ff", "#19a7ce", "#f4c20d", "#f66d44", "#7b61ff", "#db3a7b"]);
   });

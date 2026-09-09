@@ -48,14 +48,18 @@ export const buildDatasetAggregation = (
       measures: measures.map((binding) => ({ fieldKey: binding.fieldKey, aggregation: binding.aggregation! })),
     };
   }
-  // Percentage bars predate the aggregation prop. Treat legacy instances as
-  // sum-by-default so one edited metric does not force the remaining metrics
-  // back onto the raw-data path.
-  const defaultAggregation = configuredAggregation(component.props.aggregation)
-    ?? (component.type === "percentBar" ? "sum" : undefined);
   const groupBy = Object.entries(component.binding.slots)
     .filter(([slotKey]) => groupSlotKeys.has(slotKey))
     .flatMap(([, value]) => asBindings(value).map((binding) => binding.fieldKey));
+  // Percentage bars predate the aggregation prop. Treat legacy instances as
+  // sum-by-default so one edited metric does not force the remaining metrics
+  // back onto the raw-data path. A KPI with a grouping dimension follows the
+  // same rule: its old `first` default was intended for a single pre-aggregated
+  // value, while grouped transaction data must be summed per group.
+  const defaultAggregation = configuredAggregation(component.props.aggregation)
+    ?? (component.type === "percentBar" || (component.type === "kpi" && groupBy.length > 0 && component.props.aggregation === "first")
+      ? "sum"
+      : undefined);
   const calculatedMetricIds = new Set(calculatedMetricsForBinding(component.binding).map((metric) => metric.id));
   const metricBindings = Object.entries(component.binding.slots)
     .filter(([slotKey]) => metricSlotKeys.has(slotKey))

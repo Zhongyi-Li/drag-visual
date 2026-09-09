@@ -29,7 +29,10 @@ export const applyChartTheme = (option: unknown, theme: ChartTheme | undefined):
     const result: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value)) {
       if (key === "color" && (path.at(-1) === "series" || path.length === 0 || path.at(-1) === "itemStyle" || path.at(-1) === "lineStyle" || path.at(-1) === "areaStyle")) {
-        result[key] = Array.isArray(entry) ? palette : palette[(seriesIndex ?? 0) % palette.length];
+        // ECharts gauges use an array of [stop, color] tuples for axisLine.
+        // Treating that array as a series palette produces invalid gauge
+        // colors and makes the track/ticks disappear entirely.
+        result[key] = Array.isArray(entry) ? entry : palette[(seriesIndex ?? 0) % palette.length];
       } else if (dark && key === "backgroundColor") {
         result[key] = "transparent";
       } else if (dark && key === "color" && typeof entry === "string") {

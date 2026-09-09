@@ -80,6 +80,9 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const [activeDateFilter, setActiveDateFilter] = useState<RuntimeDateSelection>(() =>
     defaultDateFilterSelection((suppliedComponent as ComponentInstance).binding?.dateFilter),
   );
+  const [appliedDateFilter, setAppliedDateFilter] = useState<RuntimeDateSelection>(() =>
+    defaultDateFilterSelection((suppliedComponent as ComponentInstance).binding?.dateFilter),
+  );
   const [selectedSunburstMeasure, setSelectedSunburstMeasure] = useState<string | null>(null);
   const [selectedTreemapMeasure, setSelectedTreemapMeasure] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -109,8 +112,28 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     ? component.props.description.trim()
     : "";
   const hasHeaderHint = topLeftHint !== undefined || analysisGroupDescription.length > 0;
-  const datasetId = typeof component.binding === "object" && component.binding !== null && "datasetId" in component.binding
-    ? String(component.binding.datasetId)
+  const chartComponent = component as ComponentInstance;
+  // Inspector edits are drafts. Keep the data/query side of the chart on the
+  // last explicitly applied configuration until the author clicks 更新.
+  const dataRefreshVersion = typeof component.props.dataRefreshVersion === "number" && Number.isSafeInteger(component.props.dataRefreshVersion)
+    ? component.props.dataRefreshVersion
+    : 0;
+  const appliedComponentRef = useRef<{ version: number; component: ComponentInstance } | undefined>(undefined);
+  if (appliedComponentRef.current === undefined || appliedComponentRef.current.version !== dataRefreshVersion) {
+    appliedComponentRef.current = { version: dataRefreshVersion, component: chartComponent };
+  }
+  const appliedChartComponent = appliedComponentRef.current.component;
+  const dataConfigSignature = (candidate: ComponentInstance): string => JSON.stringify({
+    // Date-filter configuration is intentionally excluded from the pending
+    // display gate. Changing its field/default range should keep the current
+    // chart visible until 更新 applies the new query configuration.
+    binding: candidate.binding === undefined ? undefined : { ...candidate.binding, dateFilter: undefined },
+    queryFilters: candidate.props.queryFilters,
+    timeGranularity: candidate.props.timeGranularity,
+  });
+  const hasPendingDataEdits = dataConfigSignature(chartComponent) !== dataConfigSignature(appliedChartComponent);
+  const datasetId = typeof appliedChartComponent.binding === "object" && appliedChartComponent.binding !== null && "datasetId" in appliedChartComponent.binding
+    ? String(appliedChartComponent.binding.datasetId)
     : undefined;
   const isUploadedDataset = datasetId !== undefined && localDatasets.isUploadedDataset(datasetId);
   const cachedDataset = datasetId ? localDatasets.getDataset(datasetId) : undefined;
@@ -150,40 +173,59 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     ...runtimeQueryParameters,
     ...(supportsResultLimit ? { limit: appliedResultLimit } : {}),
   } as DatasetQueryRequest["parameters"];
-  const chartComponent = component as ComponentInstance;
-  const dateFilterControl = chartComponent.binding?.dateFilter;
-  const shouldShowDateFilterControl = dateFilterControl?.showControl ?? chartComponent.type !== "goalTaskProgress";
+  const appliedDateFilterControl = appliedChartComponent.binding?.dateFilter;
+  const visibleDateFilterControl = chartComponent.binding?.dateFilter;
+  const shouldShowDateFilterControl = visibleDateFilterControl?.showControl ?? chartComponent.type !== "goalTaskProgress";
   useEffect(() => {
-    setActiveDateFilter(defaultDateFilterSelection(dateFilterControl));
-  }, [dateFilterControl?.defaultPreset, dateFilterControl?.defaultRange?.end, dateFilterControl?.defaultRange?.start, dateFilterControl?.fieldKey, dateFilterControl?.timezone]);
-  const aggregation = buildDatasetAggregation(chartComponent);
+    setActiveDateFilter((current) => {
+      // Updating the chart configuration must not discard a date range the
+      // user has already selected in the runtime picker. Only reset to the
+      // configured default when there is no active range or the field changed.
+      if (current !== undefined && current.fieldKey === appliedDateFilterControl?.fieldKey) return current;
+      return defaultDateFilterSelection(appliedDateFilterControl);
+    });
+  }, [appliedDateFilterControl?.defaultPreset, appliedDateFilterControl?.defaultRange?.end, appliedDateFilterControl?.defaultRange?.start, appliedDateFilterControl?.fieldKey, appliedDateFilterControl?.timezone]);
+  useEffect(() => {
+    setAppliedDateFilter((current) => activeDateFilter?.fieldKey === appliedDateFilterControl?.fieldKey
+      ? activeDateFilter
+      : defaultDateFilterSelection(appliedDateFilterControl));
+  }, [dataRefreshVersion]);
+  const aggregation = buildDatasetAggregation(appliedChartComponent);
   const activeGlobalFilters = filtersForComponent(chartComponent, globalFilters, globalFilterValues);
-  const activeComponentQueryFilters = componentQueryFilters(chartComponent);
+  const activeComponentQueryFilters = componentQueryFilters(appliedChartComponent);
   const queryableFields = localDataset?.fields ?? cachedDataset?.fields ?? remoteSchema.data?.fields;
   const compatibleAnalysisGroupFilters = queryableFields === undefined
     ? []
     : analysisGroupFilters.filter((filter) => queryableFields.some((field) => field.key === filter.fieldKey));
   const hasGlobalFilterTarget = globalFilters.some((filter) => filter.targets.some((target) => target.componentId === component.id));
-  const effectiveDateFilter = isDateBoundByGlobalFilter ? undefined : activeDateFilter;
+  const effectiveDateFilter = isDateBoundByGlobalFilter ? undefined : appliedDateFilter;
   const activeComponentFilters = [...compatibleAnalysisGroupFilters, ...activeComponentQueryFilters, ...(effectiveDateFilter === undefined ? [] : [effectiveDateFilter])];
   const activeFilters = [...activeGlobalFilters, ...activeComponentFilters];
   const [initialAggregationEnabled] = useState(() => buildDatasetAggregation(component as ComponentInstance) !== undefined);
   const hasAppliedRuntimeParameters = Object.keys(appliedRuntimeParameters).length > 0;
-  const dataRefreshVersion = typeof component.props.dataRefreshVersion === "number" && Number.isSafeInteger(component.props.dataRefreshVersion)
-    ? component.props.dataRefreshVersion
-    : 0;
+  // Binding edits are drafts until the inspector's 更新 action increments the
+  // refresh version. Keep the aggregation associated with that applied
+  // version so editing a metric does not issue a premature request.
+  const appliedAggregationRef = useRef<{ version: number; aggregation: typeof aggregation } | undefined>(undefined);
+  if (appliedAggregationRef.current === undefined || appliedAggregationRef.current.version !== dataRefreshVersion) {
+    appliedAggregationRef.current = { version: dataRefreshVersion, aggregation };
+  }
+  const appliedAggregation = appliedAggregationRef.current.aggregation;
   const remoteQuery = useQuery({
     // Data bindings are edited freely in the inspector. The explicit “更新”
     // action increments dataRefreshVersion, so changing an aggregation does
     // not issue a database query until the author is ready.
-    queryKey: ["dataset-query", component.id, datasetId, queryParameters, activeFilters, dataRefreshVersion, globalFilterApplyVersion],
+    // The aggregation is part of the request shape. Keeping it in the key
+    // prevents a newly grouped/summed query from reusing a previous detail
+    // result while the inspector applies the binding changes.
+    queryKey: ["dataset-query", component.id, datasetId, queryParameters, activeFilters, appliedAggregation, dataRefreshVersion, globalFilterApplyVersion],
     queryFn: async () => {
       try {
         return await queryDatasetRequest(datasetId!, {
           parameters: queryParameters!,
           ...(activeGlobalFilters.length === 0 ? {} : { globalFilters: activeGlobalFilters }),
           ...(activeComponentFilters.length === 0 ? {} : { componentFilters: activeComponentFilters }),
-          ...(aggregation === undefined ? {} : { aggregation }),
+          ...(appliedAggregation === undefined ? {} : { aggregation: appliedAggregation }),
         });
       } finally {
         if (globalFilterApplyVersion > 0 && hasGlobalFilterTarget) onGlobalFilterQuerySettled?.(component.id, globalFilterApplyVersion);
@@ -211,32 +253,36 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const dataResult = isUploadedDataset && localResult !== undefined && activeFilters.length > 0
     ? { ...localResult, rows: filterRowsByDashboardFilters(localResult.rows, activeFilters), total: filterRowsByDashboardFilters(localResult.rows, activeFilters).length }
     : rawDataResult;
-  const sourceFields = localDataset?.fields ?? dataResult?.columns;
-  const fields = calculatedMetricFields(sourceFields ?? [], chartComponent.binding);
-  const sourceRows = dataResult?.rows ?? [];
-  const calculateAfterAggregation = hasActiveCalculatedMetrics(chartComponent.binding);
-  const rows = isUploadedDataset && aggregation !== undefined && calculateAfterAggregation
-    ? aggregateLocalRows(sourceRows, aggregation)
+  // Local datasets expose their cached rows synchronously. Hide those rows
+  // while the inspector contains unapplied field/filter edits so the chart
+  // cannot appear to update before the explicit 更新 action.
+  const displayedDataResult = hasPendingDataEdits ? undefined : dataResult;
+  const sourceFields = localDataset?.fields ?? displayedDataResult?.columns;
+  const fields = calculatedMetricFields(sourceFields ?? [], appliedChartComponent.binding);
+  const sourceRows = displayedDataResult?.rows ?? [];
+  const calculateAfterAggregation = hasActiveCalculatedMetrics(appliedChartComponent.binding);
+  const rows = isUploadedDataset && appliedAggregation !== undefined && calculateAfterAggregation
+    ? aggregateLocalRows(sourceRows, appliedAggregation)
     : sourceRows;
-  const rowsAreAggregated = aggregation !== undefined && (remoteQuery.data === dataResult || (isUploadedDataset && calculateAfterAggregation));
-  const bindingForRender = chartComponent.type === "ranking" && chartComponent.binding !== undefined
-    ? { datasetId: chartComponent.binding.datasetId, slots: chartComponent.binding.slots }
-    : chartComponent.type === "barLine" && chartComponent.binding !== undefined
+  const rowsAreAggregated = appliedAggregation !== undefined && (remoteQuery.data === displayedDataResult || (isUploadedDataset && calculateAfterAggregation));
+  const bindingForRender = appliedChartComponent.type === "ranking" && appliedChartComponent.binding !== undefined
+    ? { datasetId: appliedChartComponent.binding.datasetId, slots: appliedChartComponent.binding.slots }
+    : appliedChartComponent.type === "barLine" && appliedChartComponent.binding !== undefined
       ? {
-        datasetId: chartComponent.binding.datasetId,
-        slots: chartComponent.binding.slots,
-        ...(chartComponent.binding.sort === undefined ? {} : { sort: chartComponent.binding.sort }),
+        datasetId: appliedChartComponent.binding.datasetId,
+        slots: appliedChartComponent.binding.slots,
+        ...(appliedChartComponent.binding.sort === undefined ? {} : { sort: appliedChartComponent.binding.sort }),
       }
-      : chartComponent.binding;
-  const calculatedRows = applyCalculatedMetrics(rows, chartComponent.binding);
+      : appliedChartComponent.binding;
+  const calculatedRows = applyCalculatedMetrics(rows, appliedChartComponent.binding);
   const transformedRows = applyTransforms(calculatedRows, bindingForRender, fields);
-  const isLoadingRemoteData = remoteQuery.isLoading && dataResult === undefined;
+  const isLoadingRemoteData = remoteQuery.isLoading && displayedDataResult === undefined;
   const remoteDataError = remoteQuery.isError
     ? remoteQuery.error instanceof Error ? remoteQuery.error.message : "查询图表数据失败"
     : undefined;
   const isSunburst = chartComponent.type === "sunburst" || (chartComponent.type === "pie" && (chartComponent.title ?? "").includes("旭日"));
   const isTreemap = chartComponent.type === "treemap" || (chartComponent.type === "pie" && (chartComponent.title ?? "").includes("矩形"));
-  const measureBinding = chartComponent.binding?.slots.measure;
+  const measureBinding = appliedChartComponent.binding?.slots.measure;
   const sunburstMeasures = (Array.isArray(measureBinding) ? measureBinding : measureBinding === undefined ? [] : [measureBinding])
     .map((binding) => binding.fieldKey);
   const activeSunburstMeasure = sunburstMeasures.includes(selectedSunburstMeasure ?? "")
@@ -248,17 +294,17 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     : treemapMeasures[0];
   const fieldLabels = new Map(fields.map((field) => [field.key, field.label]));
   const dateFilterFieldLabel = (localDataset?.fields ?? cachedDataset?.fields ?? remoteSchema.data?.fields ?? []).find(
-    (field) => field.key === dateFilterControl?.fieldKey,
-  )?.label ?? dateFilterControl?.fieldKey;
-  const dataTransformDescription = chartComponent.type === "ranking" ? "" : [
-    chartComponent.binding?.sort === undefined
+    (field) => field.key === visibleDateFilterControl?.fieldKey,
+  )?.label ?? visibleDateFilterControl?.fieldKey;
+  const dataTransformDescription = appliedChartComponent.type === "ranking" ? "" : [
+    appliedChartComponent.binding?.sort === undefined
       ? undefined
-      : `${fieldLabels.get(chartComponent.binding.sort.fieldKey) ?? chartComponent.binding.sort.fieldKey}${chartComponent.binding.sort.direction === "asc" ? "升序" : "降序"}`,
-    chartComponent.binding?.limit === undefined ? undefined : `Top ${chartComponent.binding.limit}`,
+      : `${fieldLabels.get(appliedChartComponent.binding.sort.fieldKey) ?? appliedChartComponent.binding.sort.fieldKey}${appliedChartComponent.binding.sort.direction === "asc" ? "升序" : "降序"}`,
+    appliedChartComponent.binding?.limit === undefined ? undefined : `Top ${appliedChartComponent.binding.limit}`,
   ].filter((item): item is string => item !== undefined).join(" · ");
-  const componentDataResult = dataResult === undefined
+  const componentDataResult = displayedDataResult === undefined
     ? undefined
-    : { ...dataResult, rows: transformedRows, total: transformedRows.length };
+    : { ...displayedDataResult, rows: transformedRows, total: transformedRows.length };
   const canRefreshRemoteData = datasetId !== undefined && localDataset === undefined;
   const select = () => store.getState().select(component.id);
   const stopControlEvent = (event: { stopPropagation: () => void }) => event.stopPropagation();
@@ -413,9 +459,9 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
         </div>
       </header>
       <div className="component-frame__renderer" data-testid="component-renderer" data-interacting={String(isInteracting)}>
-        {dateFilterControl !== undefined && shouldShowDateFilterControl && !isDateBoundByGlobalFilter && dateFilterFieldLabel !== undefined && (
+        {visibleDateFilterControl !== undefined && shouldShowDateFilterControl && !isDateBoundByGlobalFilter && dateFilterFieldLabel !== undefined && (
           <DateRangeFilterBar
-            control={dateFilterControl}
+            control={visibleDateFilterControl}
             fieldLabel={dateFilterFieldLabel}
             value={activeDateFilter}
             onChange={setActiveDateFilter}
@@ -454,7 +500,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
             <ResponsiveChartContainer>
               <DashboardComponentRenderer
                 key={renderVersion}
-                component={chartComponent}
+                component={{ ...chartComponent, binding: appliedChartComponent.binding }}
                 theme={dashboardTheme}
                 fields={fields}
                 rows={transformedRows}

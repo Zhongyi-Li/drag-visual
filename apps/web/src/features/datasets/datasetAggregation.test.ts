@@ -110,6 +110,29 @@ describe("buildDatasetAggregation", () => {
     expect(buildDatasetAggregation(kpi)).toBeUndefined();
   });
 
+  it("sums legacy first-value KPI boards when they have a grouping dimension", () => {
+    const kpi = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1",
+        type: "kpi",
+        props: { aggregation: "first", prefix: "", suffix: "", decimals: 0 },
+        binding: {
+          datasetId: "sales",
+          slots: {
+            dimension: { fieldKey: "storeName" },
+            measure: [{ fieldKey: "revenue" }],
+          },
+        },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(kpi)).toEqual({
+      groupBy: ["storeName"],
+      measures: [{ fieldKey: "revenue", aggregation: "sum" }],
+    });
+  });
+
   it("groups KPI insight metrics by its optional insight dimension", () => {
     const insight = DashboardSchema.parse({
       ...baseDashboard,

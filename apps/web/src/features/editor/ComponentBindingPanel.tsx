@@ -12,7 +12,7 @@ import { calculatedMetricFields } from "../datasets/calculatedMetrics.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 import { CalculatedMetricDrawer } from "./CalculatedMetricDrawer.js";
 import { ParameterForm } from "../datasets/ParameterForm.js";
-import { FIELD_DRAG_TYPE } from "./fieldDrag.js";
+import { FIELD_DRAG_METADATA_TYPE, FIELD_DRAG_TYPE } from "./fieldDrag.js";
 import type { EditorStore } from "./store/editorStore.js";
 
 interface ComponentBindingPanelProps {
@@ -48,6 +48,7 @@ interface StoredBinding {
   readonly calculatedMetrics?: readonly StoredCalculatedMetric[] | undefined;
   readonly sort?: { readonly fieldKey: string; readonly direction: "asc" | "desc" } | undefined;
   readonly limit?: number | undefined;
+  readonly dateFilter?: DataBinding["dateFilter"];
 }
 
 interface BindableComponent {
@@ -177,6 +178,12 @@ const cloneBinding = (binding: StoredBinding): DataBinding => {
   };
   if (binding.sort !== undefined) cloned.sort = { ...binding.sort };
   if (binding.limit !== undefined) cloned.limit = binding.limit;
+  if (binding.dateFilter !== undefined) {
+    cloned.dateFilter = {
+      ...binding.dateFilter,
+      ...(binding.dateFilter.defaultRange === undefined ? {} : { defaultRange: { ...binding.dateFilter.defaultRange } }),
+    };
+  }
   if (binding.calculatedMetrics !== undefined) cloned.calculatedMetrics = binding.calculatedMetrics.map((metric) => ({
     ...metric,
     tokens: metric.tokens.map((token) => token.kind === "metric"
@@ -319,6 +326,24 @@ export const ComponentBindingPanel = ({
   const currentComponent = toBindableComponent(storedComponent ?? component);
   const binding = currentComponent.binding;
   const componentProps = currentComponent.props ?? {};
+  const manualTargetValue = typeof componentProps.targetValue === "number" ? componentProps.targetValue : null;
+  const [manualTargetDraft, setManualTargetDraft] = useState<number | null>(manualTargetValue);
+  useEffect(() => { setManualTargetDraft(manualTargetValue); }, [component.id, manualTargetValue]);
+  const updateManualTargetValue = (value: number | null) => {
+    if (binding !== undefined && value !== null) {
+      const nextSlots = cloneSlots(binding.slots);
+      delete nextSlots.target;
+      store.getState().dispatch({ type: "component.binding.update", componentId: component.id, nextBinding: { ...cloneBinding(binding), slots: nextSlots } });
+    }
+    store.getState().dispatch({
+      type: "component.props.update",
+      componentId: component.id,
+      nextProps: { ...componentProps, targetValue: value } as ComponentInstance["props"],
+    });
+  };
+  const commitManualTargetValue = () => {
+    if (manualTargetDraft !== manualTargetValue) updateManualTargetValue(manualTargetDraft);
+  };
   const savedTopN = binding?.limit ?? null;
   const savedResultLimit = typeof componentProps.resultLimit === "number" && Number.isInteger(componentProps.resultLimit)
     ? componentProps.resultLimit
@@ -346,6 +371,12 @@ export const ComponentBindingPanel = ({
     queryFn: () => localDatasets.getDataset(datasetId!) ?? getDataset(datasetId!),
     enabled: datasetId !== undefined,
   });
+  // Runtime and legacy browser datasets may not have a backend schema route.
+  // Keep the binding drop targets on the same schema source as the data panel,
+  // otherwise a visible draggable field is silently rejected on drop.
+  const resolvedSchema = datasetId === undefined
+    ? undefined
+    : localDatasets.getDataset(datasetId) ?? schema.data;
   const datasetOptions = Array.from(
     new Map([
       ...(datasets.data ?? []),
@@ -400,6 +431,13 @@ export const ComponentBindingPanel = ({
       componentId: component.id,
       nextBinding,
     });
+    if (slotKey === "target") {
+      store.getState().dispatch({
+        type: "component.props.update",
+        componentId: component.id,
+        nextProps: { ...componentProps, targetValue: null } as ComponentInstance["props"],
+      });
+    }
   };
 
   const updateMetricAlertProps = (nextValues: Readonly<Record<string, unknown>>) => {
@@ -479,11 +517,11 @@ export const ComponentBindingPanel = ({
     const selectedMeasures = selectedKeys(binding, "measure", true);
     if (!Array.isArray(selectedMeasures)) return;
     const nextMeasures = selectedMeasures.filter((key) => {
-      const field = schema.data?.fields.find((candidate) => candidate.key === key);
+      const field = resolvedSchema?.fields.find((candidate) => candidate.key === key);
       return !isLegacyRankingAuxiliaryField(key, field?.label);
     });
     if (nextMeasures.length !== selectedMeasures.length) updateSlot("measure", nextMeasures, true);
-  }, [binding, currentComponent.type, schema.data]);
+  }, [binding, currentComponent.type, resolvedSchema]);
 
   const updateTimeGranularity = (timeGranularity: string) => {
     store.getState().dispatch({
@@ -497,10 +535,10 @@ export const ComponentBindingPanel = ({
     ? selectedKeys(binding, "measure", true)
     : [];
   const rankingMeasures = (Array.isArray(rankingMeasureKeys) ? rankingMeasureKeys : []).filter((key) => {
-    const field = schema.data?.fields.find((candidate) => candidate.key === key);
+    const field = resolvedSchema?.fields.find((candidate) => candidate.key === key);
     return !isLegacyRankingAuxiliaryField(key, field?.label);
   });
-  const primaryRankingMeasureLabel = schema.data?.fields.find((field) => field.key === rankingMeasures[0])?.label
+  const primaryRankingMeasureLabel = resolvedSchema?.fields.find((field) => field.key === rankingMeasures[0])?.label
     ?? rankingMeasures[0]
     ?? "指标";
   const rankingMode = componentProps.rankingMode === "weighted" && rankingMeasures.length > 1 ? "weighted" : "primary";
@@ -539,14 +577,14 @@ export const ComponentBindingPanel = ({
   };
 
   const updateDatasetParameters = (parameters: Record<string, string | number | boolean>) => {
-    if (datasetId === undefined || schema.data === undefined) return;
+    if (datasetId === undefined || resolvedSchema === undefined) return;
     store.getState().dispatch({
       type: "dashboard.dataset.upsert",
       dataset: {
         datasetId,
-        schemaVersion: schema.data.schemaVersion,
+        schemaVersion: resolvedSchema.schemaVersion,
         parameters: Object.fromEntries(Object.entries(parameters).filter(([key]) =>
-          key !== "limit" && schema.data!.parameters.find((parameter) => parameter.key === key)?.runtime !== true,
+          key !== "limit" && resolvedSchema.parameters.find((parameter) => parameter.key === key)?.runtime !== true,
         )),
       },
     });
@@ -597,8 +635,23 @@ export const ComponentBindingPanel = ({
     });
   };
 
-  const sourceFields = schema.data?.fields ?? [];
+  const sourceFields = resolvedSchema?.fields ?? [];
   const fields = calculatedMetricFields(sourceFields, binding as DataBinding | undefined);
+  const draggedField = (event: DragEvent<HTMLDivElement>): Pick<DatasetField, "key" | "type"> | undefined => {
+    let fieldKey = event.dataTransfer.getData(FIELD_DRAG_TYPE) || event.dataTransfer.getData("text/plain");
+    const knownField = fields.find((candidate) => candidate.key === fieldKey);
+    if (knownField !== undefined) return knownField;
+    try {
+      const metadata: unknown = JSON.parse(event.dataTransfer.getData(FIELD_DRAG_METADATA_TYPE));
+      if (metadata === null || typeof metadata !== "object") return undefined;
+      const candidate = metadata as { readonly key?: unknown; readonly type?: unknown };
+      if (fieldKey.length === 0 && typeof candidate.key === "string") fieldKey = candidate.key;
+      if (candidate.key !== fieldKey || (candidate.type !== "string" && candidate.type !== "number" && candidate.type !== "date" && candidate.type !== "boolean")) return undefined;
+      return { key: fieldKey, type: candidate.type };
+    } catch {
+      return undefined;
+    }
+  };
   const isMetricAlert = currentComponent.type === "metricAlert";
   const metricAlertDimensionKey = isMetricAlert ? selectedKeys(binding, "dimension", false) : undefined;
   const metricAlertMeasureKey = isMetricAlert ? selectedKeys(binding, "measure", false) : undefined;
@@ -738,6 +791,7 @@ export const ComponentBindingPanel = ({
         }
       : {
           ...componentProps,
+          ...(normalizedPairs.some((pair) => pair.target !== undefined) ? { targetValue: null } : {}),
           progressPairs: normalizedPairs.map((pair) => pair.target === undefined ? [pair.measure] : [pair.measure, pair.target]),
         };
     store.getState().dispatch({
@@ -761,20 +815,21 @@ export const ComponentBindingPanel = ({
   };
   const dropProgressField = (event: DragEvent<HTMLDivElement>, index: number, slot: "measure" | "target") => {
     event.preventDefault();
-    const fieldKey = event.dataTransfer.getData(FIELD_DRAG_TYPE);
-    const field = fields.find((candidate) => candidate.key === fieldKey);
+    const field = draggedField(event);
     if (field?.type !== "number") return;
     updateProgressPair(index, slot, field.key);
   };
   const dropFirstProgressMeasure = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
-    const fieldKey = event.dataTransfer.getData(FIELD_DRAG_TYPE);
-    const field = fields.find((candidate) => candidate.key === fieldKey);
+    const field = draggedField(event);
     if (field?.type !== "number") return;
     updateProgressPairs([{ measure: field.key }]);
   };
-  const canAcceptProgressField = (event: DragEvent<HTMLDivElement>) => event.dataTransfer.types.includes(FIELD_DRAG_TYPE);
-  const supportsResultLimit = schema.data?.parameters.some((parameter) => parameter.key === "limit" && parameter.type === "number") === true;
+  const canAcceptProgressField = (event: DragEvent<HTMLDivElement>) => {
+    const types = Array.from(event.dataTransfer.types);
+    return types.includes(FIELD_DRAG_TYPE) || types.includes(FIELD_DRAG_METADATA_TYPE);
+  };
+  const supportsResultLimit = resolvedSchema?.parameters.some((parameter) => parameter.key === "limit" && parameter.type === "number") === true;
   const updateResultLimit = (limit: number | null) => {
     const nextLimit = limit ?? DEFAULT_CHART_RESULT_LIMIT;
     if (savedResultLimit === nextLimit) return;
@@ -785,8 +840,8 @@ export const ComponentBindingPanel = ({
     });
   };
   const validationBinding = binding === undefined ? undefined : cloneBinding(binding);
-  const validation = schema.data && validationBinding
-    ? validateBinding(validationBinding, schema.data.fields, definition.dataSlots)
+  const validation = resolvedSchema && validationBinding
+    ? validateBinding(validationBinding, resolvedSchema.fields, definition.dataSlots)
     : null;
   const aggregationWarning = percentBarAggregationWarning(currentComponent.type, binding);
   const canRefresh = binding !== undefined && (validation === null || validation.valid) && aggregationWarning === undefined;
@@ -840,8 +895,8 @@ export const ComponentBindingPanel = ({
         />
       </div>}
 
-      {(schema.isLoading || selectingDatasetId !== null) && <Spin />}
-      {(schema.isError || selectionError !== null) && (
+      {((schema.isLoading && resolvedSchema === undefined) || selectingDatasetId !== null) && <Spin />}
+      {((schema.isError && resolvedSchema === undefined) || selectionError !== null) && (
         <Alert
           type="error"
           showIcon
@@ -849,12 +904,12 @@ export const ComponentBindingPanel = ({
           description={errorMessage(selectionError ?? schema.error)}
         />
       )}
-      {!compact && schema.data !== undefined && schema.data.parameters.some((parameter) => parameter.runtime !== true && parameter.key !== "limit") && (
+      {!compact && resolvedSchema !== undefined && resolvedSchema.parameters.some((parameter) => parameter.runtime !== true && parameter.key !== "limit") && (
         <div className="binding-field">
           <BindingFieldLabel label="查询参数" help="修改后会应用到引用该数据集的所有组件，并自动刷新图表查询。" />
           <ParameterForm
-            key={`${schema.data.id}:${schema.data.schemaVersion}:${JSON.stringify(savedDataset?.parameters ?? {})}`}
-            parameters={schema.data.parameters.filter((parameter) => parameter.runtime !== true && parameter.key !== "limit")}
+            key={`${resolvedSchema.id}:${resolvedSchema.schemaVersion}:${JSON.stringify(savedDataset?.parameters ?? {})}`}
+            parameters={resolvedSchema.parameters.filter((parameter) => parameter.runtime !== true && parameter.key !== "limit")}
             submitLabel="应用参数"
             onSubmit={updateDatasetParameters}
             {...(savedDataset === undefined ? {} : { initialValues: savedDataset.parameters as Record<string, unknown> })}
@@ -876,7 +931,18 @@ export const ComponentBindingPanel = ({
       )}
 
       {isProgressPairingComponent && (
-        <div className="binding-field progress-pair-field">
+        <div
+          className="binding-field progress-pair-field"
+          onDragOver={(event) => { if (canAcceptProgressField(event)) event.preventDefault(); }}
+          onDrop={(event) => {
+            // Some Chromium builds retarget a drop from a side panel to the
+            // containing binding field. Keep a field-level fallback so the
+            // first unconfigured target still receives the dragged measure.
+            if (event.target !== event.currentTarget || !canAcceptProgressField(event)) return;
+            const index = progressPairs.findIndex((pair) => pair.target === undefined);
+            if (index >= 0) dropProgressField(event, index, "target");
+          }}
+        >
           <BindingFieldLabel label="指标与目标配对" help="每一行对应一项已完成指标和它的目标指标。可从右侧数据栏双击添加，再拖动字段到对应一行完成配对。" />
           <div className="progress-pair-list">
             {progressPairs.length === 0 && (
@@ -932,7 +998,15 @@ export const ComponentBindingPanel = ({
                       </Dropdown>
                     </div>
                     <ArrowRightOutlined className="progress-pair__arrow" aria-hidden="true" />
-                    <div className="progress-pair__control">
+                    <div
+                      className="progress-pair__control"
+                      onDragOver={(event) => { if (canAcceptProgressField(event)) event.preventDefault(); }}
+                      onDropCapture={(event) => {
+                        if (!canAcceptProgressField(event)) return;
+                        dropProgressField(event, index, "target");
+                        event.stopPropagation();
+                      }}
+                    >
                       <span>{currentComponent.type === "goalTaskProgress" ? "目标指标" : "目标值"}</span>
                       {targetLabel === undefined ? (
                         <div
@@ -980,6 +1054,10 @@ export const ComponentBindingPanel = ({
               );
             })}
             <div className="binding-field__data-panel-hint">从右侧数据栏双击或拖入度量，添加进度</div>
+            <div className="binding-field__manual-target">
+              <Typography.Text type="secondary">统一手动填写目标值（可选）</Typography.Text>
+              <InputNumber aria-label="手动目标值" min={0} style={{ width: "100%" }} value={manualTargetDraft} onChange={setManualTargetDraft} onBlur={commitManualTargetValue} onPressEnter={commitManualTargetValue} />
+            </div>
           </div>
         </div>
       )}
@@ -1002,8 +1080,7 @@ export const ComponentBindingPanel = ({
         const dropField = (event: DragEvent<HTMLDivElement>) => {
           event.preventDefault();
           setDropSlotKey(null);
-          const fieldKey = event.dataTransfer.getData(FIELD_DRAG_TYPE);
-          const field = fields.find((candidate) => candidate.key === fieldKey);
+          const field = draggedField(event);
           if (field === undefined || !slot.acceptedTypes.includes(field.type)) return;
           if (slot.multiple) {
             const selected = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
@@ -1012,7 +1089,10 @@ export const ComponentBindingPanel = ({
             updateSlot(slot.key, field.key, false);
           }
         };
-        const canAcceptDrag = (event: DragEvent<HTMLDivElement>) => event.dataTransfer.types.includes(FIELD_DRAG_TYPE);
+        const canAcceptDrag = (event: DragEvent<HTMLDivElement>) => {
+          const types = Array.from(event.dataTransfer.types);
+          return types.includes(FIELD_DRAG_TYPE) || types.includes(FIELD_DRAG_METADATA_TYPE);
+        };
         return (
           <div
             className={`binding-field${dropSlotKey === slot.key ? " binding-field--drop-target" : ""}`}
@@ -1087,6 +1167,12 @@ export const ComponentBindingPanel = ({
                 {datasetId !== undefined && <div className="metric-binding-list__calculated-actions">
                   <Button icon={<CalculatorOutlined />} size="small" type="link" onClick={() => setCalculatedMetricSlot({ key: slot.key, multiple: slot.multiple })}>新建计算指标</Button>
                 </div>}
+                {slot.key === "target" && ["gauge", "liquid", "targetProgress"].includes(currentComponent.type) && (
+                  <div className="binding-field__manual-target">
+                    <Typography.Text type="secondary">或手动填写目标值</Typography.Text>
+                    <InputNumber aria-label="手动目标值" min={0} style={{ width: "100%" }} value={manualTargetDraft} onChange={setManualTargetDraft} onBlur={commitManualTargetValue} onPressEnter={commitManualTargetValue} />
+                  </div>
+                )}
               </div>
             ) : isDimensionSlot ? (
               <div className="dimension-binding-list">
@@ -1280,7 +1366,7 @@ export const ComponentBindingPanel = ({
           <Select
             allowClear
             aria-label="排序字段"
-            disabled={datasetId === undefined || schema.data === undefined}
+            disabled={datasetId === undefined || resolvedSchema === undefined}
             options={fields.map((field) => ({ label: field.label, value: field.key }))}
             placeholder="不排序"
             style={{ width: "100%" }}

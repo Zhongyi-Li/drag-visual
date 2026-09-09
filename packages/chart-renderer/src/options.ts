@@ -1783,7 +1783,8 @@ export const buildGaugeModel = (
   const measureKey = fieldKeys(component, "measure")[0];
   const targetKey = fieldKeys(component, "target")[0];
   const value = measureKey === undefined ? null : aggregateField(rows, measureKey, aggregation);
-  const target = targetKey === undefined ? null : aggregateField(rows, targetKey, aggregation);
+  const manualTarget = typeof component.props.targetValue === "number" ? component.props.targetValue : undefined;
+  const target = manualTarget ?? (targetKey === undefined ? null : aggregateField(rows, targetKey, aggregation));
   const percentage = value !== null && target !== null && target > 0 ? value / target * 100 : null;
   const labels = fieldLabelMap(fields);
 
@@ -1862,7 +1863,10 @@ export const buildGaugeOption = (
       axisLine: {
         lineStyle: {
           width: 16,
-          color: [[0.6, "#fee2e2"], [0.85, "#fef3c7"], [1, "#dcfce7"]],
+          // Keep the full gauge track visible even when completion is close
+          // to zero; the previous pastel colors effectively disappeared in
+          // compact cards and left only the pointer visible.
+          color: [[1, "#cbd5e1"]],
         },
       },
       progress: { show: true, roundCap: true, width: 16, itemStyle: { color: accent } },
@@ -1896,7 +1900,9 @@ export const buildLiquidModel = (
   const measure = fieldKeys(component, "measure")[0];
   const target = fieldKeys(component, "target")[0];
   const value = aggregateKpiSlot(component, rows, "measure", aggregation);
-  const targetValue = aggregateKpiSlot(component, rows, "target", aggregation);
+  const targetValue = typeof component.props.targetValue === "number"
+    ? component.props.targetValue
+    : aggregateKpiSlot(component, rows, "target", aggregation);
   const percentage = value !== null && targetValue !== null && targetValue !== 0 ? value / targetValue * 100 : null;
   const decimals = typeof component.props.decimals === "number" ? component.props.decimals : 1;
 
@@ -2026,9 +2032,12 @@ export const buildProgressBarModel = (
   return {
     items: progressPairs.map(({ measure, target: targetKey }) => {
       const value = aggregateField(rows, measure, metricAggregationFor(component, "measure", measure, aggregation));
-      const target = targetKey === undefined
+      const manualTarget = typeof component.props.targetValue === "number"
+        ? component.props.targetValue
+        : undefined;
+      const target = manualTarget ?? (targetKey === undefined
         ? value
-        : aggregateField(rows, targetKey, metricAggregationFor(component, "target", targetKey, "max"));
+        : aggregateField(rows, targetKey, metricAggregationFor(component, "target", targetKey, "max")));
       return {
         key: measure,
         label: labels.get(measure) ?? measure,
@@ -2079,7 +2088,7 @@ export const buildTargetProgressModel = (
         groupRows.map((row) => numericValue(row, measure)),
         metricAggregationFor(component, "measure", measure, aggregation),
       );
-      const targetValue = aggregateNumbers(
+      const targetValue = typeof component.props.targetValue === "number" ? component.props.targetValue : aggregateNumbers(
         groupRows.map((row) => numericValue(row, target)),
         // A target is repeated on every detail row for the same dimension. Use
         // the shared target once by default; authors can still explicitly

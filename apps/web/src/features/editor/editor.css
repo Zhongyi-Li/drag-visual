@@ -32,6 +32,7 @@
 .editor-tools__hint { margin-left: auto; color: #bfbfbf; font-size: 12px; }
 
 .editor-workbench { width: 100%; min-width: 1280px; height: calc(100vh - 96px); min-height: 544px; display: grid; grid-template-columns: 240px minmax(400px, 1fr) 520px; }
+.editor-workbench--page-settings { grid-template-columns: 240px minmax(400px, 1fr) 420px; }
 .editor-workbench--inspector-collapsed { grid-template-columns: 240px minmax(672px, 1fr) 248px; }
 .editor-workbench--data-panel-collapsed { grid-template-columns: 240px minmax(552px, 1fr) 368px; }
 .editor-workbench--inspector-collapsed.editor-workbench--data-panel-collapsed { grid-template-columns: 240px minmax(896px, 1fr) 96px; }
@@ -700,7 +701,13 @@
 .dashboard-settings__setting-row .ant-radio-group { display: inline-flex; gap: 4px; }
 .dashboard-settings__setting-row .ant-radio-wrapper { margin-inline-end: 0; color: #475467; font-size: 11px; }
 .dashboard-settings__palette-actions { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.dashboard-settings__palette-actions .ant-select { width: 132px; }
+.dashboard-settings__palette-actions .ant-select { width: 252px; }
+.dashboard-settings__palette-option { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.dashboard-settings__palette-option-swatches { display: inline-flex; flex: 0 0 auto; gap: 2px; }
+.dashboard-settings__palette-option-swatches i { display: block; width: 12px; height: 12px; border-radius: 1px; }
+.dashboard-settings__palette-select .ant-select-selection-item { max-width: 100%; }
+.dashboard-settings__palette-dropdown .ant-select-item { min-height: 29px; padding: 4px 10px; line-height: 20px; }
+.dashboard-settings__palette-dropdown .ant-select-item-group { min-height: 24px; padding: 7px 10px 3px; color: #8c8c8c; font-size: 11px; line-height: 17px; }
 .dashboard-settings__palette-actions .ant-btn { border-color: #1677ff; color: #1677ff; }
 .dashboard-settings__swatches { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 2px 0 4px 50px; }
 .dashboard-settings__swatches input[type="color"] { width: 22px; height: 22px; padding: 0; border: 0; border-radius: 1px; cursor: pointer; }
