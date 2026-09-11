@@ -31,6 +31,7 @@ import {
   roseDefinition,
   percentAreaDefinition,
   percentBarDefinition,
+  pieDefinition,
   stackedAreaDefinition,
   stackedBarDefinition,
   sunburstDefinition,
@@ -99,8 +100,17 @@ describe("component registry", () => {
   it("defines a first-class rose chart so its polar-area encoding survives renaming", () => {
     expect(roseDefinition.type).toBe("rose");
     expect(roseDefinition.title).toBe("玫瑰图");
-    expect(roseDefinition.createDefaults()).toEqual({ color: "#1677ff", showLegend: true });
+    expect(roseDefinition.createDefaults()).toEqual({ aggregation: "sum", color: "#1677ff", maxCategoryCount: 20, showLegend: true });
     expect(roseDefinition.dataSlots).toEqual(createDefaultRegistry().get("pie").dataSlots);
+  });
+
+  it("upgrades legacy pie-family props to sum aggregation", () => {
+    expect(pieDefinition.propsSchema.parse({ color: "#1677ff", showLegend: true })).toEqual({
+      aggregation: "sum",
+      color: "#1677ff",
+      maxCategoryCount: 20,
+      showLegend: true,
+    });
   });
 
   it("defines a first-class donut chart with right-side category legend space", () => {
@@ -109,7 +119,7 @@ describe("component registry", () => {
     expect(donutDefinition.type).toBe("donut");
     expect(donut.title).toBe("环形图");
     expect(donut.defaultLayout).toEqual({ w: 7, h: 5 });
-    expect(donut.createDefaults()).toEqual({ color: "#1677ff", showLegend: true });
+    expect(donut.createDefaults()).toEqual({ aggregation: "sum", color: "#1677ff", maxCategoryCount: 20, showLegend: true });
     expect(donut.dataSlots).toEqual(createDefaultRegistry().get("pie").dataSlots);
   });
 
@@ -118,7 +128,7 @@ describe("component registry", () => {
 
     expect(sunburstDefinition.title).toBe("旭日图");
     expect(sunburst.defaultLayout).toEqual({ w: 7, h: 6 });
-    expect(sunburst.createDefaults()).toEqual({ color: "#1677ff", showLegend: true });
+    expect(sunburst.createDefaults()).toEqual({ aggregation: "sum", color: "#1677ff", showLegend: true });
     expect(sunburst.dataSlots).toEqual([
       expect.objectContaining({ key: "dimension", title: "扇区标签/维度", required: true, multiple: false }),
       expect.objectContaining({ key: "measure", title: "扇区角度/度量", required: true, multiple: true }),
@@ -131,13 +141,13 @@ describe("component registry", () => {
     const radar = registry.get("radar");
     const treemap = registry.get("treemap");
 
-    expect(radarDefinition.createDefaults()).toEqual({ color: "#4b7cf5", showLegend: true });
+    expect(radarDefinition.createDefaults()).toEqual({ aggregation: "sum", color: "#4b7cf5", showLegend: true });
     expect(radar.defaultLayout).toEqual({ w: 6, h: 6 });
     expect(radar.dataSlots).toEqual([
       expect.objectContaining({ key: "dimension", required: true, multiple: false }),
       expect.objectContaining({ key: "measure", required: true, multiple: true }),
     ]);
-    expect(treemapDefinition.createDefaults()).toEqual({ color: "#4b7cf5", showLegend: false });
+    expect(treemapDefinition.createDefaults()).toEqual({ aggregation: "sum", color: "#4b7cf5", showLegend: false });
     expect(treemap.defaultLayout).toEqual({ w: 6, h: 6 });
     expect(treemap.dataSlots).toEqual([
       expect.objectContaining({ key: "dimension", required: true, multiple: false }),

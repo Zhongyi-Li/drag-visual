@@ -5,7 +5,14 @@
 .chart-query-filter-bar__operator { color: #64748b; font-size: 12px; white-space: nowrap; }
 .chart-query-filter-bar__condition .ant-input, .chart-query-filter-bar__condition .ant-input-number, .chart-query-filter-bar__condition .ant-select { width: 132px; }
 .chart-query-filter-bar__actions { margin-left: auto; }
+.chart-control-bar { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; min-width: 0; padding: 2px 12px 10px; }
+.chart-control-bar:empty { display: none; }
+.chart-control-bar > .date-range-filter { min-height: 32px; padding: 0; overflow: visible; }
+.chart-control-bar > .runtime-dataset-request { min-height: 32px; padding: 0; border-bottom: 0; background: transparent; }
+.chart-control-bar > .chart-query-filter-bar { flex: 0 1 auto; align-self: auto; min-width: 0; margin: 0; padding: 0; background: transparent; border-radius: 0; box-shadow: none; }
+.chart-control-bar > .chart-query-filter-bar .chart-query-filter-bar__fields { flex: 0 1 auto; }
+.chart-control-bar > .chart-query-filter-bar .chart-query-filter-bar__actions { margin-left: 0; }
 .chart-query-filter-bar--analysis-group { margin-bottom: 16px; padding: 12px 14px; }
 .chart-query-filter-bar--analysis-group .chart-query-filter-bar__fields { flex: 1 1 auto; gap: 10px 12px; }
 .chart-query-filter-bar--analysis-group .chart-query-filter-bar__actions { flex: 0 0 auto; }
-@media (max-width: 640px) { .chart-query-filter-bar { align-self: stretch; margin-left: 0; width: auto; } .chart-query-filter-bar__fields { flex: 1 1 100%; } .chart-query-filter-bar__actions { margin-left: 0; } }
+@media (max-width: 640px) { .chart-control-bar { align-items: flex-start; padding-inline: 8px; } .chart-control-bar > .date-range-filter, .chart-control-bar > .runtime-dataset-request, .chart-control-bar > .chart-query-filter-bar { flex: 1 1 100%; } .chart-query-filter-bar { align-self: stretch; margin-left: 0; width: auto; } .chart-query-filter-bar__fields { flex: 1 1 100%; } .chart-query-filter-bar__actions { margin-left: 0; } }

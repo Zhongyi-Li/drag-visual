@@ -14,7 +14,7 @@ export const roseDefinition: ComponentDefinition = Object.freeze({
   title: "玫瑰图",
   category: "饼/环形",
   defaultLayout: Object.freeze({ w: 6, h: 5 }),
-  createDefaults: () => ({ color: "#1677ff", showLegend: true }),
+  createDefaults: () => ({ aggregation: "sum", color: "#1677ff", maxCategoryCount: 20, showLegend: true }),
   dataSlots: Object.freeze([
     Object.freeze({ key: "dimension", title: "维度", acceptedTypes: Object.freeze(["string", "date"] as const), required: true, multiple: false }),
     Object.freeze({ key: "measure", title: "指标/列", acceptedTypes: Object.freeze(["number"] as const), required: true, multiple: true }),

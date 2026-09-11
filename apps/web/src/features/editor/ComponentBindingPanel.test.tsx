@@ -12,9 +12,11 @@ import {
   metricBreakdownDefinition,
   metricTrendDefinition,
   multidimensionalDefinition,
+  pieDefinition,
   percentBarDefinition,
   progressBarDefinition,
   rankingDefinition,
+  tableDefinition,
   targetProgressDefinition,
   trendDefinition,
 } from "@drag-visual/component-registry";
@@ -1075,7 +1077,7 @@ describe("ComponentBindingPanel", () => {
     expect(store.getState().history.present.components[0]!.props.dataRefreshVersion).toBeUndefined();
   });
 
-  it("keeps the chart result cap beside 更新 and applies it only on update", async () => {
+  it("keeps the record result cap for detail tables and applies it only on update", async () => {
     const fields = [
       { key: "month", label: "月份", type: "string", nullable: false },
       { key: "revenue", label: "销售额", type: "number", nullable: false },
@@ -1092,12 +1094,14 @@ describe("ComponentBindingPanel", () => {
       ...dashboard,
       datasets: [{ datasetId: "retail", schemaVersion: "v2", parameters: {} }],
       components: [{
-        ...dashboard.components[0]!,
-        binding: { datasetId: "retail", slots: { dimension: { fieldKey: "month" }, measure: { fieldKey: "revenue" } } },
+        id: "bar-1",
+        type: "table",
+        props: { pageSize: 20, striped: false },
+        binding: { datasetId: "retail", slots: { columns: [{ fieldKey: "month" }, { fieldKey: "revenue" }] } },
       }],
     });
     const store = createEditorStore(boundDashboard);
-    render(<AppProviders><ComponentBindingPanel store={store} component={boundDashboard.components[0]!} definition={barDefinition} /></AppProviders>);
+    render(<AppProviders><ComponentBindingPanel store={store} component={boundDashboard.components[0]!} definition={tableDefinition} /></AppProviders>);
 
     const resultLimit = await screen.findByRole("spinbutton", { name: "结果展示" });
     expect(resultLimit).toHaveValue("1000");
@@ -1110,6 +1114,44 @@ describe("ComponentBindingPanel", () => {
     expect(store.getState().history.present.components[0]!.props).toMatchObject({
       resultLimit: 500,
       appliedResultLimit: 500,
+      dataRefreshVersion: 1,
+    });
+  });
+
+  it("uses a maximum category count for pie charts", async () => {
+    const fields = [
+      { key: "store", label: "店铺", type: "string", nullable: false },
+      { key: "revenue", label: "销售额", type: "number", nullable: false },
+    ] as const;
+    server.use(
+      http.get("http://localhost/datasets", () => HttpResponse.json([{ id: "retail", name: "零售发货单", schemaVersion: "v2" }])),
+      http.get("http://localhost/datasets/retail/schema", () => HttpResponse.json({
+        id: "retail", name: "零售发货单", fields,
+        parameters: [{ key: "limit", label: "结果展示", type: "number", required: false, defaultValue: 1000 }],
+        schemaVersion: "v2",
+      })),
+    );
+    const pieDashboard = DashboardSchema.parse({
+      ...dashboard,
+      datasets: [{ datasetId: "retail", schemaVersion: "v2", parameters: {} }],
+      components: [{
+        id: "bar-1",
+        type: "pie",
+        props: { aggregation: "sum", color: "#1677ff", showLegend: true },
+        binding: { datasetId: "retail", slots: { dimension: { fieldKey: "store" }, measure: { fieldKey: "revenue" } } },
+      }],
+    });
+    const store = createEditorStore(pieDashboard);
+    render(<AppProviders><ComponentBindingPanel store={store} component={pieDashboard.components[0]!} definition={pieDefinition} /></AppProviders>);
+
+    const categoryLimit = await screen.findByRole("spinbutton", { name: "最大展示分类数" });
+    expect(categoryLimit).toHaveValue("20");
+    await userEvent.clear(categoryLimit);
+    await userEvent.type(categoryLimit, "5");
+    await userEvent.click(screen.getByRole("button", { name: "更新" }));
+    expect(store.getState().history.present.components[0]!.props).toMatchObject({
+      maxCategoryCount: 5,
+      appliedMaxCategoryCount: 5,
       dataRefreshVersion: 1,
     });
   });

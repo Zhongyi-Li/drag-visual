@@ -6,7 +6,8 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Alert, Empty, Spin } from "antd";
 import { useEffect, useState } from "react";
 
-import { buildDatasetAggregation } from "../datasets/datasetAggregation.js";
+import { buildDatasetAggregation, componentDimensionFieldKeys } from "../datasets/datasetAggregation.js";
+import { MAX_PIE_CATEGORY_LIMIT, isPieCategoryChart } from "../datasets/chartCategoryLimit.js";
 import { aggregateLocalRows, applyCalculatedMetrics, calculatedMetricFields, hasActiveCalculatedMetrics } from "../datasets/calculatedMetrics.js";
 import { getDataset, getDatasetFieldOptions, queryDatasetRequest } from "../datasets/datasetApi.js";
 import { DateRangeFilterBar } from "../datasets/DateRangeFilterBar.js";
@@ -14,7 +15,7 @@ import { ChartQueryFilterBar, type ChartQueryFilterControl } from "../datasets/C
 import { ChartDisplayHints } from "../editor/ChartDisplayHints.js";
 import { defaultDateFilterSelection, type RuntimeDateSelection } from "../datasets/dateFilter.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
-import { componentQueryFilterControls, componentQueryFilters, dashboardGlobalFilters, filterRowsByDashboardFilters, filtersForComponent, hasDashboardGlobalDateTarget, type DashboardGlobalFilterValues, type DashboardGlobalFilters } from "./dashboardGlobalFilters.js";
+import { componentQueryFilterControls, componentQueryFilters, dashboardGlobalFilters, filterRowsByDashboardFilters, filterRowsByDimensionFilters, filtersForComponent, hasDashboardGlobalDateTarget, type DashboardGlobalFilterValues, type DashboardGlobalFilters } from "./dashboardGlobalFilters.js";
 import {
   RuntimeDatasetRequestBar,
   buildRuntimeParameters,
@@ -105,10 +106,18 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
   const resolvedSchema = localSchema ?? schema.data;
   const runtimeParameterDefinitions = runtimeParameters(resolvedSchema?.parameters ?? []);
   const runtimeParameterKeys = new Set(runtimeParameterDefinitions.map((parameter) => parameter.key));
-  const configuredParameters = Object.fromEntries(Object.entries(savedDataset?.parameters ?? {}).filter(([key]) => !runtimeParameterKeys.has(key)));
+  const usesCategoryLimit = isPieCategoryChart(component.type);
+  const configuredParameters = Object.fromEntries(Object.entries(savedDataset?.parameters ?? {}).filter(([key]) =>
+    !runtimeParameterKeys.has(key) && (!usesCategoryLimit || key !== "limit"),
+  ));
   const runtimeQueryParameters = buildRuntimeParameters(runtimeParameterDefinitions, appliedRuntimeParameters);
   const shouldShowDateFilterControl = dateFilterControl?.showControl ?? component.type !== "goalTaskProgress";
-  const queryParameters = { ...configuredParameters, ...runtimeQueryParameters };
+  const supportsResultLimit = resolvedSchema?.parameters.some((parameter) => parameter.key === "limit" && parameter.type === "number") === true;
+  const queryParameters = {
+    ...configuredParameters,
+    ...runtimeQueryParameters,
+    ...(supportsResultLimit && usesCategoryLimit ? { limit: MAX_PIE_CATEGORY_LIMIT } : {}),
+  };
   const aggregation = buildDatasetAggregation(component);
   const activeGlobalFilters = filtersForComponent(component, globalFilters, globalFilterValues);
   const savedComponentQueryFilterControls = componentQueryFilterControls(component);
@@ -166,9 +175,16 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
   const unaggregatedResult = isUploadedDataset && localResult !== undefined && localFilters.length > 0
     ? { ...localResult, rows: filterRowsByDashboardFilters(localResult.rows, localFilters), total: filterRowsByDashboardFilters(localResult.rows, localFilters).length }
     : unfilteredResult;
-  const resolvedResult = isUploadedDataset && unaggregatedResult !== undefined && aggregation !== undefined && hasActiveCalculatedMetrics(component.binding)
+  const calculatedResult = isUploadedDataset && unaggregatedResult !== undefined && aggregation !== undefined && hasActiveCalculatedMetrics(component.binding)
     ? { ...unaggregatedResult, rows: aggregateLocalRows(unaggregatedResult.rows, aggregation), total: aggregateLocalRows(unaggregatedResult.rows, aggregation).length }
     : unaggregatedResult;
+  const resolvedResult = (() => {
+    if (calculatedResult === undefined) return undefined;
+    const filteredRows = filterRowsByDimensionFilters(calculatedResult.rows, activeFilters, componentDimensionFieldKeys(component));
+    return filteredRows === calculatedResult.rows
+      ? calculatedResult
+      : { ...calculatedResult, rows: filteredRows, total: filteredRows.length };
+  })();
   const localQueryFilterOptions = isUploadedDataset && localResult !== undefined
     ? Object.fromEntries(savedComponentQueryFilterControls.filter((filter) => filter.kind === "fieldValue").map((filter) => [
         filter.fieldKey,
@@ -197,31 +213,33 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
     fields: resolvedResult.columns,
   };
   return <div className="viewer-component">
-    {dateFilterControl !== undefined && shouldShowDateFilterControl && !isDateBoundByGlobalFilter && <DateRangeFilterBar
-      control={dateFilterControl}
-      fieldLabel={resolvedSchema.fields.find((field) => field.key === dateFilterControl.fieldKey)?.label ?? dateFilterControl.fieldKey}
-      value={activeDateFilter}
-      onChange={setActiveDateFilter}
-      loading={data.isFetching}
-    />}
-    <RuntimeDatasetRequestBar
-      parameters={runtimeParameterDefinitions}
-      values={runtimeDraftParameters}
-      onChange={(key, value) => setRuntimeDraftParameters((current) => ({ ...current, [key]: value }))}
-      onRequest={requestRuntimeData}
-      loading={data.isFetching}
-    />
-    <ChartQueryFilterBar
-      filters={runtimeComponentQueryFilterControls}
-      fields={resolvedSchema.fields}
-      datasetId={isUploadedDataset ? undefined : datasetId}
-      localFieldOptions={localQueryFilterOptions}
-      loading={data.isFetching}
-      onApply={(filters, controls) => {
-        setRuntimeComponentQueryFilters([...filters]);
-        setRuntimeComponentQueryFilterControls([...controls]);
-      }}
-    />
+    <div className="chart-control-bar">
+      {dateFilterControl !== undefined && shouldShowDateFilterControl && !isDateBoundByGlobalFilter && <DateRangeFilterBar
+        control={dateFilterControl}
+        fieldLabel={resolvedSchema.fields.find((field) => field.key === dateFilterControl.fieldKey)?.label ?? dateFilterControl.fieldKey}
+        value={activeDateFilter}
+        onChange={setActiveDateFilter}
+        loading={data.isFetching}
+      />}
+      <RuntimeDatasetRequestBar
+        parameters={runtimeParameterDefinitions}
+        values={runtimeDraftParameters}
+        onChange={(key, value) => setRuntimeDraftParameters((current) => ({ ...current, [key]: value }))}
+        onRequest={requestRuntimeData}
+        loading={data.isFetching}
+      />
+      <ChartQueryFilterBar
+        filters={runtimeComponentQueryFilterControls}
+        fields={resolvedSchema.fields}
+        datasetId={isUploadedDataset ? undefined : datasetId}
+        localFieldOptions={localQueryFilterOptions}
+        loading={data.isFetching}
+        onApply={(filters, controls) => {
+          setRuntimeComponentQueryFilters([...filters]);
+          setRuntimeComponentQueryFilterControls([...controls]);
+        }}
+      />
+    </div>
     {resolvedResult.rows.length === 0
       ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" />
       : <ResolvedComponent

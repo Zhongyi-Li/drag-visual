@@ -1,7 +1,7 @@
-import type { ComponentInstance } from "@drag-visual/contracts";
+import type { ComponentInstance, DatasetFilter } from "@drag-visual/contracts";
 import { describe, expect, it } from "vitest";
 
-import { analysisGroupQueryFilters, componentQueryFilterControls, componentQueryFilters, filterRowsByDashboardFilters, filtersForComponent, hasDashboardGlobalDateTarget } from "./dashboardGlobalFilters.js";
+import { analysisGroupQueryFilters, componentQueryFilterControls, componentQueryFilters, filterRowsByDashboardFilters, filterRowsByDimensionFilters, filtersForComponent, hasDashboardGlobalDateTarget } from "./dashboardGlobalFilters.js";
 
 const chart = { id: "chart-1", type: "bar", props: {}, binding: { datasetId: "sales", slots: {} } } as ComponentInstance;
 
@@ -24,6 +24,14 @@ describe("dashboardGlobalFilters", () => {
     ])).toEqual([{ orderDate: "2026-08-05", store: "旗舰店", orderNo: "A-001" }]);
   });
 
+  it("evaluates explicitly zoned timestamps in the configured business timezone", () => {
+    expect(filterRowsByDashboardFilters([
+      { orderTime: "2026-08-31T16:03:00.000Z", id: "shanghai-september-first" },
+      { orderTime: "2026-08-31T15:59:00.000Z", id: "shanghai-august-last" },
+    ], [{ kind: "dateRange", fieldKey: "orderTime", start: "2026-09-01", end: "2026-09-01", timezone: "Asia/Shanghai" }]))
+      .toEqual([{ orderTime: "2026-08-31T16:03:00.000Z", id: "shanghai-september-first" }]);
+  });
+
   it("applies numeric comparison conditions for uploaded datasets", () => {
     expect(filterRowsByDashboardFilters([
       { product: "A", amount: 99 },
@@ -31,6 +39,21 @@ describe("dashboardGlobalFilters", () => {
       { product: "C", amount: 101 },
     ], [{ kind: "numberComparison", fieldKey: "amount", operator: "gte", value: 100 }]))
       .toEqual([{ product: "B", amount: 100 }, { product: "C", amount: 101 }]);
+  });
+
+  it("keeps only selected values when a filter targets the chart dimension", () => {
+    const rows = [
+      { orderTime: "2026-09-01 00:03:00", store: "旗舰店", amount: 10 },
+      { orderTime: "2026-09-02 09:00:00", store: "直营网", amount: 20 },
+    ];
+    const filters: DatasetFilter[] = [
+      { kind: "dateRange" as const, fieldKey: "orderTime", start: "2026-09-01", end: "2026-09-01", timezone: "Asia/Shanghai" },
+      { kind: "fieldValue" as const, fieldKey: "store", values: ["旗舰店"] },
+    ];
+
+    expect(filterRowsByDimensionFilters(rows, filters, ["orderTime"])).toEqual([rows[0]]);
+    expect(filterRowsByDimensionFilters(rows, filters, ["store"])).toEqual([rows[0]]);
+    expect(filterRowsByDimensionFilters(rows, filters, ["amount"])).toBe(rows);
   });
 
   it("maps and applies a non-containing text condition", () => {

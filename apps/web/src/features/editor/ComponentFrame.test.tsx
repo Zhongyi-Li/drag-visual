@@ -2,7 +2,7 @@
 
 import { DashboardSchema } from "@drag-visual/contracts";
 import { DashboardComponentRenderer } from "@drag-visual/chart-renderer";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import type { ReactElement, ReactNode } from "react";
@@ -288,6 +288,42 @@ describe("ComponentFrame", () => {
     expect(store.getState().history.present.components[0]!.binding?.dateFilter).toEqual(filtered.components[0]!.binding?.dateFilter);
   });
 
+  it("re-queries the current chart immediately when its runtime date range changes", async () => {
+    const requests: Array<{ componentFilters?: Array<{ kind: string; start?: string; end?: string }> }> = [];
+    server.use(
+      http.post("http://localhost/datasets/sales/query", async ({ request }) => {
+        requests.push(await request.json() as typeof requests[number]);
+        return HttpResponse.json({
+          columns: [{ key: "businessDate", label: "业务日期", type: "date", nullable: false }, { key: "month", label: "月份", type: "string", nullable: false }, { key: "revenue", label: "销售额", type: "number", nullable: false }],
+          rows: [{ businessDate: "2026-09-01", month: "9月", revenue: 100 }], total: 1, sampledAt: "2026-09-01T00:00:00.000Z",
+        });
+      }),
+    );
+    const filtered = DashboardSchema.parse({
+      ...remoteDashboard,
+      components: [{
+        ...remoteDashboard.components[0]!,
+        binding: {
+          ...remoteDashboard.components[0]!.binding!,
+          dateFilter: { fieldKey: "businessDate", defaultPreset: "all", defaultRange: { start: "2026-08-01", end: "2026-08-31" }, allowCustom: true, timezone: "Asia/Shanghai" },
+        },
+      }],
+    });
+    const store = createEditorStore(filtered);
+    renderFrame(<ComponentFrame component={filtered.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    await waitFor(() => expect(requests).toHaveLength(1));
+    const [startInput, endInput] = await screen.findAllByRole("textbox", { name: "业务日期日期范围" });
+    fireEvent.change(startInput!, { target: { value: "2026/09/01" } });
+    fireEvent.change(endInput!, { target: { value: "2026/09/01" } });
+    fireEvent.blur(endInput!);
+
+    await waitFor(() => expect(requests.length).toBeGreaterThan(1));
+    expect(requests.at(-1)?.componentFilters).not.toContainEqual(expect.objectContaining({
+      kind: "dateRange", start: "2026-08-01", end: "2026-08-31",
+    }));
+  });
+
   it("shows a newly configured date picker immediately without re-querying before update", async () => {
     const requests: unknown[] = [];
     server.use(
@@ -427,6 +463,34 @@ describe("ComponentFrame", () => {
       componentFilters: [{ kind: "fieldValue", fieldKey: "region", values: ["华东"] }],
       aggregation: { groupBy: ["region"], measures: [{ fieldKey: "revenue", aggregation: "avg" }] },
     });
+  });
+
+  it("renders configured field filters as controls inside the editor chart", async () => {
+    const configured = DashboardSchema.parse({
+      ...remoteDashboard,
+      components: [{
+        ...remoteDashboard.components[0]!,
+        binding: {
+          ...remoteDashboard.components[0]!.binding!,
+          dateFilter: { fieldKey: "businessDate", defaultPreset: "all", allowCustom: true, showControl: true, timezone: "Asia/Shanghai" },
+        },
+        props: {
+          ...remoteDashboard.components[0]!.props,
+          queryFilters: [{ kind: "fieldValue", fieldKey: "month", values: ["2026-01"] }],
+        },
+      }],
+    });
+    const store = createEditorStore(configured);
+
+    renderFrame(<ComponentFrame component={configured.components[0]!} store={store} createComponentId={() => "bar-2"} isInteracting={false} />);
+
+    expect(await screen.findByLabelText("图表查询条件")).toBeInTheDocument();
+    expect(await screen.findByText("月份")).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "图表查询值1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "查询" })).toBeInTheDocument();
+    const controls = screen.getByLabelText("图表查询条件").parentElement;
+    expect(controls).toHaveClass("chart-control-bar");
+    expect(controls).toContainElement(screen.getAllByLabelText("业务日期日期范围")[0]!);
   });
 
   it("uses a result cap for retail charts without rendering pagination controls", async () => {

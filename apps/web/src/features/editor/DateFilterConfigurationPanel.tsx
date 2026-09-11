@@ -100,7 +100,11 @@ export const DateFilterConfigurationPanel = ({ store, component }: DateFilterCon
       : !schema.isLoading && dateFields.length === 0 ? <Typography.Text type="secondary">当前数据源没有可用于筛选的日期字段。</Typography.Text>
         : <>
           <div className="date-filter-configuration__status" aria-label="日期筛选配置状态">
-            <span>{control === undefined ? "未绑定日期字段" : "日期筛选已就绪"}</span>
+            <span className={control === undefined ? "is-idle" : "is-ready"}>
+              <i aria-hidden="true" />
+              {control === undefined ? "未绑定日期字段" : "已启用"}
+            </span>
+            {control !== undefined && <small>日期联动</small>}
           </div>
           {control === undefined && <Typography.Text className="date-filter-configuration__hint" type="secondary">从右侧数据面板选择日期字段后，可设置默认展示范围。</Typography.Text>}
           {control !== undefined && <div className="date-filter-configuration__field-summary">
@@ -109,7 +113,7 @@ export const DateFilterConfigurationPanel = ({ store, component }: DateFilterCon
             <Button aria-label="移除日期筛选" icon={<CloseOutlined />} size="small" type="text" onClick={() => update(undefined)} />
           </div>}
           {control !== undefined && <div className="date-filter-configuration__default-range">
-            <div className="date-filter-configuration__default-heading"><span>默认展示</span><strong>{defaultRangeLabel}</strong></div>
+            <div className="date-filter-configuration__default-heading"><span>默认范围</span><strong>{defaultRangeLabel}</strong></div>
             <div aria-label="默认日期范围" className="date-filter-configuration__preset-list" role="group">
               {[
                 { preset: "all" as const, label: "全部" },
@@ -139,10 +143,10 @@ export const DateFilterConfigurationPanel = ({ store, component }: DateFilterCon
                 onOpenChange={setCustomRangeOpen}
               ><button aria-pressed={control.defaultRange !== undefined || customRangeOpen} className={control.defaultRange !== undefined || customRangeOpen ? "is-active" : ""} type="button">自定义</button></Popover>
             </div>
-          </div>}
-          {control !== undefined && <div className="date-filter-configuration__visibility">
-            <span>显示日期选择控件</span>
-            <Switch aria-label="显示日期选择控件" checked={showDateControl} size="small" onChange={(showControl) => update({ ...control, showControl })} />
+            <div className="date-filter-configuration__visibility">
+              <span><strong>显示日期控件</strong><small>在图表顶部开放日期选择</small></span>
+              <Switch aria-label="显示日期选择控件" checked={showDateControl} size="small" onChange={(showControl) => update({ ...control, showControl })} />
+            </div>
           </div>}
           {control !== undefined && !dateFields.some((field) => field.key === control.fieldKey) && <Alert type="warning" showIcon title="原日期字段已不存在，请重新选择。" />}
         </>}

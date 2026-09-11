@@ -44,6 +44,30 @@ describe("buildDatasetAggregation", () => {
     });
   });
 
+  it("aggregates legacy pie-family charts on the server before applying the row limit", () => {
+    const pie = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1",
+        type: "pie",
+        // Existing dashboards do not have an aggregation prop yet.
+        props: { color: "#1677ff", showLegend: true },
+        binding: {
+          datasetId: "sales",
+          slots: {
+            dimension: { fieldKey: "storeName" },
+            measure: [{ fieldKey: "revenueTotalRmb" }],
+          },
+        },
+      }],
+    }).components[0]!;
+
+    expect(buildDatasetAggregation(pie)).toEqual({
+      groupBy: ["storeName"],
+      measures: [{ fieldKey: "revenueTotalRmb", aggregation: "sum" }],
+    });
+  });
+
   it("keeps channel, store, and date fields when aggregating a task-progress board", () => {
     const taskProgress = DashboardSchema.parse({
       ...baseDashboard,

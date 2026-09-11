@@ -117,11 +117,26 @@ const dateFromValue = (value: unknown): Date | null => {
   return Number.isNaN(timestamp) ? null : new Date(timestamp);
 };
 
+const sourceCalendarDate = (value: unknown): Date | null => {
+  if (typeof value === "string") {
+    const localTimestamp = /^(\d{4})-(\d{2})-(\d{2})(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/.exec(value.trim());
+    if (localTimestamp !== null) {
+      return new Date(Date.UTC(Number(localTimestamp[1]), Number(localTimestamp[2]) - 1, Number(localTimestamp[3])));
+    }
+  }
+  return dateFromValue(value);
+};
+
 const lineDimensionLabel = (value: unknown, field: DatasetField | undefined): string => {
   const raw = labelFor(value);
   const dateLikeField = field?.type === "date" || /date|time|日期|时间|month|月份/i.test(`${field?.key ?? ""} ${field?.label ?? ""}`);
   if (!dateLikeField) return raw;
-  const date = dateFromValue(value);
+  // Database date-time fields commonly arrive as timezone-less SQL strings.
+  // Parsing them into Date and then calling toISOString() shifts early
+  // Asia/Shanghai times to the previous UTC day (09-01 00:03 became 08-31).
+  // Preserve their source calendar date; explicitly zoned ISO timestamps keep
+  // using the normal Date path below.
+  const date = sourceCalendarDate(value);
   if (date === null) return raw;
   const isMonthly = /month|月份/i.test(`${field?.key ?? ""} ${field?.label ?? ""}`);
   if (isMonthly) return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`;
@@ -320,7 +335,7 @@ const weekPeriodLabel = (date: Date): string => {
 };
 
 const periodLabel = (value: unknown, granularity: TimeGranularity): string => {
-  const date = dateFromValue(value);
+  const date = sourceCalendarDate(value);
   if (date === null) return labelFor(value);
   const year = date.getUTCFullYear();
   const month = date.getUTCMonth() + 1;
@@ -1120,20 +1135,48 @@ const formatPieValue = (value: number, isCurrency = false): string => {
   return formatMetricValue(value);
 };
 
-const pieItems = (rows: readonly Row[], dimension: string, measures: readonly string[]) => {
-  const values = new Map<string, Map<string, number>>();
+const pieAggregationFor = (component: ComponentInstance, measure: string): CrosstabAggregation => {
+  const configured = propString(component, "aggregation", "sum");
+  const fallback: CrosstabAggregation = configured === "avg" || configured === "count" || configured === "max" || configured === "min"
+    ? configured
+    : "sum";
+  const slot = fieldKeys(component, "measure").includes(measure) ? "measure" : "tooltipMeasures";
+  return metricAggregationFor(component, slot, measure, fallback);
+};
+
+const pieCategoryLimit = (component: ComponentInstance): number => {
+  const configured = component.props.appliedMaxCategoryCount ?? component.props.maxCategoryCount;
+  return typeof configured === "number" && Number.isInteger(configured) && configured > 0
+    ? Math.min(configured, 5_000)
+    : 20;
+};
+
+const pieItems = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  dimension: string,
+  measures: readonly string[],
+  rowsAreAggregated = false,
+) => {
+  const values = new Map<string, Map<string, number[]>>();
   rows.forEach((row) => {
     const label = labelFor(row[dimension]);
-    const measureValues = values.get(label) ?? new Map<string, number>();
-    measures.forEach((measure) => measureValues.set(measure, (measureValues.get(measure) ?? 0) + numericValue(row, measure)));
+    const measureValues = values.get(label) ?? new Map<string, number[]>();
+    measures.forEach((measure) => {
+      const collected = measureValues.get(measure) ?? [];
+      collected.push(numericValue(row, measure));
+      measureValues.set(measure, collected);
+    });
     values.set(label, measureValues);
   });
   const primaryMeasure = measures[0] ?? "";
-  return [...values].map(([name, measureValues]) => ({
-    name,
-    value: measureValues.get(primaryMeasure) ?? 0,
-    metricValues: Object.fromEntries(measures.map((measure) => [measure, measureValues.get(measure) ?? 0])),
-  }));
+  return [...values].map(([name, measureValues]) => {
+    const metricValues = Object.fromEntries(measures.map((measure) => [
+      measure,
+      aggregateNumbers(measureValues.get(measure) ?? [], rowsAreAggregated ? "sum" : pieAggregationFor(component, measure)),
+    ]));
+    return { name, value: metricValues[primaryMeasure] ?? 0, metricValues };
+  });
 };
 
 const radarMaximum = (values: readonly number[]): number => {
@@ -1148,11 +1191,12 @@ export const buildRadarOption = (
   component: ComponentInstance,
   rows: readonly Row[],
   fields: readonly DatasetField[] = [],
+  rowsAreAggregated = false,
 ) => {
   const dimension = fieldKeys(component, "dimension")[0] ?? "";
   const measures = fieldKeys(component, "measure");
   const labels = fieldLabelMap(fields);
-  const items = pieItems(rows, dimension, measures);
+  const items = pieItems(component, rows, dimension, measures, rowsAreAggregated);
   const maximum = radarMaximum(items.flatMap((item) => measures.map((measure) => item.metricValues[measure] ?? 0)));
   const colors = [propString(component, "color", piePalette[0]!), "#41c4d5", ...piePalette.slice(2)];
 
@@ -1203,12 +1247,13 @@ export const buildTreemapOption = (
   rows: readonly Row[],
   fields: readonly DatasetField[] = [],
   activeMeasureKey?: string,
+  rowsAreAggregated = false,
 ) => {
   const dimension = fieldKeys(component, "dimension")[0] ?? "";
   const measures = fieldKeys(component, "measure");
   const measure = measures.includes(activeMeasureKey ?? "") ? activeMeasureKey! : measures[0] ?? "";
   const labels = fieldLabelMap(fields);
-  const items = pieItems(rows, dimension, [measure]);
+  const items = pieItems(component, rows, dimension, [measure], rowsAreAggregated);
   const total = items.reduce((sum, item) => sum + item.value, 0);
   const colors = [propString(component, "color", piePalette[0]!), ...piePalette.slice(1)];
   const data = items.map((item, index) => ({
@@ -1256,6 +1301,7 @@ export const buildPieOption = (
   component: ComponentInstance,
   rows: readonly Row[],
   fields: readonly DatasetField[] = [],
+  rowsAreAggregated = false,
 ) => {
   const dimension = fieldKeys(component, "dimension")[0] ?? "";
   const measures = fieldKeys(component, "measure");
@@ -1270,7 +1316,9 @@ export const buildPieOption = (
   // Keep title-based legacy ring charts readable while using a first-class
   // component type for all newly created ring charts.
   const donut = component.type === "donut" || (component.type === "pie" && (component.title ?? "").includes("环形"));
-  const data = pieItems(rows, dimension, measures);
+  const data = pieItems(component, rows, dimension, measures, rowsAreAggregated)
+    .sort((left, right) => right.value - left.value)
+    .slice(0, pieCategoryLimit(component));
   return {
     color: [propString(component, "color", piePalette[0]!), ...piePalette.slice(1)],
     legend: {
@@ -1334,6 +1382,7 @@ export const buildSunburstOption = (
   rows: readonly Row[],
   fields: readonly DatasetField[] = [],
   activeMeasureKey?: string,
+  rowsAreAggregated = false,
 ) => {
   const dimension = fieldKeys(component, "dimension")[0] ?? "";
   const measures = fieldKeys(component, "measure");
@@ -1342,7 +1391,7 @@ export const buildSunburstOption = (
   const displayedMetrics = [activeMeasure, ...tooltipMeasures].filter((measure, index, values) => measure.length > 0 && values.indexOf(measure) === index);
   const labels = fieldLabelMap(fields);
   const measureLabel = (labels.get(activeMeasure) ?? activeMeasure) || "指标";
-  const items = pieItems(rows, dimension, displayedMetrics);
+  const items = pieItems(component, rows, dimension, displayedMetrics, rowsAreAggregated);
   const data = items.map(({ name, value }) => ({ name, value }));
   return {
     color: [propString(component, "color", piePalette[0]!), ...piePalette.slice(1)],

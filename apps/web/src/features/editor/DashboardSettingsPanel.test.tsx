@@ -18,6 +18,19 @@ const dashboard = DashboardSchema.parse({
 });
 
 describe("DashboardSettingsPanel", () => {
+  it("persists both states of the gradient toggle across remounts", async () => {
+    const store = createEditorStore(dashboard);
+    const first = render(<AppProviders><DashboardSettingsPanel store={store} /></AppProviders>);
+    await userEvent.click(screen.getByRole("button", { name: /全局样式/ }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "渐变色彩样式" }));
+    expect(store.getState().history.present.theme.chartGradient).toBe(false);
+    first.unmount();
+    render(<AppProviders><DashboardSettingsPanel store={store} /></AppProviders>);
+    await userEvent.click(screen.getByRole("button", { name: /全局样式/ }));
+    expect(screen.getByRole("checkbox", { name: "渐变色彩样式" })).not.toBeChecked();
+    await userEvent.click(screen.getByRole("checkbox", { name: "渐变色彩样式" }));
+    expect(store.getState().history.present.theme.chartGradient).toBe(true);
+  });
   it("switches mode and persists chart palette and semantic colors", async () => {
     const store = createEditorStore(dashboard);
     render(<AppProviders><DashboardSettingsPanel store={store} /></AppProviders>);

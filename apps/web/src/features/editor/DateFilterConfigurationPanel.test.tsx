@@ -48,7 +48,7 @@ describe("DateFilterConfigurationPanel", () => {
     render(<AppProviders><DateFilterConfigurationPanel store={store} component={component} /></AppProviders>);
 
     const dropZone = await screen.findByLabelText("筛选字段拖放区域");
-    expect(screen.getByText("日期筛选已就绪")).toBeInTheDocument();
+    expect(screen.getByText("已启用")).toBeInTheDocument();
     expect(screen.getByText("订单时间")).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "显示日期选择控件" })).toBeChecked();
     expect(screen.queryByRole("switch", { name: "启用日期筛选" })).not.toBeInTheDocument();

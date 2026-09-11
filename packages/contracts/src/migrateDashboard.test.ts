@@ -35,6 +35,11 @@ describe("migrateDashboard", () => {
     expect(migrated.components[0]?.props).toEqual({ color: "#1677ff" });
   });
 
+  it("maps legacy font family values to the current identifiers", () => {
+    expect(migrateDashboard({ ...dashboard, theme: { ...dashboard.theme, fontFamily: "sans" } }).theme.fontFamily).toBe("system");
+    expect(migrateDashboard({ ...dashboard, theme: { ...dashboard.theme, fontFamily: "serif" } }).theme.fontFamily).toBe("source-han-serif");
+  });
+
   it("requires an explicit schema version", () => {
     const { schemaVersion: _schemaVersion, ...withoutVersion } = dashboard;
 

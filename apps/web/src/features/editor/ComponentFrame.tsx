@@ -10,6 +10,7 @@ import { useStore } from "zustand";
 
 import { DataPreview } from "../datasets/DataPreview.js";
 import { DateRangeFilterBar } from "../datasets/DateRangeFilterBar.js";
+import { ChartQueryFilterBar, type ChartQueryFilterControl } from "../datasets/ChartQueryFilterBar.js";
 import { defaultDateFilterSelection, type RuntimeDateSelection } from "../datasets/dateFilter.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 import {
@@ -18,14 +19,15 @@ import {
   runtimeParameters,
   type RuntimeParameterValues,
 } from "../datasets/RuntimeDatasetRequestBar.js";
-import { buildDatasetAggregation } from "../datasets/datasetAggregation.js";
+import { buildDatasetAggregation, componentDimensionFieldKeys } from "../datasets/datasetAggregation.js";
+import { MAX_PIE_CATEGORY_LIMIT, appliedPieCategoryLimit, isPieCategoryChart, supportsChartResultLimit } from "../datasets/chartCategoryLimit.js";
 import { aggregateLocalRows, applyCalculatedMetrics, calculatedMetricFields, hasActiveCalculatedMetrics } from "../datasets/calculatedMetrics.js";
 import { getDataset, queryDatasetRequest } from "../datasets/datasetApi.js";
 import { findAvailableLayout } from "./canvasLayout.js";
 import { AnalysisGroupCanvas } from "./AnalysisGroupCanvas.js";
 import { chartTopLeftHint, ChartDisplayHints } from "./ChartDisplayHints.js";
 import type { EditorStore } from "./store/editorStore.js";
-import { analysisGroupQueryFilters, componentQueryFilters, filterRowsByDashboardFilters, filtersForComponent, type DashboardGlobalFilters, type DashboardGlobalFilterValues } from "../viewer/dashboardGlobalFilters.js";
+import { analysisGroupQueryFilters, componentQueryFilterControls, componentQueryFilters, filterRowsByDashboardFilters, filterRowsByDimensionFilters, filtersForComponent, type DashboardGlobalFilters, type DashboardGlobalFilterValues } from "../viewer/dashboardGlobalFilters.js";
 
 interface ComponentFrameProps {
   component: {
@@ -77,6 +79,10 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const [runtimeDraftParameters, setRuntimeDraftParameters] = useState<RuntimeParameterValues>({});
   const [appliedRuntimeParameters, setAppliedRuntimeParameters] = useState<RuntimeParameterValues>({});
   const [runtimeDataResult, setRuntimeDataResult] = useState<DatasetQueryResult | undefined>();
+  const initialComponentQueryFilterControls = componentQueryFilterControls(suppliedComponent as ComponentInstance);
+  const [runtimeComponentQueryFilters, setRuntimeComponentQueryFilters] = useState<DatasetFilter[]>(() => componentQueryFilters(suppliedComponent as ComponentInstance));
+  const [runtimeComponentQueryFilterControls, setRuntimeComponentQueryFilterControls] = useState<ChartQueryFilterControl[]>(() => [...initialComponentQueryFilterControls]);
+  const [runtimeComponentQueryFilterConfigKey, setRuntimeComponentQueryFilterConfigKey] = useState(() => JSON.stringify(initialComponentQueryFilterControls));
   const [activeDateFilter, setActiveDateFilter] = useState<RuntimeDateSelection>(() =>
     defaultDateFilterSelection((suppliedComponent as ComponentInstance).binding?.dateFilter),
   );
@@ -97,6 +103,9 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
     state.history.present.components.find((candidate) => candidate.id === suppliedComponent.id) ?? suppliedComponent,
   );
   const dashboardTheme = useStore(store, (state) => state.history.present.theme);
+  const globalRadius = dashboardTheme.borderRadiusStyle === "none" || dashboardTheme.borderRadiusStyle === undefined
+    ? 0
+    : dashboardTheme.borderRadiusStyle === "large" ? 14 : 6;
   const selected = useStore(store, (state) => state.selectedComponentId === component.id);
   const isDateBoundByGlobalFilter = useStore(store, (state) => isDateBoundByDashboardHeader(component.id, state.history.present.components));
   // An empty string is an intentional, saved title state. Do not fall back to
@@ -105,6 +114,9 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const title = component.title ?? component.type;
   const titleStyle = ComponentTitleStyle.parse(component.titleStyle ?? {});
   const containerStyle = ComponentContainerStyle.parse(component.containerStyle ?? {});
+  const globalPadding = containerStyle.customPadding !== true && dashboardTheme.spacingStyle === "custom" && dashboardTheme.customSpacing
+    ? { top: dashboardTheme.customSpacing.paddingTop, right: dashboardTheme.customSpacing.paddingRight, bottom: dashboardTheme.customSpacing.paddingBottom, left: dashboardTheme.customSpacing.paddingLeft }
+    : containerStyle.padding;
   const hasTitle = titleStyle.visible && title.trim().length > 0;
   const isDashboardHeader = component.type === "dashboardHeader";
   const topLeftHint = isDashboardHeader || component.type === "analysisGroup" ? undefined : chartTopLeftHint(component as ComponentInstance);
@@ -162,7 +174,9 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const savedParameters = savedDataset?.parameters as DatasetQueryRequest["parameters"] | undefined;
   const configuredParameters = Object.fromEntries(Object.entries(savedParameters ?? {}).filter(([key]) => !runtimeParameterKeys.has(key) && key !== "limit"));
   const runtimeQueryParameters = buildRuntimeParameters(runtimeParameterDefinitions, appliedRuntimeParameters);
-  const supportsResultLimit = datasetParameters.some((parameter) => parameter.key === "limit" && parameter.type === "number");
+  const supportsResultLimit = datasetParameters.some((parameter) => parameter.key === "limit" && parameter.type === "number")
+    && supportsChartResultLimit(appliedChartComponent);
+  const usesCategoryLimit = isPieCategoryChart(appliedChartComponent.type);
   // `resultLimit` is the inspector draft. It becomes `appliedResultLimit`
   // only when the author clicks 更新, avoiding an API request for each edit.
   const appliedResultLimit = typeof component.props.appliedResultLimit === "number" && Number.isInteger(component.props.appliedResultLimit)
@@ -171,11 +185,20 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const queryParameters = {
     ...configuredParameters,
     ...runtimeQueryParameters,
-    ...(supportsResultLimit ? { limit: appliedResultLimit } : {}),
+    ...(supportsResultLimit ? { limit: usesCategoryLimit ? MAX_PIE_CATEGORY_LIMIT : appliedResultLimit } : {}),
   } as DatasetQueryRequest["parameters"];
   const appliedDateFilterControl = appliedChartComponent.binding?.dateFilter;
   const visibleDateFilterControl = chartComponent.binding?.dateFilter;
   const shouldShowDateFilterControl = visibleDateFilterControl?.showControl ?? chartComponent.type !== "goalTaskProgress";
+  const changeRuntimeDateFilter = (next: RuntimeDateSelection) => {
+    setActiveDateFilter(next);
+    // Once the configured date field has been applied, the chart-level picker
+    // is a runtime control and must update this chart immediately. A newly
+    // drafted field still waits for the inspector's explicit “更新” action.
+    if (visibleDateFilterControl?.fieldKey === appliedDateFilterControl?.fieldKey) {
+      setAppliedDateFilter(next);
+    }
+  };
   useEffect(() => {
     setActiveDateFilter((current) => {
       // Updating the chart configuration must not discard a date range the
@@ -192,7 +215,15 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   }, [dataRefreshVersion]);
   const aggregation = buildDatasetAggregation(appliedChartComponent);
   const activeGlobalFilters = filtersForComponent(chartComponent, globalFilters, globalFilterValues);
-  const activeComponentQueryFilters = componentQueryFilters(appliedChartComponent);
+  const savedComponentQueryFilterControls = componentQueryFilterControls(appliedChartComponent);
+  const savedComponentQueryFilterControlsKey = JSON.stringify(savedComponentQueryFilterControls);
+  const hasCurrentRuntimeQueryFilterConfig = runtimeComponentQueryFilterConfigKey === savedComponentQueryFilterControlsKey;
+  const displayedComponentQueryFilterControls = hasCurrentRuntimeQueryFilterConfig
+    ? runtimeComponentQueryFilterControls
+    : savedComponentQueryFilterControls;
+  const activeComponentQueryFilters = hasCurrentRuntimeQueryFilterConfig
+    ? runtimeComponentQueryFilters
+    : componentQueryFilters(appliedChartComponent);
   const queryableFields = localDataset?.fields ?? cachedDataset?.fields ?? remoteSchema.data?.fields;
   const compatibleAnalysisGroupFilters = queryableFields === undefined
     ? []
@@ -250,9 +281,16 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   // Interface data is materialized once when the editor opens. A component
   // only keeps a private override after its own runtime pagination changes.
   const rawDataResult = runtimeDataResult ?? localResult ?? remoteQuery.data ?? runtimeSnapshot;
-  const dataResult = isUploadedDataset && localResult !== undefined && activeFilters.length > 0
+  const filteredDataResult = isUploadedDataset && localResult !== undefined && activeFilters.length > 0
     ? { ...localResult, rows: filterRowsByDashboardFilters(localResult.rows, activeFilters), total: filterRowsByDashboardFilters(localResult.rows, activeFilters).length }
     : rawDataResult;
+  const dataResult = (() => {
+    if (filteredDataResult === undefined) return undefined;
+    const filteredRows = filterRowsByDimensionFilters(filteredDataResult.rows, activeFilters, componentDimensionFieldKeys(appliedChartComponent));
+    return filteredRows === filteredDataResult.rows
+      ? filteredDataResult
+      : { ...filteredDataResult, rows: filteredRows, total: filteredRows.length };
+  })();
   // Local datasets expose their cached rows synchronously. Hide those rows
   // while the inspector contains unapplied field/filter edits so the chart
   // cannot appear to update before the explicit 更新 action.
@@ -260,6 +298,12 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   const sourceFields = localDataset?.fields ?? displayedDataResult?.columns;
   const fields = calculatedMetricFields(sourceFields ?? [], appliedChartComponent.binding);
   const sourceRows = displayedDataResult?.rows ?? [];
+  const localQueryFilterOptions = isUploadedDataset && localResult !== undefined
+    ? Object.fromEntries(displayedComponentQueryFilterControls.filter((filter) => filter.kind === "fieldValue").map((filter) => [
+        filter.fieldKey,
+        [...new Set(localResult.rows.map((row) => row[filter.fieldKey]).filter((value): value is string | boolean => typeof value === "string" || typeof value === "boolean").map(String))].sort(),
+      ]))
+    : undefined;
   const calculateAfterAggregation = hasActiveCalculatedMetrics(appliedChartComponent.binding);
   const rows = isUploadedDataset && appliedAggregation !== undefined && calculateAfterAggregation
     ? aggregateLocalRows(sourceRows, appliedAggregation)
@@ -394,7 +438,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
       aria-label={hasTitle ? title : topLeftHint ?? component.type}
       className={`component-frame${selected ? " component-frame--selected" : ""}${hasTitle ? "" : " component-frame--untitled"}${hasHeaderHint ? " component-frame--has-header-hint" : ""}${isDashboardHeader ? " component-frame--dashboard-header" : ""}${chartComponent.type === "analysisGroup" ? " component-frame--analysis-group" : ""}${chartComponent.type === "kpiInsight" ? " component-frame--kpi-insight" : ""}${chartComponent.type === "globalFilterSummary" ? " component-frame--global-filter-summary" : ""}${containerStyle.customBackground ? " component-frame--custom-background" : ""}${dashboardTheme.mode === "dark" ? " component-frame--dark" : ""}`}
       role="group"
-      style={{ borderRadius: containerStyle.borderRadius, padding: `${containerStyle.padding.top}px ${containerStyle.padding.right}px ${containerStyle.padding.bottom}px ${containerStyle.padding.left}px`, ...(containerStyle.customBackground ? { backgroundColor: containerStyle.backgroundColor } : {}) }}
+      style={{ borderRadius: globalRadius, padding: `${globalPadding.top}px ${globalPadding.right}px ${globalPadding.bottom}px ${globalPadding.left}px`, ...(containerStyle.customBackground ? { backgroundColor: containerStyle.backgroundColor } : {}) }}
       tabIndex={0}
       onClick={select}
       onFocus={(event) => { if (event.target === event.currentTarget) select(); }}
@@ -459,22 +503,36 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
         </div>
       </header>
       <div className="component-frame__renderer" data-testid="component-renderer" data-interacting={String(isInteracting)}>
-        {visibleDateFilterControl !== undefined && shouldShowDateFilterControl && !isDateBoundByGlobalFilter && dateFilterFieldLabel !== undefined && (
-          <DateRangeFilterBar
-            control={visibleDateFilterControl}
-            fieldLabel={dateFilterFieldLabel}
-            value={activeDateFilter}
-            onChange={setActiveDateFilter}
+        <div className="chart-control-bar">
+          {visibleDateFilterControl !== undefined && shouldShowDateFilterControl && !isDateBoundByGlobalFilter && dateFilterFieldLabel !== undefined && (
+            <DateRangeFilterBar
+              control={visibleDateFilterControl}
+              fieldLabel={dateFilterFieldLabel}
+              value={activeDateFilter}
+              onChange={changeRuntimeDateFilter}
+              loading={remoteQuery.isFetching}
+            />
+          )}
+          <RuntimeDatasetRequestBar
+            parameters={runtimeParameterDefinitions}
+            values={runtimeDraftParameters}
+            onChange={(key, value) => setRuntimeDraftParameters((current) => ({ ...current, [key]: value }))}
+            onRequest={requestRuntimeData}
             loading={remoteQuery.isFetching}
           />
-        )}
-        <RuntimeDatasetRequestBar
-          parameters={runtimeParameterDefinitions}
-          values={runtimeDraftParameters}
-          onChange={(key, value) => setRuntimeDraftParameters((current) => ({ ...current, [key]: value }))}
-          onRequest={requestRuntimeData}
+          <ChartQueryFilterBar
+            filters={displayedComponentQueryFilterControls}
+            fields={queryableFields ?? []}
+            datasetId={isUploadedDataset ? undefined : datasetId}
+            localFieldOptions={localQueryFilterOptions}
             loading={remoteQuery.isFetching}
-        />
+            onApply={(filters, controls) => {
+              setRuntimeComponentQueryFilters([...filters]);
+              setRuntimeComponentQueryFilterControls([...controls]);
+              setRuntimeComponentQueryFilterConfigKey(savedComponentQueryFilterControlsKey);
+            }}
+          />
+        </div>
         <div className="component-frame__chart-content">
           {chartComponent.type !== "analysisGroup" && chartComponent.type !== "dashboardHeader" && <ChartDisplayHints component={chartComponent} />}
           {chartComponent.type === "analysisGroup" && registry !== undefined ? (
@@ -500,7 +558,13 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
             <ResponsiveChartContainer>
               <DashboardComponentRenderer
                 key={renderVersion}
-                component={{ ...chartComponent, binding: appliedChartComponent.binding }}
+                component={{
+                  ...chartComponent,
+                  binding: appliedChartComponent.binding,
+                  props: usesCategoryLimit
+                    ? { ...chartComponent.props, appliedMaxCategoryCount: appliedPieCategoryLimit(chartComponent) }
+                    : chartComponent.props,
+                }}
                 theme={dashboardTheme}
                 fields={fields}
                 rows={transformedRows}

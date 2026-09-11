@@ -13,6 +13,18 @@ export function migrateDashboard(input: unknown): Dashboard {
   // Existing dashboards are stored as JSON and keep schemaVersion 1, so they
   // need this compatibility step before the current schema validates them.
   const draft = input as Record<string, unknown>;
+  // Older editor builds stored the generic sans-serif choice as `sans`.
+  // Keep those persisted dashboards readable after the font-family enum was
+  // expanded to the web-font identifiers used by the current editor.
+  const theme = typeof draft.theme === "object" && draft.theme !== null
+    ? { ...(draft.theme as Record<string, unknown>) }
+    : draft.theme;
+  if (theme && typeof theme === "object" && "fontFamily" in theme) {
+    const legacyFont = theme.fontFamily;
+    if (legacyFont === "sans" || legacyFont === "serif") {
+      theme.fontFamily = legacyFont === "serif" ? "source-han-serif" : "system";
+    }
+  }
   const components = Array.isArray(draft.components)
     ? draft.components.map((component) => {
       if (
@@ -27,5 +39,5 @@ export function migrateDashboard(input: unknown): Dashboard {
     })
     : draft.components;
 
-  return DashboardSchema.parse({ ...draft, components });
+  return DashboardSchema.parse({ ...draft, theme, components });
 }

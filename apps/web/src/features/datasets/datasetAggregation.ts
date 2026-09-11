@@ -3,6 +3,7 @@ import type { ComponentInstance, DatasetAggregation, DatasetQueryRequest, FieldB
 import { activeCalculatedMetricReferences, calculatedMetricsForBinding } from "./calculatedMetrics.js";
 
 const aggregationValues = new Set<DatasetAggregation>(["sum", "avg", "count", "max", "min"]);
+const sumByDimensionComponentTypes = new Set(["pie", "donut", "rose", "radar", "treemap", "sunburst"]);
 const groupSlotKeys = new Set([
   "dimension",
   "dimensions",
@@ -21,6 +22,14 @@ const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasur
 
 const asBindings = (value: FieldBinding | readonly FieldBinding[] | undefined): readonly FieldBinding[] =>
   value === undefined ? [] : Array.isArray(value) ? value as readonly FieldBinding[] : [value as FieldBinding];
+
+/** Fields that identify chart categories/periods rather than aggregated values. */
+export const componentDimensionFieldKeys = (component: ComponentInstance): string[] => {
+  if (component.binding === undefined) return [];
+  return [...Object.entries(component.binding.slots)
+    .filter(([slotKey]) => groupSlotKeys.has(slotKey))
+    .flatMap(([, value]) => asBindings(value).map((binding) => binding.fieldKey))];
+};
 
 const configuredAggregation = (value: unknown): DatasetAggregation | undefined =>
   typeof value === "string" && aggregationValues.has(value as DatasetAggregation)
@@ -48,16 +57,14 @@ export const buildDatasetAggregation = (
       measures: measures.map((binding) => ({ fieldKey: binding.fieldKey, aggregation: binding.aggregation! })),
     };
   }
-  const groupBy = Object.entries(component.binding.slots)
-    .filter(([slotKey]) => groupSlotKeys.has(slotKey))
-    .flatMap(([, value]) => asBindings(value).map((binding) => binding.fieldKey));
+  const groupBy = componentDimensionFieldKeys(component);
   // Percentage bars predate the aggregation prop. Treat legacy instances as
   // sum-by-default so one edited metric does not force the remaining metrics
   // back onto the raw-data path. A KPI with a grouping dimension follows the
   // same rule: its old `first` default was intended for a single pre-aggregated
   // value, while grouped transaction data must be summed per group.
   const defaultAggregation = configuredAggregation(component.props.aggregation)
-    ?? (component.type === "percentBar" || (component.type === "kpi" && groupBy.length > 0 && component.props.aggregation === "first")
+    ?? (component.type === "percentBar" || sumByDimensionComponentTypes.has(component.type) || (component.type === "kpi" && groupBy.length > 0 && component.props.aggregation === "first")
       ? "sum"
       : undefined);
   const calculatedMetricIds = new Set(calculatedMetricsForBinding(component.binding).map((metric) => metric.id));

@@ -7,6 +7,7 @@ const nonEmptyString = z.string().min(1);
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
 export const DashboardThemeMode = z.enum(["light", "dark"]);
+export const DashboardFontFamily = z.enum(["system", "source-han-sans", "source-han-serif", "alibaba-puhuiti", "harmonyos-sans", "lxgw-wenkai"]);
 export type DashboardThemeMode = z.infer<typeof DashboardThemeMode>;
 
 export const DashboardChartPalette = z.array(hexColor).min(3).max(12);
@@ -279,6 +280,7 @@ export type ComponentContainerPadding = z.infer<typeof ComponentContainerPadding
 
 export const ComponentContainerStyle = z.object({
   customBackground: z.boolean().default(false),
+  customPadding: z.boolean().optional(),
   backgroundColor: hexColor.default("#FFFFFF"),
   borderRadius: z.number().int().min(0).max(32).default(6),
   padding: ComponentContainerPadding.default({ top: 0, right: 0, bottom: 0, left: 0 }),
@@ -379,6 +381,19 @@ export const DashboardSchema = z
         backgroundColor: hexColor,
         mode: DashboardThemeMode.optional(),
         chartPalette: DashboardChartPalette.optional(),
+        chartGradient: z.boolean().optional(),
+        fontFamily: DashboardFontFamily.optional(),
+        borderRadiusStyle: z.enum(["none", "small", "large"]).optional(),
+        spacingStyle: z.enum(["compact", "regular", "custom"]).optional(),
+        spacing: z.number().int().min(4).max(32).optional(),
+        customSpacing: z.object({
+          rowGap: z.number().int().min(0).max(64),
+          columnGap: z.number().int().min(0).max(64),
+          paddingTop: z.number().int().min(0).max(64),
+          paddingRight: z.number().int().min(0).max(64),
+          paddingBottom: z.number().int().min(0).max(64),
+          paddingLeft: z.number().int().min(0).max(64),
+        }).strict().optional(),
         semanticColors: DashboardSemanticColors.optional(),
       })
       .strict(),

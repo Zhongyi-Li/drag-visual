@@ -73,6 +73,9 @@ const propertyLabels: Readonly<Record<string, string>> = {
   primaryNumberFormat: "第一行数值格式",
   secondaryNumberFormat: "第二行数值格式",
   textAlign: "文本对齐",
+  targetValue: "目标值",
+  progressPairs: "进度配对",
+  aggregateRows: "汇总行",
 };
 
 const selectOptions: Readonly<Record<string, readonly { readonly label: string; readonly value: string }[]>> = {
@@ -133,7 +136,12 @@ const isEditable = (key: string): boolean =>
   && key !== "metricWeights"
   && key !== "metricSettings"
   && key !== "insightRows"
-  && key !== "rankingMode";
+  && key !== "rankingMode"
+  && key !== "progressPairs"
+  && key !== "maxCategoryCount"
+  && key !== "appliedResultLimit"
+  && key !== "appliedMaxCategoryCount"
+  && key !== "dataRefreshVersion";
 
 const schemaProps = (
   defaults: Readonly<Record<string, unknown>>,

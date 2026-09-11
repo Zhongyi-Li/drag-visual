@@ -33,6 +33,18 @@ export const activeQueryFilters = (controls: readonly QueryFilterControlValue[])
 
 const isEmptyValue = (value: unknown): boolean => value === null || value === undefined || (typeof value === "string" && value.trim().length === 0);
 
+const calendarDateForFilter = (value: unknown, timezone: "Asia/Shanghai"): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const raw = value.trim();
+  if (/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)?$/.test(raw)) return raw.slice(0, 10);
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return undefined;
+  const parts = new Intl.DateTimeFormat("en", { timeZone: timezone, year: "numeric", month: "2-digit", day: "2-digit" })
+    .formatToParts(date)
+    .reduce<Record<string, string>>((result, part) => ({ ...result, [part.type]: part.value }), {});
+  return parts.year && parts.month && parts.day ? `${parts.year}-${parts.month}-${parts.day}` : undefined;
+};
+
 /** Saved filters configured directly on a chart. */
 export const componentQueryFilters = (component: QueryFilterOwner): DatasetFilterValue[] =>
   activeQueryFilters(componentQueryFilterControls(component));
@@ -98,8 +110,7 @@ export const hasDashboardGlobalDateTarget = (
 
 export const filterRowsByDashboardFilters = <Row extends Readonly<Record<string, unknown>>>(rows: readonly Row[], filters: readonly DatasetFilter[]): readonly Row[] => rows.filter((row) => filters.every((filter) => {
   if (filter.kind === "dateRange") {
-    const value = row[filter.fieldKey];
-    const date = typeof value === "string" ? value.slice(0, 10) : undefined;
+    const date = calendarDateForFilter(row[filter.fieldKey], filter.timezone);
     return date !== undefined && date >= filter.start && date <= filter.end;
   }
   if (filter.kind === "fieldValue") return filter.values.some((value) => String(row[filter.fieldKey]) === String(value));
@@ -122,3 +133,19 @@ export const filterRowsByDashboardFilters = <Row extends Readonly<Record<string,
   const contains = value.toLocaleLowerCase().includes(filter.value.toLocaleLowerCase());
   return filter.operator === "notContains" ? !contains : contains;
 }));
+
+/**
+ * Re-check filters that target a chart dimension after a remote query. This
+ * prevents an out-of-contract response or stale snapshot from reintroducing
+ * categories outside the current selection, while avoiding filters for fields
+ * that an aggregated result deliberately does not return.
+ */
+export const filterRowsByDimensionFilters = <Row extends Readonly<Record<string, unknown>>>(
+  rows: readonly Row[],
+  filters: readonly DatasetFilter[],
+  dimensionFieldKeys: readonly string[],
+): readonly Row[] => {
+  const dimensions = new Set(dimensionFieldKeys);
+  const applicableFilters = filters.filter((filter) => dimensions.has(filter.fieldKey));
+  return applicableFilters.length === 0 ? rows : filterRowsByDashboardFilters(rows, applicableFilters);
+};

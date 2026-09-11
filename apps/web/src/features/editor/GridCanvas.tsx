@@ -103,6 +103,14 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
   });
   const { setNodeRef, isOver } = useDroppable({ id: PALETTE_DROP_ID });
   const width = gridWidth ?? measuredWidth;
+  const spacing = dashboard.theme.spacingStyle === "custom"
+    ? dashboard.theme.customSpacing
+    : undefined;
+  const gridGap = spacing?.rowGap ?? (dashboard.theme.spacingStyle === "regular" ? 16 : 8);
+  const gridColumnGap = spacing?.columnGap ?? (dashboard.theme.spacingStyle === "regular" ? 16 : 8);
+  const gridPadding = spacing
+    ? [spacing.paddingLeft, spacing.paddingTop] as [number, number]
+    : [8, 8] as [number, number];
 
   const topLevelLayout = dashboard.layout.filter((item) => item.parentId === undefined);
   const layout: Layout = topLevelLayout.map((item) => {
@@ -282,7 +290,7 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
             width={width}
             layout={layout}
             compactor={gridCompactor}
-            gridConfig={{ cols: GRID_COLUMNS, rowHeight: GRID_ROW_HEIGHT, margin: [GRID_MARGIN, GRID_MARGIN], containerPadding: [GRID_PADDING, GRID_PADDING] }}
+            gridConfig={{ cols: GRID_COLUMNS, rowHeight: GRID_ROW_HEIGHT, margin: [gridColumnGap, gridGap], containerPadding: gridPadding }}
             dragConfig={{ enabled: true, cancel: ROOT_GRID_DRAG_CANCEL, threshold: 3 }}
             resizeConfig={{ enabled: true, handles: [...resizeHandles] }}
             onDragStart={startDragInteraction}

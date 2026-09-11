@@ -71,6 +71,7 @@ export const EditorShell = ({
 }: EditorShellProps) => {
   const [activeTitle, setActiveTitle] = useState<string | null>(null);
   const selectedComponent = useStore(store, editorSelectors.selectedComponent);
+  const dashboardTheme = useStore(store, (state) => state.history.present.theme);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [dataPanelCollapsed, setDataPanelCollapsed] = useState(false);
   const [isPaletteHighlighted, setIsPaletteHighlighted] = useState(false);
@@ -189,7 +190,7 @@ export const EditorShell = ({
     if (drop) addRegistryComponent(store, registry, createComponentId, drop.type, drop, title);
   };
   return (
-    <div className="editor-app">
+    <div className="editor-app" style={{ fontFamily: ({ system: 'system-ui, -apple-system, sans-serif', 'source-han-sans': 'Source Han Sans SC, sans-serif', 'source-han-serif': 'Source Han Serif SC, serif', 'alibaba-puhuiti': 'Alibaba PuHuiTi, sans-serif', 'harmonyos-sans': 'HarmonyOS Sans, sans-serif', 'lxgw-wenkai': 'LXGW WenKai, serif' } as const)[dashboardTheme.fontFamily ?? "system"] }}>
       <EditorToolbar
         store={store}
         onSave={onSave}

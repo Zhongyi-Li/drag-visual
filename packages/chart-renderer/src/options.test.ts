@@ -380,6 +380,32 @@ describe("component option builders", () => {
       .toEqual(["2026-第30周(07/20~07/26)"]);
   });
 
+  it("keeps timezone-less SQL timestamps on their source day across date-aware charts", () => {
+    const fields: readonly DatasetField[] = [
+      { key: "orderTime", label: "下单时间", type: "date", nullable: false },
+      { key: "revenue", label: "收入", type: "number", nullable: false },
+    ];
+    const sourceRows = [{ orderTime: "2026-09-01 00:03:00", revenue: 10 }];
+    const line = buildLineOption(component({
+      type: "line",
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "orderTime" }, measures: [{ fieldKey: "revenue" }] } },
+    }), sourceRows, fields);
+    const trend = buildTrendModel(component({
+      type: "trend",
+      props: { timeGranularity: "day" },
+      binding: { datasetId: "sales", slots: { timeDimension: { fieldKey: "orderTime" }, measure: { fieldKey: "revenue" } } },
+    }), sourceRows, fields);
+    const multidimensional = buildMultidimensionalModel(component({
+      type: "multidimensional",
+      props: { timeGranularity: "day" },
+      binding: { datasetId: "sales", slots: { dateDimension: { fieldKey: "orderTime" }, measures: { fieldKey: "revenue" } } },
+    }), sourceRows, fields);
+
+    expect(line.xAxis).toMatchObject({ data: ["2026-09-01"] });
+    expect(trend.points).toEqual([{ label: "2026-09-01", value: 10 }]);
+    expect(multidimensional.rows[0]?.dimensions).toEqual(["2026-09-01"]);
+  });
+
   it("maps bar, line, and pie bindings into chart options", () => {
     expect(buildBarOption(component({}), rows).series).toEqual([
       expect.objectContaining({ type: "bar", data: [10] }),
@@ -488,6 +514,40 @@ describe("component option builders", () => {
     expect(tooltip).toContain("销售额：20万 ¥（80.00%）");
     expect(tooltip).toContain("毛利：2万 ¥");
 
+    const averagePie = buildPieOption(component({
+      type: "pie",
+      props: { aggregation: "avg", color: "#1677ff", showLegend: true },
+    }), [
+      { month: "1月", revenue: 100 },
+      { month: "1月", revenue: 300 },
+    ], lineFields);
+    expect(averagePie.series[0]).toMatchObject({
+      data: [{ name: "1月", value: 200 }],
+    });
+
+    const serverAggregatedCountPie = buildPieOption(component({
+      type: "pie",
+      props: { aggregation: "count", color: "#1677ff", showLegend: true },
+    }), [
+      { month: "1月", revenue: 144 },
+      { month: "2月", revenue: 50 },
+    ], lineFields, true);
+    expect(serverAggregatedCountPie.series[0]).toMatchObject({
+      data: [{ name: "1月", value: 144 }, { name: "2月", value: 50 }],
+    });
+
+    const limitedPie = buildPieOption(component({
+      type: "pie",
+      props: { aggregation: "sum", appliedMaxCategoryCount: 2, color: "#1677ff", showLegend: true },
+    }), [
+      { month: "低", revenue: 10 },
+      { month: "高", revenue: 300 },
+      { month: "中", revenue: 100 },
+    ], lineFields);
+    expect(limitedPie.series[0]).toMatchObject({
+      data: [{ name: "高", value: 300 }, { name: "中", value: 100 }],
+    });
+
     const sunburst = buildSunburstOption(component({
       type: "sunburst",
       title: "月度销售构成",
@@ -526,6 +586,22 @@ describe("component option builders", () => {
     expect(profitSunburst.series[0]).toMatchObject({
       data: [{ name: "1月", value: 20_000 }, { name: "2月", value: 5_000 }],
     });
+  });
+
+  it("keeps timezone-less SQL timestamps on their source calendar day", () => {
+    const option = buildBarOption(component({
+      type: "bar",
+      binding: { datasetId: "orders", slots: { dimension: { fieldKey: "orderTime" }, measure: { fieldKey: "revenue" } } },
+    }), [
+      { orderTime: "2026-09-01 00:03:00", revenue: 100 },
+      { orderTime: "2026-09-01 23:51:00", revenue: 200 },
+    ], [
+      { key: "orderTime", label: "下单时间", type: "date", nullable: false },
+      { key: "revenue", label: "收入", type: "number", nullable: false },
+    ], true);
+
+    expect(option.xAxis.data).toEqual(["2026-09-01", "2026-09-01"]);
+    expect(option.xAxis.data).not.toContain("2026-08-31");
   });
 
   it("builds a concentric ring bar from one aggregated metric and a descending ranking", () => {

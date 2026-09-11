@@ -12,7 +12,7 @@ export const donutDefinition: ComponentDefinition = Object.freeze({
   title: "环形图",
   category: "饼/环形",
   defaultLayout: Object.freeze({ w: 7, h: 5 }),
-  createDefaults: () => ({ color: "#1677ff", showLegend: true }),
+  createDefaults: () => ({ aggregation: "sum", color: "#1677ff", maxCategoryCount: 20, showLegend: true }),
   dataSlots: pieDefinition.dataSlots,
   propsSchema: PiePropsSchema,
   validateBinding: (binding: DataBinding | undefined) => requireSlot(binding, "measure", "请选择一个指标字段"),

@@ -1,7 +1,7 @@
 import { SearchOutlined } from "@ant-design/icons";
 import type { Dashboard } from "@drag-visual/contracts";
-import { Button, Checkbox, Collapse, Empty, Input, Radio, Select, Typography } from "antd";
-import { useMemo, useState, type ReactNode } from "react";
+import { Button, Checkbox, Collapse, Empty, Input, InputNumber, Radio, Select, Typography } from "antd";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
 
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
@@ -66,6 +66,8 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
   const dashboard = useStore(store, editorSelectors.dashboard);
   const [query, setQuery] = useState("");
   const [customPaletteOpen, setCustomPaletteOpen] = useState(false);
+  const [paddingLocked, setPaddingLocked] = useState(true);
+  const [draftSpacing, setDraftSpacing] = useState({ rowGap: 8, columnGap: 8, paddingTop: 8, paddingRight: 12, paddingBottom: 8, paddingLeft: 12 });
 
   const updateTheme = (patch: Partial<Dashboard["theme"]>) => {
     store.getState().dispatch({
@@ -77,6 +79,12 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
   const palette = dashboard.theme.chartPalette ?? paletteGroups.官方;
   const paletteName = Object.entries(paletteGroups).find(([, colors]) => JSON.stringify(colors) === JSON.stringify(palette))?.[0] ?? "自定义";
   const semantic = dashboard.theme.semanticColors ?? semanticGroups.标准;
+  const radiusStyle = dashboard.theme.borderRadiusStyle ?? "none";
+  const spacingStyle = dashboard.theme.spacingStyle ?? "compact";
+  const customSpacing = dashboard.theme.customSpacing ?? { rowGap: 8, columnGap: 8, paddingTop: 8, paddingRight: 12, paddingBottom: 8, paddingLeft: 12 };
+  useEffect(() => setDraftSpacing(customSpacing), [JSON.stringify(customSpacing)]);
+  const updateSpacing = (patch: Partial<typeof customSpacing>) => setDraftSpacing((current) => ({ ...current, ...patch }));
+  const commitSpacing = () => updateTheme({ customSpacing: draftSpacing });
   const semanticName = Object.entries(semanticGroups).find(([, colors]) => JSON.stringify(colors) === JSON.stringify(semantic))?.[0] ?? "标准";
   const paletteOptions = [
     {
@@ -108,11 +116,20 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
       key: "global-style",
       label: "全局样式",
       keywords: "全局样式 圆角 间距 字体",
-      content: <div className="dashboard-settings__section-body">
+      content: <div className="dashboard-settings__section-body dashboard-settings__global-style">
+        <div className="dashboard-settings__setting-row"><span>页面字体</span><Select size="small" value={dashboard.theme.fontFamily ?? "system"} onChange={(fontFamily) => updateTheme({ fontFamily })} options={[{ value: "system", label: "系统默认" }, { value: "source-han-sans", label: "思源黑体" }, { value: "source-han-serif", label: "思源宋体" }, { value: "alibaba-puhuiti", label: "阿里巴巴普惠体" }, { value: "harmonyos-sans", label: "HarmonyOS Sans" }, { value: "lxgw-wenkai", label: "霞鹜文楷" }]} /></div>
+        <div className="dashboard-settings__setting-row"><span>圆角风格</span><Radio.Group value={radiusStyle} onChange={(event) => updateTheme({ borderRadiusStyle: event.target.value })} options={[{ label: "无", value: "none" }, { label: "小", value: "small" }, { label: "大", value: "large" }]} /></div>
+        <div className="dashboard-settings__setting-row"><span>间距</span><Radio.Group value={spacingStyle} onChange={(event) => updateTheme({ spacingStyle: event.target.value })} options={[{ label: "紧凑", value: "compact" }, { label: "常规", value: "regular" }, { label: "自定义", value: "custom" }]} /></div>
+        {spacingStyle === "custom" ? <div className="dashboard-settings__custom-spacing">
+          <div className="dashboard-settings__custom-spacing-title">卡片之间的间距</div>
+          <div className="dashboard-settings__custom-spacing-row"><label>行间距<InputNumber size="small" min={0} max={64} value={draftSpacing.rowGap} suffix="px" onChange={(value) => updateSpacing({ rowGap: typeof value === "number" ? value : 8 })} onBlur={commitSpacing} onPressEnter={commitSpacing} /></label><label>列间距<InputNumber size="small" min={0} max={64} value={draftSpacing.columnGap} suffix="px" onChange={(value) => updateSpacing({ columnGap: typeof value === "number" ? value : 8 })} onBlur={commitSpacing} onPressEnter={commitSpacing} /></label></div>
+          <div className="dashboard-settings__custom-spacing-title">卡片内边距</div>
+          <div className="dashboard-settings__custom-spacing-row"><Button size="small" aria-label={paddingLocked ? "已锁定上下、左右内边距，点击解锁" : "未锁定内边距，点击锁定"} title={paddingLocked ? "已锁定：上下、左右内边距成对联动" : "未锁定：各方向内边距独立调整"} onClick={() => setPaddingLocked((locked) => !locked)}>{paddingLocked ? "🔒" : "🔓"}</Button><label>上<InputNumber size="small" min={0} max={64} value={draftSpacing.paddingTop} suffix="px" onChange={(value) => { const next = typeof value === "number" ? value : 8; updateSpacing(paddingLocked ? { paddingTop: next, paddingBottom: next } : { paddingTop: next }); }} onBlur={commitSpacing} onPressEnter={commitSpacing} /></label><label>下<InputNumber size="small" min={0} max={64} value={draftSpacing.paddingBottom} suffix="px" onChange={(value) => { const next = typeof value === "number" ? value : 8; updateSpacing(paddingLocked ? { paddingTop: next, paddingBottom: next } : { paddingBottom: next }); }} onBlur={commitSpacing} onPressEnter={commitSpacing} /></label><label>左<InputNumber size="small" min={0} max={64} value={draftSpacing.paddingLeft} suffix="px" onChange={(value) => { const next = typeof value === "number" ? value : 12; updateSpacing(paddingLocked ? { paddingLeft: next, paddingRight: next } : { paddingLeft: next }); }} onBlur={commitSpacing} onPressEnter={commitSpacing} /></label><label>右<InputNumber size="small" min={0} max={64} value={draftSpacing.paddingRight} suffix="px" onChange={(value) => { const next = typeof value === "number" ? value : 12; updateSpacing(paddingLocked ? { paddingLeft: next, paddingRight: next } : { paddingRight: next }); }} onBlur={commitSpacing} onPressEnter={commitSpacing} /></label></div>
+        </div> : null}
         <div className="dashboard-settings__setting-row"><span>主题模式</span><Radio.Group value={mode} onChange={(event) => updateMode(event.target.value)} options={[{ label: "浅色模式", value: "light" }, { label: "深色模式", value: "dark" }]} /></div>
-        <div className="dashboard-settings__setting-row"><span>图表色系</span><div className="dashboard-settings__palette-actions"><Select className="dashboard-settings__palette-select" popupClassName="dashboard-settings__palette-dropdown" size="small" value={paletteName} onChange={(value) => { if (value in paletteGroups) updateTheme({ chartPalette: [...paletteGroups[value as keyof typeof paletteGroups]] }); }} options={paletteOptions} /><Button size="small" onClick={() => setCustomPaletteOpen((open) => !open)}>自定义</Button></div></div>
+        <div className="dashboard-settings__setting-row"><span>图表色系</span><div className="dashboard-settings__palette-actions"><Select className="dashboard-settings__palette-select" classNames={{ popup: { root: "dashboard-settings__palette-dropdown" } }} size="small" value={paletteName} onChange={(value) => { if (value in paletteGroups) updateTheme({ chartPalette: [...paletteGroups[value as keyof typeof paletteGroups]] }); }} options={paletteOptions} /><Button size="small" onClick={() => setCustomPaletteOpen((open) => !open)}>自定义</Button></div></div>
         {customPaletteOpen && <div className="dashboard-settings__swatches" aria-label="自定义图表色系">{palette.map((color, index) => <input key={`${index}-${color}`} aria-label={`自定义颜色 ${index + 1}`} type="color" value={color} onChange={(event) => updateTheme({ chartPalette: palette.map((current, colorIndex) => colorIndex === index ? event.target.value : current) })} />)}</div>}
-        <Checkbox checked>渐变色彩样式</Checkbox>
+        <div className="dashboard-settings__setting-row"><span>渐变色彩样式</span><Checkbox aria-label="渐变色彩样式" checked={dashboard.theme.chartGradient ?? true} onChange={(event) => updateTheme({ chartGradient: event.target.checked })} /></div>
         <div className="dashboard-settings__setting-row"><span>语义色</span><Select size="small" value={semanticName} onChange={(value) => { if (value in semanticGroups) updateTheme({ semanticColors: { ...semanticGroups[value as keyof typeof semanticGroups] } }); }} options={Object.keys(semanticGroups).map((name) => ({ value: name, label: name }))} /></div>
         <Typography.Text type="secondary">浅色或深色模式会同步调整画布、卡片和图表文字；图表色系与语义色会应用到所有图表。</Typography.Text>
       </div>,
@@ -150,7 +167,7 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
         <Typography.Text type="secondary">内容默认继承当前主题，以保持整张仪表板的视觉一致性。</Typography.Text>
       </div>,
     },
-  ], [dashboard.theme.backgroundColor, dashboard.theme.primaryColor, dashboard.theme.mode, JSON.stringify(dashboard.theme.chartPalette), JSON.stringify(dashboard.theme.semanticColors), customPaletteOpen]);
+  ], [dashboard.theme.backgroundColor, dashboard.theme.primaryColor, dashboard.theme.mode, dashboard.theme.fontFamily, dashboard.theme.borderRadiusStyle, dashboard.theme.spacingStyle, dashboard.theme.spacing, JSON.stringify(dashboard.theme.customSpacing), dashboard.theme.chartGradient, JSON.stringify(dashboard.theme.chartPalette), JSON.stringify(dashboard.theme.semanticColors), customPaletteOpen, paddingLocked]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN");
   const visibleSections = normalizedQuery.length === 0

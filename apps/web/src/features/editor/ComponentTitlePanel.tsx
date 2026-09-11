@@ -195,6 +195,7 @@ export const ComponentTitlePanel = ({ component, store }: Props) => {
             </div>
             <div className="component-container-panel__padding">
               <span className="component-container-panel__padding-label"><ExpandOutlined aria-hidden="true" />卡片内边距</span>
+              <Checkbox checked={containerStyle.customPadding === true} onChange={(event) => updateContainerStyle({ customPadding: event.target.checked })}>使用图表自定义值</Checkbox>
               <div className="component-container-panel__padding-grid">
                 {paddingSides.map((side) => <label key={side}>
                   <span>{paddingLabels[side]}</span>

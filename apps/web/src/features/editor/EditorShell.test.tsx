@@ -68,6 +68,9 @@ describe("EditorShell", () => {
     expect(editorCss).not.toContain(".editor-inspector--data-collapsed:has(.metric-alert-style-panel) { grid-template-columns");
     expect(editorCss).toContain(".editor-panel-scroll");
     expect(editorCss).toContain("overflow-y: auto");
+    expect(editorCss).toContain(":is(.ant-tabs-body-holder, .ant-tabs-content-holder)");
+    expect(editorCss).toContain("overscroll-behavior: contain");
+    expect(editorCss).toContain(".inspector-heading { height: 40px; flex: 0 0 40px;");
     expect(editorCss).not.toContain("html, body");
     expect(editorCss).toContain(".editor-app *");
   });

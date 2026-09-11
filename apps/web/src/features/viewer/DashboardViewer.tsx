@@ -111,8 +111,14 @@ const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters
         const title = child.title?.trim();
         const topLeftHint = chartTopLeftHint(child);
         const containerStyle = ComponentContainerStyle.parse(child.containerStyle ?? {});
+        const globalRadius = dashboard.theme.borderRadiusStyle === "none" || dashboard.theme.borderRadiusStyle === undefined
+          ? 0
+          : dashboard.theme.borderRadiusStyle === "large" ? 14 : 6;
+        const cardPadding = child.containerStyle?.customPadding !== true && dashboard.theme.spacingStyle === "custom" && dashboard.theme.customSpacing
+          ? { top: dashboard.theme.customSpacing.paddingTop, right: dashboard.theme.customSpacing.paddingRight, bottom: dashboard.theme.customSpacing.paddingBottom, left: dashboard.theme.customSpacing.paddingLeft }
+          : containerStyle.padding;
         const hasHeading = (title?.length ?? 0) > 0 || topLeftHint !== undefined;
-        return <div id={chartJumpTargetElementId(child.id)} key={child.id} style={{ gridColumn: item ? `${item.x + 1} / span ${item.w}` : "span 6", gridRow: item ? `${item.y + 1} / span ${item.h}` : undefined, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", border: "1px solid #e8ecf1", borderRadius: containerStyle.borderRadius, padding: `${containerStyle.padding.top}px ${containerStyle.padding.right}px ${containerStyle.padding.bottom}px ${containerStyle.padding.left}px`, background: containerStyle.customBackground ? containerStyle.backgroundColor : "#fff", boxShadow: "0 2px 8px rgba(15, 23, 42, .045)" }}>
+        return <div id={chartJumpTargetElementId(child.id)} key={child.id} style={{ gridColumn: item ? `${item.x + 1} / span ${item.w}` : "span 6", gridRow: item ? `${Math.max(0, item.y) + 1} / span ${Math.max(1, item.h)}` : undefined, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", border: "1px solid #e8ecf1", borderRadius: globalRadius, padding: `${cardPadding.top}px ${cardPadding.right}px ${cardPadding.bottom}px ${cardPadding.left}px`, background: containerStyle.customBackground ? containerStyle.backgroundColor : "#fff", boxShadow: "0 2px 8px rgba(15, 23, 42, .045)" }}>
           {hasHeading && <div style={{ flex: "0 0 auto", minWidth: 0, padding: topLeftHint === undefined ? "11px 14px 8px" : "8px 14px 7px" }}>
             {title !== undefined && title.length > 0 && <div style={{ color: "#262626", fontSize: 14, fontWeight: 600, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
             {topLeftHint !== undefined && <div style={{ color: "#64748b", fontSize: 12, fontWeight: 500, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topLeftHint}>{topLeftHint}</div>}
@@ -220,6 +226,7 @@ export const DashboardViewer = ({
       minHeight: "100vh",
       background: mode === "preview" ? "#fafafa" : dashboard.theme.backgroundColor,
       padding: embedded ? 12 : headerDensity === "compact" ? "16px 24px 24px" : 24,
+      fontFamily: ({ system: 'system-ui, -apple-system, sans-serif', 'source-han-sans': 'Source Han Sans SC, sans-serif', 'source-han-serif': 'Source Han Serif SC, serif', 'alibaba-puhuiti': 'Alibaba PuHuiTi, sans-serif', 'harmonyos-sans': 'HarmonyOS Sans, sans-serif', 'lxgw-wenkai': 'LXGW WenKai, serif' } as const)[dashboard.theme.fontFamily ?? "system"],
     }}>
       {globalFilterQuery.pendingComponentIds.length > 0 && (
         <div role="status" aria-live="polite" aria-label="正在更新全局筛选结果" style={globalFilterQueryOverlayStyle}>

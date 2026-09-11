@@ -3066,7 +3066,7 @@ const DashboardComponentRendererBody = ({
           </div>
         )}
         <div style={sunburstChartStyle}>
-          <EChart option={applyComponentFieldStyle(buildRadarOption(component, rows, fields), component)} ariaLabel={`${component.title ?? "雷达图"}图表`} onPointClick={handleChartPointClick} />
+          <EChart option={applyComponentFieldStyle(buildRadarOption(component, rows, fields, rowsAreAggregated), component)} ariaLabel={`${component.title ?? "雷达图"}图表`} onPointClick={handleChartPointClick} />
         </div>
       </div>
     );
@@ -3090,7 +3090,7 @@ const DashboardComponentRendererBody = ({
             {measures.map((measure) => <option key={measure} value={measure}>{labels.get(measure) ?? measure}</option>)}
           </select>
         )}
-        <EChart option={applyComponentFieldStyle(buildTreemapOption(component, rows, fields, activeMeasureKey), component)} ariaLabel={`${component.title ?? "矩形树图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
+        <EChart option={applyComponentFieldStyle(buildTreemapOption(component, rows, fields, activeMeasureKey, rowsAreAggregated), component)} ariaLabel={`${component.title ?? "矩形树图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
       </div>
     );
   }
@@ -3130,14 +3130,14 @@ const DashboardComponentRendererBody = ({
           </div>
         )}
         <div style={sunburstChartStyle}>
-          <EChart option={applyComponentFieldStyle(buildSunburstOption(component, rows, fields, activeMeasureKey), component)} ariaLabel={`${component.title ?? "旭日图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
+          <EChart option={applyComponentFieldStyle(buildSunburstOption(component, rows, fields, activeMeasureKey, rowsAreAggregated), component)} ariaLabel={`${component.title ?? "旭日图"} ${activeMeasureLabel}图表`} onPointClick={handleChartPointClick} />
         </div>
       </div>
     );
   }
   if (component.type === "pie" || component.type === "donut" || component.type === "rose") {
     const fallbackTitle = component.type === "rose" ? "玫瑰图" : component.type === "donut" ? "环形图" : "饼图";
-    return <EChart option={applyComponentFieldStyle(buildPieOption(component, rows, fields), component)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
+    return <EChart option={applyComponentFieldStyle(buildPieOption(component, rows, fields, rowsAreAggregated), component)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "ringBar") {
     return <EChart option={applyComponentFieldStyle(buildRingBarOption(component, rows, fields, rowsAreAggregated), component)} ariaLabel={`${component.title ?? "环形柱图"}图表`} onPointClick={handleChartPointClick} />;

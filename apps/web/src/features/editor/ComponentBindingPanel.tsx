@@ -9,6 +9,7 @@ import { useStore } from "zustand";
 
 import { getDataset, listDatasets } from "../datasets/datasetApi.js";
 import { calculatedMetricFields } from "../datasets/calculatedMetrics.js";
+import { DEFAULT_PIE_CATEGORY_LIMIT, MAX_PIE_CATEGORY_LIMIT, isPieCategoryChart, pieCategoryLimitDraft, supportsChartResultLimit } from "../datasets/chartCategoryLimit.js";
 import { useLocalDatasets } from "../datasets/LocalDatasetProvider.js";
 import { CalculatedMetricDrawer } from "./CalculatedMetricDrawer.js";
 import { ParameterForm } from "../datasets/ParameterForm.js";
@@ -326,6 +327,7 @@ export const ComponentBindingPanel = ({
   const currentComponent = toBindableComponent(storedComponent ?? component);
   const binding = currentComponent.binding;
   const componentProps = currentComponent.props ?? {};
+  const usesCategoryLimit = isPieCategoryChart(currentComponent.type);
   const manualTargetValue = typeof componentProps.targetValue === "number" ? componentProps.targetValue : null;
   const [manualTargetDraft, setManualTargetDraft] = useState<number | null>(manualTargetValue);
   useEffect(() => { setManualTargetDraft(manualTargetValue); }, [component.id, manualTargetValue]);
@@ -345,7 +347,9 @@ export const ComponentBindingPanel = ({
     if (manualTargetDraft !== manualTargetValue) updateManualTargetValue(manualTargetDraft);
   };
   const savedTopN = binding?.limit ?? null;
-  const savedResultLimit = typeof componentProps.resultLimit === "number" && Number.isInteger(componentProps.resultLimit)
+  const savedResultLimit = usesCategoryLimit
+    ? pieCategoryLimitDraft(currentComponent)
+    : typeof componentProps.resultLimit === "number" && Number.isInteger(componentProps.resultLimit)
     ? componentProps.resultLimit
     : typeof componentProps.appliedResultLimit === "number" && Number.isInteger(componentProps.appliedResultLimit)
       ? componentProps.appliedResultLimit
@@ -829,14 +833,17 @@ export const ComponentBindingPanel = ({
     const types = Array.from(event.dataTransfer.types);
     return types.includes(FIELD_DRAG_TYPE) || types.includes(FIELD_DRAG_METADATA_TYPE);
   };
-  const supportsResultLimit = resolvedSchema?.parameters.some((parameter) => parameter.key === "limit" && parameter.type === "number") === true;
+  const supportsResultLimit = resolvedSchema?.parameters.some((parameter) => parameter.key === "limit" && parameter.type === "number") === true
+    && supportsChartResultLimit(currentComponent);
   const updateResultLimit = (limit: number | null) => {
-    const nextLimit = limit ?? DEFAULT_CHART_RESULT_LIMIT;
+    const nextLimit = limit ?? (usesCategoryLimit ? DEFAULT_PIE_CATEGORY_LIMIT : DEFAULT_CHART_RESULT_LIMIT);
     if (savedResultLimit === nextLimit) return;
     store.getState().dispatch({
       type: "component.props.update",
       componentId: component.id,
-      nextProps: { ...componentProps, resultLimit: nextLimit },
+      nextProps: usesCategoryLimit
+        ? { ...componentProps, maxCategoryCount: nextLimit }
+        : { ...componentProps, resultLimit: nextLimit },
     });
   };
   const validationBinding = binding === undefined ? undefined : cloneBinding(binding);
@@ -858,7 +865,11 @@ export const ComponentBindingPanel = ({
       componentId: component.id,
       nextProps: {
         ...componentProps,
-        ...(supportsResultLimit ? { appliedResultLimit: draftResultLimit } : {}),
+        ...(supportsResultLimit
+          ? usesCategoryLimit
+            ? { appliedMaxCategoryCount: draftResultLimit }
+            : { appliedResultLimit: draftResultLimit }
+          : {}),
         dataRefreshVersion: nextVersion,
       },
     });
@@ -1360,7 +1371,7 @@ export const ComponentBindingPanel = ({
         </div>
       )}
 
-      {!compact && currentComponent.type !== "ranking" && <>
+      {!compact && currentComponent.type !== "ranking" && !usesCategoryLimit && <>
         <div className="binding-field">
           <BindingFieldLabel label="排序字段" help="按选定字段排序后再交给图表展示；不选择时保留数据源原有顺序。" />
           <Select
@@ -1409,11 +1420,11 @@ export const ComponentBindingPanel = ({
 
       {!compact && supportsResultLimit && (
         <div className="binding-panel__result-limit">
-          <Typography.Text>结果展示</Typography.Text>
+          <Typography.Text>{usesCategoryLimit ? "最大展示分类数" : "结果展示"}</Typography.Text>
           <InputNumber
-            aria-label="结果展示"
+            aria-label={usesCategoryLimit ? "最大展示分类数" : "结果展示"}
             min={1}
-            max={MAX_CHART_RESULT_LIMIT}
+            max={usesCategoryLimit ? MAX_PIE_CATEGORY_LIMIT : MAX_CHART_RESULT_LIMIT}
             precision={0}
             value={draftResultLimit}
             onChange={setDraftResultLimit}
