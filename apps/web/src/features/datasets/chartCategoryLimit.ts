@@ -28,14 +28,11 @@ const hasBoundSlot = (component: ResultLimitComponent, slotKey: string): boolean
 };
 
 /**
- * Ordinary charts already expose Top N, so a second query-result count is
- * redundant. Only record tables keep the raw-result cap; pie charts replace
- * it with their dedicated maximum-category control.
+ * Ordinary charts already expose Top N, while detail tables paginate their
+ * rows. Only pie charts need a dedicated maximum-category control.
  */
 export const supportsChartResultLimit = (component: ResultLimitComponent): boolean =>
-  component.type === "table"
-    ? hasBoundSlot(component, "columns")
-    : isPieCategoryChart(component.type) && hasBoundSlot(component, "dimension");
+  isPieCategoryChart(component.type) && hasBoundSlot(component, "dimension");
 
 export const pieCategoryLimitDraft = (component: CategoryLimitComponent): number =>
   positiveInteger(component.props?.maxCategoryCount) ?? DEFAULT_PIE_CATEGORY_LIMIT;

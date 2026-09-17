@@ -7,6 +7,8 @@ import {
   OrderProfitReportDatasetRepository,
   RETAIL_ORDER_DATASET_ID,
   RetailOrderDatasetRepository,
+  SG_STORAGE_DATASET_ID,
+  SgStorageDatasetRepository,
   STORAGE_TURNOVER_DATASET_ID,
   StorageTurnoverDatasetRepository,
   validateRetailOrderResultLimit,
@@ -29,6 +31,11 @@ const orderProfitReportColumns = [
   { sourceKey: "store_name", label: "店铺名称", dataType: "varchar", nullable: "NO" },
   { sourceKey: "order_time", label: "下单时间", dataType: "datetime", nullable: "YES" },
   { sourceKey: "estimated_profit", label: "预估利润", dataType: "decimal", nullable: "YES" },
+] as RowDataPacket[];
+const sgStorageColumns = [
+  { sourceKey: "id", label: "库存ID", dataType: "bigint", nullable: "YES" },
+  { sourceKey: "cp_c_store_ename", label: "门店名称", dataType: "varchar", nullable: "YES" },
+  { sourceKey: "qty_storage", label: "在库数量", dataType: "decimal", nullable: "YES" },
 ] as RowDataPacket[];
 
 const mysqlPool = (execute: ReturnType<typeof vi.fn>): Pool => ({ execute } as unknown as Pool);
@@ -246,5 +253,28 @@ describe("RetailOrderDatasetRepository", () => {
       rows: [{ id: 12, storeName: "SloganBi", orderTime: "2026-08-25 10:00:00", estimatedProfit: 88.5 }],
     });
     expect(result.columns).toContainEqual(expect.objectContaining({ key: "estimatedProfit", label: "预估利润", type: "number" }));
+  });
+
+  it("exposes the SG storage table using its table comment as the dataset name", async () => {
+    const execute = vi.fn()
+      .mockResolvedValueOnce([sgStorageColumns, []])
+      .mockResolvedValueOnce([[{ tableComment: "逻辑仓库存表" }], []])
+      .mockResolvedValueOnce([[{ total: 1 }], []])
+      .mockResolvedValueOnce([[
+        { id: 42, cp_c_store_ename: "上海店", qty_storage: 18.5 },
+      ], []]);
+    const repository = new SgStorageDatasetRepository(mysqlPool(execute));
+
+    const result = await new DatasetService(repository).query(SG_STORAGE_DATASET_ID, { parameters: { limit: 10 } });
+
+    expect(execute).toHaveBeenNthCalledWith(
+      4,
+      expect.stringContaining("FROM `os`.`oms_v_rpt_sg_b_storage` ORDER BY `id` DESC LIMIT 10"),
+    );
+    expect(result).toMatchObject({
+      datasetName: "逻辑仓库存表",
+      rows: [{ id: 42, cpCStoreEname: "上海店", qtyStorage: 18.5 }],
+    });
+    expect(result.columns).toContainEqual(expect.objectContaining({ key: "qtyStorage", label: "在库数量", type: "number" }));
   });
 });

@@ -1077,7 +1077,7 @@ describe("ComponentBindingPanel", () => {
     expect(store.getState().history.present.components[0]!.props.dataRefreshVersion).toBeUndefined();
   });
 
-  it("keeps the record result cap for detail tables and applies it only on update", async () => {
+  it("does not show a result cap for paginated detail tables", async () => {
     const fields = [
       { key: "month", label: "月份", type: "string", nullable: false },
       { key: "revenue", label: "销售额", type: "number", nullable: false },
@@ -1103,19 +1103,10 @@ describe("ComponentBindingPanel", () => {
     const store = createEditorStore(boundDashboard);
     render(<AppProviders><ComponentBindingPanel store={store} component={boundDashboard.components[0]!} definition={tableDefinition} /></AppProviders>);
 
-    const resultLimit = await screen.findByRole("spinbutton", { name: "结果展示" });
-    expect(resultLimit).toHaveValue("1000");
-    await userEvent.clear(resultLimit);
-    await userEvent.type(resultLimit, "500");
+    await screen.findByRole("button", { name: "更新" });
+    expect(screen.queryByRole("spinbutton", { name: "结果展示" })).not.toBeInTheDocument();
     expect(store.getState().history.present.components[0]!.props.resultLimit).toBeUndefined();
     expect(store.getState().history.present.components[0]!.props.appliedResultLimit).toBeUndefined();
-
-    await userEvent.click(screen.getByRole("button", { name: "更新" }));
-    expect(store.getState().history.present.components[0]!.props).toMatchObject({
-      resultLimit: 500,
-      appliedResultLimit: 500,
-      dataRefreshVersion: 1,
-    });
   });
 
   it("uses a maximum category count for pie charts", async () => {

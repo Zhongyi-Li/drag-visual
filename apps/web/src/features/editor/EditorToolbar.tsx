@@ -4,7 +4,7 @@ import {
   CloudUploadOutlined,
   CloudOutlined,
   CompressOutlined,
-  EditOutlined,
+  FormOutlined,
   EyeOutlined,
   RedoOutlined,
   SaveOutlined,
@@ -94,7 +94,7 @@ export const EditorToolbar = ({ store, onSave, onPreview, onPublish, onAutoArran
                 <>
                   <strong>{dashboard.name}</strong>
                   <Tooltip title="修改看板名称">
-                    <Button type="text" size="small" icon={<EditOutlined />} aria-label="修改看板名称" onClick={beginRename} />
+                    <Button type="text" size="small" icon={<FormOutlined />} aria-label="修改看板名称" onClick={beginRename} />
                   </Tooltip>
                 </>
               )}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { DashboardSchema, type Dashboard } from "@drag-visual/contracts";
+import { DashboardPageLayout, DashboardSchema, type Dashboard } from "@drag-visual/contracts";
 import { Dataset } from "@drag-visual/contracts";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -246,6 +246,79 @@ it("can hide revision metadata for a minimal preview header", () => {
   render(<DashboardViewer dashboard={dashboard()} showRevision={false} />);
 
   expect(screen.queryByText("修订版本 2")).not.toBeInTheDocument();
+});
+
+it("applies page layout settings and renders optional page information", () => {
+  render(<DashboardViewer dashboard={dashboard({
+    theme: {
+      primaryColor: "#1677ff",
+      backgroundColor: "#eef4ff",
+      pageLayout: DashboardPageLayout.parse({
+        layoutMode: "fitViewport",
+        titleVisible: false,
+        footerVisible: true,
+        footerText: "内部资料",
+        backgroundImageEnabled: false,
+        backgroundImage: "",
+        widthMode: "fixed",
+        fixedWidth: 1440,
+        marginPreset: "comfortable",
+      }),
+    },
+  })} />);
+
+  expect(screen.queryByRole("heading", { name: "经营看板" })).not.toBeInTheDocument();
+  expect(screen.getByRole("contentinfo", { name: "页面页尾" })).toHaveTextContent("内部资料");
+  expect(screen.getByLabelText("看板页面")).toHaveStyle({ width: "1440px", minWidth: "1440px", minHeight: "calc(100vh - 48px)", padding: "24px 32px", backgroundColor: "#eef4ff" });
+});
+
+it("applies independent typography to the page title and footer", () => {
+  render(<DashboardViewer dashboard={dashboard({
+    theme: {
+      primaryColor: "#1677ff",
+      backgroundColor: "#ffffff",
+      pageLayout: DashboardPageLayout.parse({
+        titleVisible: true,
+        titleFontSize: 30,
+        titleFontFamily: "source-han-serif",
+        titleLetterSpacing: 1.5,
+        footerVisible: true,
+        footerText: "内部资料",
+        footerFontSize: 14,
+        footerFontFamily: "lxgw-wenkai",
+        footerLetterSpacing: 2,
+      }),
+    },
+  })} />);
+
+  expect(screen.getByRole("heading", { name: "经营看板" })).toHaveStyle({
+    fontFamily: "Source Han Serif SC, serif",
+    fontSize: "30px",
+    letterSpacing: "1.5px",
+  });
+  expect(screen.getByRole("contentinfo", { name: "页面页尾" })).toHaveStyle({
+    fontFamily: "LXGW WenKai, serif",
+    fontSize: "14px",
+    letterSpacing: "2px",
+  });
+});
+
+it("renders independent decorative images at the top and bottom of the dashboard", () => {
+  const { container } = render(<DashboardViewer dashboard={dashboard({
+    theme: {
+      primaryColor: "#1677ff",
+      backgroundColor: "#ffffff",
+      dashboardBackground: {
+        topVisible: true,
+        topImage: "/images/dashboard-backgrounds/blue-cyan.png",
+        bottomVisible: true,
+        bottomImage: "https://example.com/footer.png",
+      },
+    },
+  })} />);
+
+  expect(container.querySelector(".dashboard-background-layer--top img")).toHaveAttribute("src", "/images/dashboard-backgrounds/blue-cyan.png");
+  expect(container.querySelector(".dashboard-background-layer--bottom img")).toHaveAttribute("src", "https://example.com/footer.png");
 });
 
 it("positions preview cards with the saved editor grid coordinates", () => {

@@ -57,6 +57,7 @@ describe("GridCanvas", () => {
     expect(screen.getByRole("heading", { name: "从一个图表开始" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "从图表库开始" })).toBeInTheDocument();
     expect(document.querySelector(".editor-canvas__grid-container")).toBeInTheDocument();
+    expect(document.querySelector(".editor-canvas__page")).toHaveStyle({ minHeight: "calc(100vh - 96px)" });
     rerender(<QueryClientProvider client={new QueryClient()}><GridCanvas store={createEditorStore(populated)} registry={createDefaultRegistry()} createComponentId={() => "copy"} gridWidth={900} /></QueryClientProvider>);
     expect(screen.queryByRole("heading", { name: "从一个图表开始" })).not.toBeInTheDocument();
     expect(screen.getByRole("group", { name: "销售额" })).toBeInTheDocument();

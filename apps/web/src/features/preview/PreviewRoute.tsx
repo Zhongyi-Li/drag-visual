@@ -1,4 +1,4 @@
-import { BarChartOutlined, EditOutlined, ReloadOutlined, ShareAltOutlined } from "@ant-design/icons";
+import { BarChartOutlined, FormOutlined, ReloadOutlined, ShareAltOutlined } from "@ant-design/icons";
 import { useQuery } from "@tanstack/react-query";
 import { Button, Result, Spin, Tag, message } from "antd";
 import { useLocation, useParams } from "react-router-dom";
@@ -90,7 +90,7 @@ export const Component = () => {
             <Tag variant="filled" color="default">预览</Tag>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Button href={appPath(`editor/${id}`)} icon={<EditOutlined />} aria-label="继续编辑">继续编辑</Button>
+            <Button href={appPath(`editor/${id}`)} icon={<FormOutlined />} aria-label="继续编辑">继续编辑</Button>
             <Button type="primary" icon={<ShareAltOutlined />} aria-label="分享" onClick={sharePublishedDashboard}>分享</Button>
           </div>
         </header>

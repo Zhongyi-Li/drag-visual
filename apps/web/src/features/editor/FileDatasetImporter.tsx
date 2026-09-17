@@ -1,4 +1,4 @@
-import { CheckOutlined, CloseOutlined, DatabaseOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { CheckOutlined, CloseOutlined, DatabaseOutlined, DeleteOutlined, FormOutlined } from "@ant-design/icons";
 import type { DatasetField } from "@drag-visual/contracts";
 import { Alert, Button, Card, Empty, Input, Modal, Popconfirm, Select, Space, Table, Tooltip, Typography, type TableColumnsType } from "antd";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
@@ -337,7 +337,7 @@ export const FileDatasetImporter = () => {
                             <Button
                               type="text"
                               size="small"
-                              icon={<EditOutlined />}
+                              icon={<FormOutlined />}
                               aria-label={`修改数据集名称 ${activeDataset.name}`}
                               onClick={beginDatasetNameEdit}
                             />

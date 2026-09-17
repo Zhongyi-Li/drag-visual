@@ -1,6 +1,6 @@
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { AnalysisGroupDateFilterControl, ComponentContainerStyle, ComponentTitleStyle, type ChartJumpRule, type Dashboard, type Dataset, type DatasetField } from "@drag-visual/contracts";
-import { Alert, Card, Empty, Space, Spin, Typography } from "antd";
+import { Alert, Card, Empty, Space, Spin } from "antd";
 import { useQueries } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { detectDatasetSchemaDrift } from "../datasets/useDatasetSchemaDrift.js";
@@ -13,6 +13,9 @@ import { AnalysisGroupDateFilterBar } from "./AnalysisGroupDateFilterBar.js";
 import { analysisGroupDateFiltersForChildren, defaultAnalysisGroupDateSelection } from "./analysisGroupDateFilter.js";
 import { activeQueryFilters, analysisGroupQueryFilterControls, dashboardGlobalFilters, defaultDashboardGlobalFilterValues, type DashboardGlobalFilterValues } from "./dashboardGlobalFilters.js";
 import { chartJumpHref, chartJumpTargetElementId } from "./chartJump.js";
+import { DashboardPageFooter, DashboardPageHeader } from "./DashboardPageInformation.js";
+import { DashboardBackgroundLayers } from "./DashboardBackgroundSurface.js";
+import { pageSurfaceStyle } from "./dashboardPageLayout.js";
 
 interface DashboardViewerProps {
   readonly dashboard: Dashboard;
@@ -236,19 +239,12 @@ export const DashboardViewer = ({
           </div>
         </div>
       )}
+      <div className="dashboard-page-surface" aria-label="看板页面" style={pageSurfaceStyle(dashboard, {
+        viewportInset: embedded ? 24 : headerDensity === "compact" ? 40 : 48,
+      })}>
+      <DashboardBackgroundLayers dashboard={dashboard} />
       <Space orientation="vertical" size={embedded ? 0 : headerDensity === "compact" ? "small" : "large"} style={{ width: "100%" }}>
-        {!embedded && showHeader && <header style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "flex-start",
-          gap: headerDensity === "compact" ? 2 : 6,
-        }}>
-          {headerNavigation}
-          <div>
-            <Typography.Title level={headerDensity === "compact" ? 3 : 2} style={{ margin: 0 }}>{dashboard.name}</Typography.Title>
-            {showRevision && <Typography.Text type="secondary">修订版本 {dashboard.revision}</Typography.Text>}
-          </div>
-        </header>}
+        {!embedded && showHeader && <DashboardPageHeader dashboard={dashboard} headingLevel={headerDensity === "compact" ? 3 : 2} navigation={headerNavigation} showRevision={showRevision} />}
         {orderedComponents.length === 0 ? (
           <Card><Empty description="该看板还没有组件" /></Card>
         ) : (
@@ -380,7 +376,9 @@ export const DashboardViewer = ({
             })}
           </div>
         )}
+      <DashboardPageFooter dashboard={dashboard} />
       </Space>
+      </div>
     </main>
   );
 };

@@ -17,7 +17,7 @@ describe("supportsChartResultLimit", () => {
   it("keeps the control only for pie categories and record tables", () => {
     expect(supportsChartResultLimit(component("pie", { dimension: { fieldKey: "store" }, measure: { fieldKey: "revenue" } }))).toBe(true);
     expect(supportsChartResultLimit(component("donut", { dimension: { fieldKey: "store" }, measure: { fieldKey: "revenue" } }))).toBe(true);
-    expect(supportsChartResultLimit(component("table", { columns: [{ fieldKey: "orderNo" }] }))).toBe(true);
+    expect(supportsChartResultLimit(component("table", { columns: [{ fieldKey: "orderNo" }] }))).toBe(false);
   });
 
   it("removes the redundant control from ordinary and fixed metric charts", () => {

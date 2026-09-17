@@ -3,7 +3,7 @@ import {
   ClockCircleOutlined,
   DeleteOutlined,
   DownOutlined,
-  EditOutlined,
+  FormOutlined,
   FileTextOutlined,
   GlobalOutlined,
   MoreOutlined,
@@ -294,7 +294,7 @@ export const DashboardHome = () => {
                             {
                               key: "edit",
                               label: "编辑",
-                              icon: <EditOutlined />,
+                              icon: <FormOutlined />,
                               onClick: () => navigate(`/editor/${dashboard.id}`),
                             },
                             ...(isPublished

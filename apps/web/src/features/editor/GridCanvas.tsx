@@ -23,6 +23,9 @@ import { ComponentFrame } from "./ComponentFrame.js";
 import { PALETTE_DROP_ID } from "./paletteDrag.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
 import { dashboardGlobalFilters, defaultDashboardGlobalFilterValues, type DashboardGlobalFilterValues } from "../viewer/dashboardGlobalFilters.js";
+import { DashboardPageFooter, DashboardPageHeader } from "../viewer/DashboardPageInformation.js";
+import { DashboardBackgroundLayers } from "../viewer/DashboardBackgroundSurface.js";
+import { pageSurfaceStyle } from "../viewer/dashboardPageLayout.js";
 
 export type GridRendererProps = ReactGridLayoutProps;
 
@@ -246,10 +249,13 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
           </div>
         </div>
       )}
-      <div
-        ref={containerRef}
-        className={`editor-canvas__grid-container${isInteracting ? " editor-canvas__grid-container--interacting" : ""}`}
-      >
+      <div className="editor-canvas__page" style={pageSurfaceStyle(dashboard, { editor: true })}>
+        <DashboardBackgroundLayers dashboard={dashboard} />
+        <DashboardPageHeader dashboard={dashboard} />
+        <div
+          ref={containerRef}
+          className={`editor-canvas__grid-container${isInteracting ? " editor-canvas__grid-container--interacting" : ""}`}
+        >
         {dashboard.components.length === 0 ? (
           <section className="editor-canvas__empty" aria-labelledby="empty-canvas-heading">
             <div className="editor-canvas__grid-guides editor-canvas__grid-guides--empty" aria-hidden="true">
@@ -323,6 +329,8 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
             : null}
           </>
         )}
+        </div>
+        <DashboardPageFooter dashboard={dashboard} />
       </div>
     </main>
   );

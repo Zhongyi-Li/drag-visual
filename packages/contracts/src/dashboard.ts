@@ -10,6 +10,57 @@ export const DashboardThemeMode = z.enum(["light", "dark"]);
 export const DashboardFontFamily = z.enum(["system", "source-han-sans", "source-han-serif", "alibaba-puhuiti", "harmonyos-sans", "lxgw-wenkai"]);
 export type DashboardThemeMode = z.infer<typeof DashboardThemeMode>;
 
+/** Optional decorative images rendered at the top and bottom of a dashboard page. */
+export const DashboardBackground = z.object({
+  topVisible: z.boolean().default(false),
+  topImage: z.string().max(3_000_000).default(""),
+  bottomVisible: z.boolean().default(false),
+  bottomImage: z.string().max(3_000_000).default(""),
+}).strict();
+
+export type DashboardBackground = z.infer<typeof DashboardBackground>;
+
+/** Page-level presentation shared by the editor canvas and read-only viewer. */
+const dashboardPageLayoutSchema = z.object({
+  layoutMode: z.enum(["fitContent", "fitViewport"]).default("fitContent"),
+  titleVisible: z.boolean().default(true),
+  titleFontSize: z.number().int().min(12).max(72).default(22),
+  titleFontFamily: DashboardFontFamily.default("system"),
+  titleLetterSpacing: z.number().min(-2).max(12).default(0),
+  footerVisible: z.boolean().default(false),
+  footerText: z.string().max(200).default(""),
+  footerFontSize: z.number().int().min(10).max(48).default(12),
+  footerFontFamily: DashboardFontFamily.default("system"),
+  footerLetterSpacing: z.number().min(-2).max(12).default(0),
+  backgroundImageEnabled: z.boolean().default(false),
+  /** Supports a remote image URL or a small image stored with the dashboard. */
+  // A 2 MB binary image becomes roughly 2.7 MB when stored as a data URL.
+  backgroundImage: z.string().max(3_000_000).default(""),
+  widthMode: z.enum(["adaptive", "fixed"]).default("adaptive"),
+  fixedWidth: z.number().int().min(960).max(2560).default(1440),
+  marginPreset: z.enum(["normal", "wide", "custom"]).default("normal"),
+  customMargins: z.object({
+    top: z.number().int().min(0).max(200).default(10),
+    right: z.number().int().min(0).max(200).default(12),
+    bottom: z.number().int().min(0).max(200).default(10),
+    left: z.number().int().min(0).max(200).default(12),
+  }).strict().default({ top: 10, right: 12, bottom: 10, left: 12 }),
+}).strict();
+
+export const DashboardPageLayout = z.preprocess((value) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return value;
+  // Story outlines were briefly persisted by an early page-layout build.
+  // Remove only those retired keys while keeping strict validation for every
+  // other unknown setting so existing drafts continue to open safely.
+  const { storyVisible: _storyVisible, storyText: _storyText, ...rest } = value as Record<string, unknown>;
+  if (rest.marginPreset === "compact") return { ...rest, marginPreset: "wide" };
+  if (rest.marginPreset === "none") return { ...rest, marginPreset: "custom", customMargins: { top: 0, right: 0, bottom: 0, left: 0 } };
+  if (rest.marginPreset === "comfortable") return { ...rest, marginPreset: "custom", customMargins: { top: 24, right: 32, bottom: 24, left: 32 } };
+  return rest;
+}, dashboardPageLayoutSchema);
+
+export type DashboardPageLayout = z.infer<typeof DashboardPageLayout>;
+
 export const DashboardChartPalette = z.array(hexColor).min(3).max(12);
 export type DashboardChartPalette = z.infer<typeof DashboardChartPalette>;
 
@@ -383,6 +434,7 @@ export const DashboardSchema = z
         chartPalette: DashboardChartPalette.optional(),
         chartGradient: z.boolean().optional(),
         fontFamily: DashboardFontFamily.optional(),
+        dashboardBackground: DashboardBackground.optional(),
         borderRadiusStyle: z.enum(["none", "small", "large"]).optional(),
         spacingStyle: z.enum(["compact", "regular", "custom"]).optional(),
         spacing: z.number().int().min(4).max(32).optional(),
@@ -394,6 +446,7 @@ export const DashboardSchema = z
           paddingBottom: z.number().int().min(0).max(64),
           paddingLeft: z.number().int().min(0).max(64),
         }).strict().optional(),
+        pageLayout: DashboardPageLayout.optional(),
         semanticColors: DashboardSemanticColors.optional(),
       })
       .strict(),

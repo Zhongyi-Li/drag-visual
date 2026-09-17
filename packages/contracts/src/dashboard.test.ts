@@ -28,6 +28,95 @@ describe("DashboardSchema", () => {
     expect(Dashboard).toBe(DashboardSchema);
   });
 
+  it("removes retired story-outline settings from saved page layouts", () => {
+    const parsed = DashboardSchema.parse({
+      ...validDashboard(),
+      theme: {
+        ...validDashboard().theme,
+        pageLayout: { storyVisible: true, storyText: "旧故事大纲" },
+      },
+    });
+
+    expect(parsed.theme.pageLayout).not.toHaveProperty("storyVisible");
+    expect(parsed.theme.pageLayout).not.toHaveProperty("storyText");
+  });
+
+  it("defaults and validates page title and footer typography", () => {
+    const defaults = DashboardSchema.parse({
+      ...validDashboard(),
+      theme: { ...validDashboard().theme, pageLayout: {} },
+    });
+    expect(defaults.theme.pageLayout).toMatchObject({
+      titleFontSize: 22,
+      titleFontFamily: "system",
+      titleLetterSpacing: 0,
+      footerFontSize: 12,
+      footerFontFamily: "system",
+      footerLetterSpacing: 0,
+    });
+
+    const customized = DashboardSchema.parse({
+      ...validDashboard(),
+      theme: {
+        ...validDashboard().theme,
+        pageLayout: {
+          titleFontSize: 30,
+          titleFontFamily: "source-han-serif",
+          titleLetterSpacing: 1.5,
+          footerFontSize: 14,
+          footerFontFamily: "lxgw-wenkai",
+          footerLetterSpacing: 2,
+        },
+      },
+    });
+    expect(customized.theme.pageLayout).toMatchObject({
+      titleFontSize: 30,
+      titleFontFamily: "source-han-serif",
+      titleLetterSpacing: 1.5,
+      footerFontSize: 14,
+      footerFontFamily: "lxgw-wenkai",
+      footerLetterSpacing: 2,
+    });
+  });
+
+  it("accepts independent dashboard top and bottom background images", () => {
+    const parsed = DashboardSchema.parse({
+      ...validDashboard(),
+      theme: {
+        ...validDashboard().theme,
+        dashboardBackground: {
+          topVisible: true,
+          topImage: "/images/dashboard-backgrounds/blue-cyan.png",
+          bottomVisible: true,
+          bottomImage: "https://example.com/footer.png",
+        },
+      },
+    });
+    expect(parsed.theme.dashboardBackground).toEqual({
+      topVisible: true,
+      topImage: "/images/dashboard-backgrounds/blue-cyan.png",
+      bottomVisible: true,
+      bottomImage: "https://example.com/footer.png",
+    });
+  });
+
+  it("migrates legacy page margin presets to the new margin model", () => {
+    const compact = DashboardSchema.parse({
+      ...validDashboard(),
+      theme: { ...validDashboard().theme, pageLayout: { marginPreset: "compact" } },
+    });
+    expect(compact.theme.pageLayout).toMatchObject({ marginPreset: "wide" });
+
+    const comfortable = DashboardSchema.parse({
+      ...validDashboard(),
+      theme: { ...validDashboard().theme, pageLayout: { marginPreset: "comfortable" } },
+    });
+    expect(comfortable.theme.pageLayout).toMatchObject({
+      marginPreset: "custom",
+      customMargins: { top: 24, right: 32, bottom: 24, left: 32 },
+    });
+  });
+
   it("accepts saved global filters whose derived operator is null", () => {
     const dashboard = {
       ...validDashboard(),

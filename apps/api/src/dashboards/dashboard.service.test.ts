@@ -38,7 +38,7 @@ describe("DashboardService", () => {
       name: "销售看板",
       theme: {
         primaryColor: "#1677ff",
-        backgroundColor: "#f5f7fa",
+        backgroundColor: "#FFFFFF",
       },
       layout: [],
       components: [],

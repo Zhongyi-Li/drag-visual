@@ -18,6 +18,7 @@ import type { DatasetRepository } from "./dataset.repository.js";
 export const RETAIL_ORDER_DATASET_ID = "retail-delivery-orders";
 export const STORAGE_TURNOVER_DATASET_ID = "storage-turnover";
 export const ORDER_PROFIT_REPORT_DATASET_ID = "order-profit-report";
+export const SG_STORAGE_DATASET_ID = "sg-storage";
 const RETAIL_ORDER_DATABASE = "os";
 const DEFAULT_RESULT_LIMIT = 1_000;
 const MAX_RESULT_LIMIT = 5_000;
@@ -48,6 +49,13 @@ const ORDER_PROFIT_REPORT_DATASET: MysqlTableDatasetConfig = {
   table: "os_order_profit_report",
   schemaVersion: "order-profit-report-v1",
   sortColumn: "order_time",
+};
+
+const SG_STORAGE_DATASET: MysqlTableDatasetConfig = {
+  id: SG_STORAGE_DATASET_ID,
+  table: "oms_v_rpt_sg_b_storage",
+  schemaVersion: "sg-storage-v1",
+  sortColumn: "id",
 };
 
 interface MysqlColumnRow extends RowDataPacket {
@@ -452,4 +460,9 @@ export class StorageTurnoverDatasetRepository extends RetailOrderDatasetReposito
 @Injectable()
 export class OrderProfitReportDatasetRepository extends RetailOrderDatasetRepository {
   protected override readonly config: MysqlTableDatasetConfig = ORDER_PROFIT_REPORT_DATASET;
+}
+
+@Injectable()
+export class SgStorageDatasetRepository extends RetailOrderDatasetRepository {
+  protected override readonly config: MysqlTableDatasetConfig = SG_STORAGE_DATASET;
 }

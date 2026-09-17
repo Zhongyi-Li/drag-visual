@@ -10,6 +10,7 @@ import { DATASET_REPOSITORY } from "./dataset.repository.js";
 import {
   OrderProfitReportDatasetRepository,
   RetailOrderDatasetRepository,
+  SgStorageDatasetRepository,
   StorageTurnoverDatasetRepository,
 } from "./retail-order-dataset.repository.js";
 import { DatasetService } from "./dataset.service.js";
@@ -23,6 +24,7 @@ import { UploadedDatasetRepository } from "./uploaded-dataset.repository.js";
     RetailOrderDatasetRepository,
     StorageTurnoverDatasetRepository,
     OrderProfitReportDatasetRepository,
+    SgStorageDatasetRepository,
     UploadedDatasetRepository,
     DatasetCatalogRepository,
     DatasetService,

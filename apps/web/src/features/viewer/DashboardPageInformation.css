@@ -1,0 +1,11 @@
+.dashboard-background-layers { position: absolute; z-index: 0; inset: 0; overflow: hidden; pointer-events: none; }
+.dashboard-background-layer { position: absolute; left: -4%; width: 108%; height: 62%; overflow: hidden; opacity: .78; filter: blur(18px); transform: scale(1.04); }
+.dashboard-background-layer--top { top: -8%; -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 42%, transparent 100%); mask-image: linear-gradient(to bottom, #000 0%, #000 42%, transparent 100%); }
+.dashboard-background-layer--bottom { bottom: -8%; -webkit-mask-image: linear-gradient(to top, #000 0%, #000 42%, transparent 100%); mask-image: linear-gradient(to top, #000 0%, #000 42%, transparent 100%); }
+.dashboard-background-layer img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.dashboard-page-surface > .ant-space { position: relative; z-index: 1; }
+.dashboard-page-information { position: relative; z-index: 1; padding: 14px 12px 10px; }
+.dashboard-page-information h1, .dashboard-page-information h2, .dashboard-page-information h3 { margin: 0; color: #172033; font-size: 22px; font-weight: 650; line-height: 1.4; }
+.dashboard-page-information h3 { font-size: 20px; }
+.dashboard-page-information small { display: block; margin-top: 2px; color: #8a94a4; font-size: 12px; }
+.dashboard-page-footer { position: relative; z-index: 1; padding: 14px 12px 4px; color: #8a94a4; border-top: 1px solid rgb(148 163 184 / 22%); font-size: 12px; line-height: 20px; text-align: center; }

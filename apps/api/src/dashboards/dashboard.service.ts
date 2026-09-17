@@ -40,7 +40,7 @@ export class DashboardService {
       name: trimmedName,
       theme: {
         primaryColor: "#1677ff",
-        backgroundColor: "#f5f7fa",
+        backgroundColor: "#FFFFFF",
       },
       layout: [],
       components: [],

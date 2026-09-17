@@ -1,4 +1,4 @@
-import { ArrowRightOutlined, CalculatorOutlined, CheckOutlined, DeleteOutlined, DownOutlined, EditOutlined, MoreOutlined, QuestionCircleOutlined, RightOutlined, RiseOutlined, TagOutlined } from "@ant-design/icons";
+import { ArrowRightOutlined, CalculatorOutlined, CheckOutlined, DeleteOutlined, DownOutlined, FormOutlined, MoreOutlined, QuestionCircleOutlined, RightOutlined, RiseOutlined, TagOutlined } from "@ant-design/icons";
 import type { ComponentDefinition } from "@drag-visual/component-registry";
 import type { CalculatedMetric, ComponentInstance, ComponentType, DataBinding, Dataset, DatasetField, MetricAggregation, QueryParameter } from "@drag-visual/contracts";
 import { validateBinding } from "@drag-visual/data-engine";
@@ -1126,7 +1126,7 @@ export const ComponentBindingPanel = ({
                     <div className="metric-binding-item" key={fieldKey}>
                       <span className="metric-binding-item__kind" aria-hidden="true">Nº</span>
                       <span className="metric-binding-item__name">{fieldLabel}{displayAggregation === undefined ? "" : `（${displayAggregation}）`}</span>
-                      {calculatedMetric !== undefined && <Tooltip title="编辑计算公式"><Button aria-label={`编辑计算指标 ${fieldLabel}`} className="metric-binding-item__action" icon={<EditOutlined />} size="small" type="text" onClick={() => setCalculatedMetricSlot({ key: slot.key, multiple: slot.multiple, editingMetric: { ...calculatedMetric, tokens: calculatedMetric.tokens.map((token) => token.kind === "metric" ? { kind: "metric" as const, reference: { ...token.reference } } : { kind: "operator" as const, value: token.value }) } })} /></Tooltip>}
+                      {calculatedMetric !== undefined && <Tooltip title="编辑计算公式"><Button aria-label={`编辑计算指标 ${fieldLabel}`} className="metric-binding-item__action" icon={<FormOutlined />} size="small" type="text" onClick={() => setCalculatedMetricSlot({ key: slot.key, multiple: slot.multiple, editingMetric: { ...calculatedMetric, tokens: calculatedMetric.tokens.map((token) => token.kind === "metric" ? { kind: "metric" as const, reference: { ...token.reference } } : { kind: "operator" as const, value: token.value }) } })} /></Tooltip>}
                       <Dropdown
                         menu={{
                           items: [

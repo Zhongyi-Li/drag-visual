@@ -1,3 +1,261 @@
+# Latest QA — 仪表板背景模糊渐隐融合
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-425a8341-1504-488f-bef3-2237bbd7e7b9.png`（背景色、顶部/底部背景图融合效果）。
+- Implementation route: `http://localhost:5173`，页面配置 → 主题 → 仪表板背景。
+- Intended state: 页面背景色作为底层，顶部和底部图片分别启用，图片向中间模糊渐隐。
+- Implementation screenshot: unavailable。此前本地浏览器捕获被自动安全审核拒绝，本轮未绕过或重复该受限操作。
+- Comparison normalization: 参考图可用；实现截图缺失，无法完成同视口合成比较。
+
+**Findings**
+
+- [P2] 浏览器视觉对比仍未完成。
+  Location: 仪表板背景的上下图片过渡区域。
+  Evidence: 代码已将硬切图片条替换为绝对定位、放大、模糊和 mask 渐隐层，但缺少浏览器渲染截图。
+  Impact: 无法确认不同页面高度、内容密度和背景色下的渐隐长度、模糊强度与参考图的最终像素差异。
+  Fix: 浏览器捕获恢复后，分别检查空看板、少量图表和长页面三种高度下的上下融合效果。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 内容层字体未改变，标题、图表和页尾保持在背景层之上。
+- Spacing and layout rhythm: 背景层不再参与文档流，不会额外撑高顶部或底部；上下图层各覆盖约 62% 页面高度并在中间渐隐。
+- Colors and visual tokens: 页面背景色继续作为底色，图片层使用约 78% 不透明度和 18px 模糊以降低抢眼程度。
+- Image quality and asset fidelity: 继续使用项目内 320 × 320 PNG 背景素材，采用 `cover` 裁切，未使用 CSS 图形替代图片。
+- Copy and content: 配置文案与交互入口保持不变。
+
+**Interaction and runtime verification**
+
+- 顶部、底部图片仍可独立启用、替换、清空。
+- 编辑画布和只读视图共用同一背景层组件。
+- `@drag-visual/web typecheck`: passed。
+- 相关测试：4 个文件、97 项测试全部通过。
+- `git diff --check`: passed。
+- Browser screenshot and console check: blocked by prior local browser auto-review rejection。
+
+final result: blocked
+
+---
+
+# Latest QA — 仪表板背景
+
+**Comparison target**
+
+- Source visual truth:
+  - `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-9242dd8a-0e2f-4227-848d-1318cc7e6353.png`（顶部/底部图片配置）。
+  - `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-144a899d-f4c5-4b3a-8945-93a2cebce553.png`（素材库）。
+  - `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-00ba41f8-0d2b-4bf6-90e7-aa77613eb732.png`（自定义图片）。
+- Implementation route: `http://localhost:5173`，页面配置 → 主题 → 仪表板背景。
+- Intended state: 330px 配置栏；仪表板背景展开，分别打开顶部图片或底部图片选择器。
+- Source dimensions: 413 × 190、363 × 248、363 × 248 px。
+- Implementation screenshot: unavailable。此前本地浏览器捕获被自动安全审核拒绝，本轮未绕过或重复该受限操作。
+- Density normalization: 因缺少实现截图，无法完成同视口、同状态合成比较。
+
+**Findings**
+
+- [P2] 浏览器视觉对比未完成。
+  Location: 仪表板背景配置区、素材弹层和自定义图片弹层。
+  Evidence: 三张参考图可用，但没有浏览器渲染截图。
+  Impact: 无法用像素证据确认 330px 面板中的弹层定位、素材缩略图比例、标签基线和上传区换行。
+  Fix: 浏览器捕获恢复后，分别捕获“配置区 / 使用素材 / 自定义图片”三个状态并进行合成对比。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 沿用现有 Ant Design 字体栈；配置标签 12px、辅助文案 11px、标签页 13px。
+- Spacing and layout rhythm: 顶部/底部图片按垂直列表排列；素材弹层 348px，素材采用三列网格；最终浏览器间距待确认。
+- Colors and visual tokens: 复用产品主蓝、白色面板、中性灰边框与辅助文本色。
+- Image quality and asset fidelity: 使用内置 ImageGen 生成 6 张抽象背景素材，拆分为 320 × 320 PNG 并保存至项目；没有使用 CSS 渐变或占位图替代。
+- Copy and content: 包含“顶部图片”“底部图片”“使用素材”“自定义图片”“上传本地图片”“清空图片”等参考文案。
+
+**Interaction and runtime verification**
+
+- 顶部和底部图片可独立启用、选择、清空和持久化。
+- 素材库选择、本地上传（2 MB 限制）和 http/https URL 均已接入。
+- 编辑画布、预览和发布视图共用同一渲染组件。
+- `@drag-visual/web typecheck`: passed。
+- 相关测试：3 个文件、95 项测试全部通过。
+- `git diff --check`: passed。
+- Browser screenshot, primary interaction replay and console check: blocked by prior local browser auto-review rejection。
+
+**Implementation Checklist**
+
+1. 新增仪表板顶部/底部背景契约并兼容既有看板。
+2. 完成配置区、素材库、自定义上传、URL 与清空交互。
+3. 完成编辑和只读视图渲染复用。
+4. 浏览器捕获恢复后补做三个状态的同屏视觉对比。
+
+final result: blocked
+
+---
+
+# Latest QA — 自定义页边距无步进输入框
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-4a2e90fa-2e1d-4ac4-a619-99f36ea8bb4b.png`（用户指出数字输入框右侧步进按钮占用空间）。
+- Implementation route: `http://localhost:5173`，页面配置 → 页面布局 → 页边距 → 自定义。
+- Intended state: 330px 右侧配置栏，页边距下拉层展开；四个边距使用无步进按钮的紧凑文本输入。
+- Implementation screenshot: unavailable。此前本地浏览器捕获已被自动安全审核拒绝，本轮未绕过或重复该受限操作。
+
+**Findings**
+
+- [P2] 最终像素级视觉验收阻塞。
+  Location: 自定义页边距四个输入框。
+  Evidence: 参考图可用，但缺少本地实现截图。
+  Impact: 无法通过截图确认 330px 面板下四个输入框的最终宽度、文字基线和 `px` 后缀间距。
+  Fix: 浏览器捕获恢复后，在相同展开状态补拍实现图并检查两列输入是否无挤压。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 沿用现有 Ant Design 字体栈、12px 标签和 11px 单位文字。
+- Spacing and layout rhythm: 移除数字步进区，输入框内部横向 padding 收紧至 6px，数值右对齐。
+- Colors and visual tokens: 沿用现有输入框边框、文本和中性灰单位色。
+- Image quality and asset fidelity: 本次不新增图像资产或替代图标。
+- Copy and content: 保留上、下、左、右及 `px` 单位。
+
+**Interaction and runtime verification**
+
+- 输入仅接受数字，提交值限制在 0–200；空值失焦时恢复原值。
+- 输入过程保留本地草稿，失焦或回车提交，锁定/解锁后的联动规则保持不变。
+- `@drag-visual/web typecheck`: passed。
+- `DashboardSettingsPanel.test.tsx`: 9/9 passed。
+- `git diff --check`: passed。
+- Browser screenshot and console check: blocked by prior local browser auto-review rejection。
+
+final result: blocked
+
+---
+
+# Latest QA — 页边距预设示例图
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-8b6391bf-25a0-4309-86b5-decc47bd10cd.png`（用户提供的下拉悬浮框参考图）。
+- Implementation route: `http://localhost:5173`，页面配置 → 页面布局 → 页边距。
+- Intended state: 330px 右侧配置栏，页边距选择器展开。
+- Implementation screenshot: unavailable。Codex 内置浏览器本轮打开本地页面再次被自动安全审核拒绝。
+- Comparison normalization: 参考图按原始像素查看；由于缺少实现截图，无法做同尺寸合成对照。
+
+**Findings**
+
+- [P2] 像素级视觉验收阻塞。
+  Location: 页边距下拉悬浮框前两个预设项。
+  Evidence: 参考图可用，浏览器实现截图不可用。
+  Impact: 无法确认 330px 面板中示例图、选中背景、文字基线和下拉层高度与参考图的最终像素差异。
+  Fix: 浏览器安全审核恢复后，重新捕获相同视口和展开状态，检查示例图大小、两行说明、选中态和自定义区分隔线。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 预设标题 12px、说明 11px，沿用产品字体栈；未完成浏览器像素核对。
+- Spacing and layout rhythm: 示例图 30px、选项最小高度 38px，选中态压缩为单行摘要；未完成最终截图核对。
+- Colors and visual tokens: 示例图沿用中性灰边框和现有图标色，交互色继续复用产品主色。
+- Image quality and asset fidelity: 使用现有 Ant Design 图标库，不使用 CSS 绘图、emoji 或额外位图占位。
+- Copy and content: “常规 / 上下10像素，左右12像素”和“超宽页面 / 上下8像素，左右8像素”与参考图一致。
+
+**Verification**
+
+- `@drag-visual/web typecheck`: passed。
+- `DashboardSettingsPanel.test.tsx`: 9/9 passed。
+- `git diff --check`: passed。
+- Browser screenshot and console check: blocked by local browser auto-review rejection。
+
+final result: blocked
+
+---
+
+# Latest QA — 页面布局页边距配置
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-4e984a16-ba58-49fb-8640-5fb2164b211b.png`（421 × 265 px，用户提供）。
+- Implementation route: `http://localhost:5173`，页面配置 → 页面布局 → 页边距下拉层。
+- Intended viewport/state: 桌面端，330px 右侧页面配置栏，页边距下拉层展开并显示自定义四边输入。
+- Implementation screenshot: unavailable。Codex 内置浏览器打开本地页面时被自动安全审核拒绝，未能取得浏览器渲染截图。
+- Density normalization: 参考图按原始像素检查；因实现截图缺失，无法完成同尺寸/同状态合成比较。
+
+**Findings**
+
+- [P2] 浏览器视觉对比未完成。
+  Location: 页面布局 → 页边距下拉层。
+  Evidence: 参考图可用，但本地实现无法通过内置浏览器打开，缺少同状态实现截图。
+  Impact: 330px 面板中的下拉层宽度、四边输入是否存在细微挤压以及字体/间距的最终像素一致性尚未得到视觉证据确认。
+  Fix: 浏览器权限恢复后，在相同桌面视口打开页边距下拉层，捕获实现截图并与参考图合成对比。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 代码沿用现有 12px 中文配置文字和 Ant Design 字体栈；浏览器像素渲染未捕获。
+- Spacing and layout rhythm: 已实现预设列表、自定义分隔区、48px 边距示意、四边两列输入以及锁定按钮；330px 侧栏下的最终可视间距待浏览器确认。
+- Colors and visual tokens: 使用现有白底、中性灰边框和主蓝交互色；最终浏览器采样待确认。
+- Image quality and asset fidelity: 该配置不需要位图资产；边距和锁定状态均使用现有 Ant Design 图标，未使用 CSS 绘图或文本符号替代图标。
+- Copy and content: 已包含“常规”“超宽页面”“自定义”“上/下/左/右”和像素单位，和参考功能一致。
+
+**Interaction and runtime verification**
+
+- 预设“常规 / 超宽页面 / 自定义”可持久化。
+- 自定义四边值可分别保存；锁定时上下、左右分别联动，解锁后可独立修改。
+- 页面画布、预览和发布使用相同 CSS padding 计算。
+- `@drag-visual/web typecheck`: passed。
+- 相关测试：4 个文件、94 项测试全部通过。
+- 浏览器截图、控制台检查和同屏视觉比较：blocked by local browser auto-review rejection。
+
+**Implementation Checklist**
+
+1. 页面布局契约加入自定义四边边距并兼容旧预设。
+2. 页边距下拉层加入预设、自定义四边输入、示意图和锁定交互。
+3. 编辑画布和只读页面共用新的边距计算。
+4. 待浏览器权限恢复后补做同状态截图比较和溢出检查。
+
+final result: blocked
+
+---
+
+# Latest QA — 页面布局配置紧凑样式
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-cebbbcad-ae21-4ec4-b275-721ff4ed7942.png`（428 × 200 px，用户提供）。
+- Implementation route: `http://localhost:5173/editor/2323cfe5-94b6-47b5-b32e-a5410704f8b4`，页面配置 → 主题 → 页面布局。
+- Implementation screenshot: `/private/tmp/page-layout-panel-implementation.png`（420 × 207 px）；full browser screenshot: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/ego-browser-shot-26127-1.png`（1512 × 765 px）。
+- Same-input comparison evidence: `/private/tmp/page-layout-panel-comparison.png`（868 × 241 px）。
+- Viewport: 1512 × 765 CSS px；device scale factor 1。参考图与实现图均按原始像素显示，无密度缩放。
+- State: 页面布局展开；标题区与页尾开启；宽度为自适应；边距为常规。参考图中的“故事大纲”因用户此前明确要求删除而有意省略；参考图已有背景图，实现截图为空背景图状态。
+
+**Findings**
+
+- 无遗留的 P0、P1 或 P2 差异。页面布局配置已由多行输入式布局压缩为 5 个 30px 高的单行区块，标签、单选框、复选框、宽度输入和页边距选择器与参考图保持同一视觉节奏。
+- 页面标题和页尾文字使用“勾选 + 编辑图标”的紧凑入口，编辑内容在弹层中完成；输入过程只更新本地草稿，失焦或回车后再提交。
+- [P3] 页面背景在无图片时显示图片选择图标，而参考图展示已有背景图缩略图；上传图片后实现会显示真实缩略图，这是状态差异，不是样式缺失。
+
+**Required fidelity surfaces**
+
+- Fonts and typography: 沿用产品现有中文 UI 字体栈，标题 13px、配置文字 11–12px；字重、行高、截断和单行排列与参考图一致。
+- Spacing and layout rhythm: 配置项固定 30px 行高、2px 行间距，内容区收紧至 10px 左右内边距；整体 420 × 207 px，与 428 × 200 px 参考区域接近。
+- Colors and visual tokens: 主色复用 `#1677ff`，标签使用中性灰，展开标题恢复为白底深色，边框和禁用态沿用现有 Ant Design token。
+- Image quality and asset fidelity: 未伪造图像资产；背景图选择使用图标库图标，上传后展示用户真实图片缩略图。
+- Copy and content: 保留页面布局、页面信息、页面背景、页面宽度、页边距；“故事大纲”遵循用户明确删除要求，不恢复。
+
+**Comparison history**
+
+- Iteration 1: 配置行已压缩，但折叠内容顶部留白偏大、标签列偏宽、展开标题仍为蓝色强调态。
+- Fix: 将页面布局折叠体调整为 3px / 10px / 7px 内边距，标签列缩短为 48px，展开标题改为白底深色。
+- Post-fix evidence: `/private/tmp/page-layout-panel-comparison.png`；实现面板为 420 × 207 px，5 行均为 30px，未发现遮挡、换行或溢出。
+
+**Interaction and runtime verification**
+
+- 标题编辑弹层可打开并读取当前标题；页尾编辑入口可见；页面内未出现“故事大纲”。
+- 浏览器事件中未发现新增 console error、uncaught exception。
+- `DashboardSettingsPanel.test.tsx`: 5/5 passed；`@drag-visual/web typecheck`: passed；`git diff --check`: passed。
+
+**Implementation Checklist**
+
+1. 紧凑单行布局、编辑弹层和背景图片缩略入口已完成。
+2. 输入延迟提交行为和页面布局持久化用例已验证。
+3. 同屏视觉对照、浏览器交互与错误日志检查已通过。
+
+final result: passed
+
+---
+
 # Latest QA — 柱图长指标名称显示
 
 **Comparison target**
