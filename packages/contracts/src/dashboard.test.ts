@@ -79,6 +79,29 @@ describe("DashboardSchema", () => {
     });
   });
 
+  it("migrates legacy page backgrounds and permits disabling both choices", () => {
+    const legacyColor = DashboardSchema.parse({
+      ...validDashboard(),
+      theme: { ...validDashboard().theme, pageLayout: { backgroundImageEnabled: false } },
+    });
+    expect(legacyColor.theme.pageLayout).toMatchObject({
+      backgroundColorEnabled: true,
+      backgroundImageEnabled: false,
+    });
+
+    const noBackground = DashboardSchema.parse({
+      ...validDashboard(),
+      theme: {
+        ...validDashboard().theme,
+        pageLayout: { backgroundColorEnabled: false, backgroundImageEnabled: false },
+      },
+    });
+    expect(noBackground.theme.pageLayout).toMatchObject({
+      backgroundColorEnabled: false,
+      backgroundImageEnabled: false,
+    });
+  });
+
   it("accepts independent dashboard top and bottom background images", () => {
     const parsed = DashboardSchema.parse({
       ...validDashboard(),

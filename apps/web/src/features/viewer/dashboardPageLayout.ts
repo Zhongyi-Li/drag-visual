@@ -45,7 +45,7 @@ export const pageSurfaceStyle = (
     minHeight: `calc(100vh - ${viewportInset}px)`,
     marginInline: settings.widthMode === "fixed" ? "auto" : undefined,
     padding: pageMargin(settings),
-    backgroundColor: image === undefined ? dashboard.theme.backgroundColor : "transparent",
+    backgroundColor: image === undefined && settings.backgroundColorEnabled ? dashboard.theme.backgroundColor : "transparent",
     backgroundImage: image === undefined ? undefined : `url(${JSON.stringify(image)})`,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",

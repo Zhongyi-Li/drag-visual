@@ -32,6 +32,7 @@ const dashboardPageLayoutSchema = z.object({
   footerFontSize: z.number().int().min(10).max(48).default(12),
   footerFontFamily: DashboardFontFamily.default("system"),
   footerLetterSpacing: z.number().min(-2).max(12).default(0),
+  backgroundColorEnabled: z.boolean().default(true),
   backgroundImageEnabled: z.boolean().default(false),
   /** Supports a remote image URL or a small image stored with the dashboard. */
   // A 2 MB binary image becomes roughly 2.7 MB when stored as a data URL.
@@ -53,10 +54,16 @@ export const DashboardPageLayout = z.preprocess((value) => {
   // Remove only those retired keys while keeping strict validation for every
   // other unknown setting so existing drafts continue to open safely.
   const { storyVisible: _storyVisible, storyText: _storyText, ...rest } = value as Record<string, unknown>;
-  if (rest.marginPreset === "compact") return { ...rest, marginPreset: "wide" };
-  if (rest.marginPreset === "none") return { ...rest, marginPreset: "custom", customMargins: { top: 0, right: 0, bottom: 0, left: 0 } };
-  if (rest.marginPreset === "comfortable") return { ...rest, marginPreset: "custom", customMargins: { top: 24, right: 32, bottom: 24, left: 32 } };
-  return rest;
+  // Older dashboards represented the background choice with only the image
+  // flag, so `false` implicitly meant color. Preserve that behavior while
+  // allowing newly saved dashboards to explicitly disable both choices.
+  const migrated = "backgroundColorEnabled" in rest
+    ? rest
+    : { ...rest, backgroundColorEnabled: rest.backgroundImageEnabled !== true };
+  if (migrated.marginPreset === "compact") return { ...migrated, marginPreset: "wide" };
+  if (migrated.marginPreset === "none") return { ...migrated, marginPreset: "custom", customMargins: { top: 0, right: 0, bottom: 0, left: 0 } };
+  if (migrated.marginPreset === "comfortable") return { ...migrated, marginPreset: "custom", customMargins: { top: 24, right: 32, bottom: 24, left: 32 } };
+  return migrated;
 }, dashboardPageLayoutSchema);
 
 export type DashboardPageLayout = z.infer<typeof DashboardPageLayout>;

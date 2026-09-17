@@ -162,7 +162,7 @@ describe("DashboardSettingsPanel", () => {
     expect(store.getState().history.present.theme.pageLayout?.customMargins).toMatchObject({ top: 40, bottom: 10 });
   }, 10_000);
 
-  it("exposes page background as mutually exclusive color and image choices", async () => {
+  it("allows the page background choices to be mutually exclusive or both unselected", async () => {
     const store = createEditorStore(dashboard);
     render(<AppProviders><DashboardSettingsPanel store={store} /></AppProviders>);
     await userEvent.click(screen.getByRole("button", { name: /页面布局/ }));
@@ -170,6 +170,16 @@ describe("DashboardSettingsPanel", () => {
     expect(screen.getByRole("radio", { name: /颜色/ })).toBeChecked();
     expect(screen.getByRole("radio", { name: "图片" })).toBeDisabled();
     expect(screen.getByLabelText("页面背景颜色")).not.toBeDisabled();
+
+    await userEvent.click(screen.getByRole("radio", { name: /颜色/ }));
+
+    expect(screen.getByRole("radio", { name: /颜色/ })).not.toBeChecked();
+    expect(screen.getByRole("radio", { name: "图片" })).not.toBeChecked();
+    expect(screen.getByLabelText("页面背景颜色")).toBeDisabled();
+    expect(store.getState().history.present.theme.pageLayout).toMatchObject({
+      backgroundColorEnabled: false,
+      backgroundImageEnabled: false,
+    });
   });
 
   it("shows a prominent size error for background images over 2 MB", async () => {

@@ -25,6 +25,19 @@ describe("pageSurfaceStyle", () => {
     });
   });
 
+  it("uses a transparent page surface when both background choices are disabled", () => {
+    expect(pageSurfaceStyle({
+      ...dashboard,
+      theme: {
+        ...dashboard.theme,
+        pageLayout: { backgroundColorEnabled: false, backgroundImageEnabled: false },
+      },
+    })).toMatchObject({
+      backgroundColor: "transparent",
+      backgroundImage: undefined,
+    });
+  });
+
   it("uses the wide preset and custom four-sided margins", () => {
     expect(pageSurfaceStyle({ ...dashboard, theme: { ...dashboard.theme, pageLayout: { marginPreset: "wide" } } })).toHaveProperty("padding", "8px");
     expect(pageSurfaceStyle({ ...dashboard, theme: { ...dashboard.theme, pageLayout: { marginPreset: "custom", customMargins: { top: 40, right: 12, bottom: 10, left: 12 } } } })).toHaveProperty("padding", "40px 12px 10px 12px");

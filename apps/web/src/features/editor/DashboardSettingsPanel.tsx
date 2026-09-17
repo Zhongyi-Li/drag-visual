@@ -227,7 +227,7 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
     reader.onload = () => {
       if (typeof reader.result !== "string") return;
       setBackgroundImageError(null);
-      updatePageLayout({ backgroundImage: reader.result, backgroundImageEnabled: true });
+      updatePageLayout({ backgroundImage: reader.result, backgroundImageEnabled: true, backgroundColorEnabled: false });
     };
     reader.onerror = () => setBackgroundImageError("背景图片读取失败");
     reader.readAsDataURL(file);
@@ -330,9 +330,23 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
           </span>
         </div></div>
         <div className="dashboard-settings__setting-row"><span>页面背景</span><div className="dashboard-settings__page-background">
-          <Radio.Group aria-label="页面背景类型" value={pageLayout.backgroundImageEnabled ? "image" : "color"} onChange={(event) => updatePageLayout({ backgroundImageEnabled: event.target.value === "image" })}>
-            <Radio value="color"><span className="dashboard-settings__background-color-option">颜色<input aria-label="页面背景颜色" type="color" value={dashboard.theme.backgroundColor} disabled={pageLayout.backgroundImageEnabled} onChange={(event) => updateTheme({ backgroundColor: event.target.value })} /></span></Radio>
-            <Radio value="image" disabled={pageLayout.backgroundImage.length === 0}>图片</Radio>
+          <Radio.Group
+            aria-label="页面背景类型"
+            value={pageLayout.backgroundImageEnabled ? "image" : pageLayout.backgroundColorEnabled ? "color" : undefined}
+            onChange={(event) => updatePageLayout({
+              backgroundColorEnabled: event.target.value === "color",
+              backgroundImageEnabled: event.target.value === "image",
+            })}
+          >
+            <Radio
+              value="color"
+              onClick={() => pageLayout.backgroundColorEnabled && updatePageLayout({ backgroundColorEnabled: false })}
+            ><span className="dashboard-settings__background-color-option">颜色<input aria-label="页面背景颜色" type="color" value={dashboard.theme.backgroundColor} disabled={!pageLayout.backgroundColorEnabled} onClick={(event) => event.stopPropagation()} onChange={(event) => updateTheme({ backgroundColor: event.target.value })} /></span></Radio>
+            <Radio
+              value="image"
+              disabled={pageLayout.backgroundImage.length === 0}
+              onClick={() => pageLayout.backgroundImageEnabled && updatePageLayout({ backgroundImageEnabled: false })}
+            >图片</Radio>
           </Radio.Group>
           <Tooltip title={pageLayout.backgroundImage.length > 0 ? "更换背景图片" : "选择背景图片"}>
             <label className={`dashboard-settings__background-upload${pageLayout.backgroundImage.length > 0 ? " dashboard-settings__background-upload--has-image" : ""}`} style={pageLayout.backgroundImage.length > 0 ? { backgroundImage: `url(${pageLayout.backgroundImage})` } : undefined}>
