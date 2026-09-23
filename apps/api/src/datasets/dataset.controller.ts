@@ -1,4 +1,4 @@
-import { DatasetQueryRequest } from "@drag-visual/contracts";
+import { DatasetDraftPreviewRequest, DatasetDraftUpdateRequest, DatasetProcessingPublishRequest, DatasetQueryRequest } from "@drag-visual/contracts";
 import {
   ArgumentsHost,
   Body,
@@ -13,6 +13,7 @@ import {
   Logger,
   Param,
   Post,
+  Put,
   Query,
   UseGuards,
   UseFilters,
@@ -25,6 +26,7 @@ import type { AuthenticatedUser } from "../auth/auth.service.js";
 import { SessionAuthGuard } from "../auth/session-auth.guard.js";
 import {
   DatasetInvalidResponseError,
+  DatasetNameConflictError,
   DatasetNotFoundError,
   DatasetQueryInvalidError,
   DatasetService,
@@ -44,6 +46,7 @@ const API_ERRORS = {
   upstream: { code: "DATASET_UPSTREAM_ERROR", message: "Dataset upstream request failed" },
   timeout: { code: "DATASET_TIMEOUT", message: "Dataset request timed out" },
   internal: { code: "INTERNAL_ERROR", message: "Internal server error" },
+  nameConflict: { code: "DATASET_NAME_CONFLICT", message: "Dataset name already exists" },
 } as const;
 
 class DatasetHttpException extends HttpException {}
@@ -68,6 +71,9 @@ const httpError = (error: unknown): never => {
   if (error instanceof HttpException) throw error;
   if (error instanceof DatasetNotFoundError) {
     throw apiException(HttpStatus.NOT_FOUND, API_ERRORS.notFound);
+  }
+  if (error instanceof DatasetNameConflictError) {
+    throw apiException(HttpStatus.CONFLICT, API_ERRORS.nameConflict);
   }
   if (error instanceof DatasetQueryInvalidError) {
     throw apiException(HttpStatus.BAD_REQUEST, API_ERRORS.queryInvalid);
@@ -130,11 +136,70 @@ export class DatasetController {
     }
   }
 
+  @Get("processing/tasks")
+  async processingTasks(@CurrentUser() user: AuthenticatedUser) {
+    try {
+      return await this.datasets.listProcessingTasks(user.id);
+    } catch (error: unknown) {
+      return httpError(error);
+    }
+  }
+
+  @Get("processing/records")
+  async processingRecords(@CurrentUser() user: AuthenticatedUser) {
+    try {
+      return await this.datasets.listProcessingRecords(user.id);
+    } catch (error: unknown) {
+      return httpError(error);
+    }
+  }
+
   @Get(":datasetId/schema")
   async schema(@Param("datasetId") datasetId: string, @CurrentUser() user: AuthenticatedUser) {
     try {
       return await this.datasets.getSchema(datasetId, user.id);
     } catch (error: unknown) {
+      return httpError(error);
+    }
+  }
+
+  @Get(":datasetId/draft")
+  async draft(@Param("datasetId") datasetId: string, @CurrentUser() user: AuthenticatedUser) {
+    try {
+      return await this.datasets.getDraft(datasetId, user.id);
+    } catch (error: unknown) {
+      return httpError(error);
+    }
+  }
+
+  @Put(":datasetId/draft")
+  async updateDraft(@Param("datasetId") datasetId: string, @Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    try {
+      return await this.datasets.updateDraft(datasetId, user.id, DatasetDraftUpdateRequest.parse(body));
+    } catch (error: unknown) {
+      if (error instanceof ZodError) throw apiException(HttpStatus.BAD_REQUEST, API_ERRORS.queryInvalid);
+      return httpError(error);
+    }
+  }
+
+  @Post(":datasetId/draft/preview")
+  @HttpCode(HttpStatus.OK)
+  async previewDraft(@Param("datasetId") datasetId: string, @Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    try {
+      return await this.datasets.previewDraft(datasetId, user.id, DatasetDraftPreviewRequest.parse(body));
+    } catch (error: unknown) {
+      if (error instanceof ZodError) throw apiException(HttpStatus.BAD_REQUEST, API_ERRORS.queryInvalid);
+      return httpError(error);
+    }
+  }
+
+  @Post(":datasetId/publish")
+  @HttpCode(HttpStatus.OK)
+  async publish(@Param("datasetId") datasetId: string, @Body() body: unknown, @CurrentUser() user: AuthenticatedUser) {
+    try {
+      return await this.datasets.publishDraft(datasetId, user.id, DatasetProcessingPublishRequest.parse(body));
+    } catch (error: unknown) {
+      if (error instanceof ZodError) throw apiException(HttpStatus.BAD_REQUEST, API_ERRORS.queryInvalid);
       return httpError(error);
     }
   }

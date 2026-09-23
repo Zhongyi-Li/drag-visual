@@ -25,19 +25,22 @@ const fieldKeys = (component: ComponentInstance, slot: string): string[] => {
   return (Array.isArray(value) ? value : [value]).map((binding) => binding.fieldKey);
 };
 
-// Dataset schemas do not currently carry a dedicated currency semantic type.
-// Until they do, use the field key and author-facing label to consistently
-// identify common monetary metrics across every chart renderer.
-export const isCurrencyMetric = (fieldKey: string, fields: readonly DatasetField[] = []): boolean => {
-  const field = fields.find((candidate) => candidate.key === fieldKey);
-  return /(金额|价格|价|费用|成本|收入|营收|销售额|成交额|毛利|利润|gmv|amount|price|cost|fee|revenue|income|sales|profit|currency|money)/i
-    .test(`${fieldKey} ${field?.label ?? ""}`);
-};
-
 /** Quantity fields retain their business unit across chart axes, tooltips, and cards. */
 export const isQuantityMetric = (fieldKey: string, fields: readonly DatasetField[] = []): boolean => {
   const field = fields.find((candidate) => candidate.key === fieldKey);
-  return /(qty|quantity)/i.test(`${fieldKey} ${field?.label ?? ""}`);
+  return /(数量|销量|销售量|件数|个数|qty|quantity|units?|count)/i.test(`${fieldKey} ${field?.label ?? ""}`);
+};
+
+// Dataset schemas do not currently carry a dedicated currency semantic type.
+// Until they do, use the field key and author-facing label to consistently
+// identify common monetary metrics across every chart renderer. Quantity
+// semantics take precedence because keys such as `salesQuantity` also contain
+// the generic `sales` token used by older amount fields.
+export const isCurrencyMetric = (fieldKey: string, fields: readonly DatasetField[] = []): boolean => {
+  if (isQuantityMetric(fieldKey, fields)) return false;
+  const field = fields.find((candidate) => candidate.key === fieldKey);
+  return /(金额|价格|价|费用|成本|收入|营收|销售额|成交额|毛利|利润|gmv|amount|price|cost|fee|revenue|income|sales|profit|currency|money)/i
+    .test(`${fieldKey} ${field?.label ?? ""}`);
 };
 
 const withMetricUnit = (value: string, isCurrency: boolean, isQuantity = false): string => isCurrency

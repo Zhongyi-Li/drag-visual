@@ -6,6 +6,9 @@ import { useEffect, useSyncExternalStore } from "react";
 import { AuthRoute } from "../features/auth/AuthRoute.js";
 import { readAuthSession, readAuthStatus, restoreAuthSession, subscribeAuthSession } from "../features/auth/authSession.js";
 import { DashboardHome } from "../features/dashboards/DashboardHome.js";
+import { DataCenter } from "../features/data-center/DataCenter.js";
+import { DatasetDetail } from "../features/data-center/DatasetDetail.js";
+import { DataProcessingHub } from "../features/data-center/DataProcessingHub.js";
 import { appPath } from "./appPath.js";
 
 const NotFound = () => (
@@ -47,6 +50,9 @@ export const appRoutes: RouteObject[] = [
     HydrateFallback: RouteHydrationFallback,
     children: [
       { path: "/", Component: DashboardHome },
+      { path: "/data", Component: DataCenter },
+      { path: "/data/processing", Component: DataProcessingHub },
+      { path: "/data/datasets/:datasetId", Component: DatasetDetail },
       { path: "/editor/:id", lazy: () => import("../features/editor/EditorRoute.js") },
     ],
   },

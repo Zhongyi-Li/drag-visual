@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   Dataset,
+  DatasetCombineConfig,
   DatasetQueryRequest,
   DatasetQueryResult,
   DatasetSummary,
@@ -60,6 +61,45 @@ describe("Dataset contracts", () => {
   it("parses a dataset schema and query rows", () => {
     expect(Dataset.parse(validDataset())).toEqual(validDataset());
     expect(DatasetQueryResult.parse(validResult())).toEqual(validResult());
+  });
+
+  it("supports Full Join processing configs and preview warnings", () => {
+    const combine = {
+      kind: "join",
+      sourceDatasetId: "customers",
+      joinType: "full",
+      leftField: "customerId",
+      rightField: "id",
+      selectedFields: ["name"],
+    };
+    const result = { ...validResult(), warnings: ["关联键存在重复值，结果行数可能增加。"] };
+
+    expect(DatasetCombineConfig.parse(combine)).toEqual(combine);
+    expect(DatasetQueryResult.parse(result)).toEqual(result);
+  });
+
+  it("supports multi-condition joins, field-mapped unions, and pipelines", () => {
+    const pipeline = {
+      kind: "pipeline",
+      steps: [
+        {
+          kind: "join",
+          sourceDatasetId: "stores",
+          joinType: "inner",
+          leftField: "storeId",
+          rightField: "id",
+          additionalConditions: [{ leftField: "region", rightField: "regionCode" }],
+          selectedFields: ["storeName"],
+        },
+        {
+          kind: "union",
+          sourceDatasetId: "archive",
+          fieldMappings: [{ targetField: "storeId", sourceField: "legacyStoreId" }],
+        },
+      ],
+    };
+
+    expect(DatasetCombineConfig.parse(pipeline)).toEqual(pipeline);
   });
 
   it("parses a source-neutral grouped aggregation request", () => {

@@ -38,6 +38,7 @@ model UserRecord {
   preference   UserPreference?
   dashboards   DashboardRecord[] @relation("DashboardOwner")
   uploadedDatasets UploadedDatasetRecord[]
+  datasetProcessingRecords DatasetProcessingRecord[]
 }
 
 model UploadedDatasetRecord {
@@ -50,12 +51,43 @@ model UploadedDatasetRecord {
   fileContent   Bytes
   schema        Json
   queryResult   Json
+  draftCalculatedFields    Json?
+  draftCombine             Json?
+  draftFilters             Json?
+  draftSelectedFields      Json?
+  draftVersion    Int      @default(0)
+  publishedCalculatedFields Json?
+  publishedCombine         Json?
+  publishedVersion Int      @default(0)
+  publishedAt     DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   owner         UserRecord @relation(fields: [ownerId], references: [id], onDelete: Cascade)
 
   @@index([ownerId, updatedAt])
+}
+
+model DatasetProcessingRecord {
+  id                   String   @id @default(cuid())
+  ownerId              String
+  sourceDatasetId      String
+  sourceDatasetName    String
+  resultDatasetId      String?
+  resultDatasetName    String?
+  status               String
+  version              Int
+  configuration        Json
+  calculatedFieldCount Int      @default(0)
+  combineKind          String?
+  rowCount             Int?
+  errorMessage         String?
+  createdAt            DateTime @default(now())
+
+  owner                UserRecord @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt])
+  @@index([sourceDatasetId, version])
 }
 
 model SessionRecord {

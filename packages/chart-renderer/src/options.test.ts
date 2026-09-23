@@ -34,6 +34,8 @@ import {
   buildTableModel,
   buildTrendModel,
   buildTrendOption,
+  isCurrencyMetric,
+  isQuantityMetric,
 } from "./options.js";
 
 const component = (overrides: Partial<ComponentInstance>): ComponentInstance => ({
@@ -49,6 +51,15 @@ const component = (overrides: Partial<ComponentInstance>): ComponentInstance => 
     },
   },
   ...overrides,
+});
+
+describe("metric unit inference", () => {
+  it("treats sales quantity metrics as item counts instead of currency", () => {
+    const fields: readonly DatasetField[] = [{ key: "sales", label: "销售数量", type: "number", nullable: false }];
+
+    expect(isQuantityMetric("sales", fields)).toBe(true);
+    expect(isCurrencyMetric("sales", fields)).toBe(false);
+  });
 });
 
 const rows = [{ month: "1月", revenue: 10, profit: 4 }];

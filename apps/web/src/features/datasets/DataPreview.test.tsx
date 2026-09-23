@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import type { DatasetQueryResult } from "@drag-visual/contracts";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { DataPreview, validatePreviewRows } from "./DataPreview.js";
@@ -17,11 +17,13 @@ const result: DatasetQueryResult = {
 };
 
 describe("DataPreview", () => {
-  it("renders only the first 100 rows and labels truncation", () => {
+  it("renders a paginated preview instead of the full result", () => {
     render(<DataPreview result={result} />);
-    expect(screen.getByText("仅显示前 100 行，共 101 行")).toBeInTheDocument();
-    expect(screen.getByText("row-99")).toBeInTheDocument();
-    expect(screen.queryByText("row-100")).not.toBeInTheDocument();
+    expect(screen.getByText("共 101 行，当前显示第 1-20 行")).toBeInTheDocument();
+    expect(screen.getByText("row-19")).toBeInTheDocument();
+    expect(screen.queryByText("row-20")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Next Page"));
+    expect(screen.getByText("row-20")).toBeInTheDocument();
   });
 
   it("accepts null only for nullable columns", () => {
@@ -41,5 +43,12 @@ describe("DataPreview", () => {
 
     expect(screen.getByRole("columnheader", { name: "销售关联的成本价格" })).toHaveStyle({ whiteSpace: "nowrap" });
     expect(screen.getByTestId("data-preview-table").querySelector(".ant-table-content")).toHaveStyle({ overflowX: "auto" });
+  });
+
+  it("shows non-blocking data integration warnings above the result", () => {
+    render(<DataPreview result={{ ...result, warnings: ["关联键存在重复值，结果行数可能增加。"] }} />);
+
+    expect(screen.getByText("数据整合提示")).toBeInTheDocument();
+    expect(screen.getByText("关联键存在重复值，结果行数可能增加。")).toBeInTheDocument();
   });
 });

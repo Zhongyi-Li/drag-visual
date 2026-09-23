@@ -4,6 +4,8 @@
 .chart-query-filter-bar__label { color: #475569; font-size: 12px; white-space: nowrap; }
 .chart-query-filter-bar__operator { color: #64748b; font-size: 12px; white-space: nowrap; }
 .chart-query-filter-bar__condition .ant-input, .chart-query-filter-bar__condition .ant-input-number, .chart-query-filter-bar__condition .ant-select { width: 132px; }
+.chart-query-filter-bar__options { min-width: 280px; max-width: min(420px, calc(100vw - 32px)); }
+.chart-query-filter-bar__options .ant-select-item-option-content { overflow-wrap: anywhere; white-space: normal; line-height: 20px; }
 .chart-query-filter-bar__actions { margin-left: auto; }
 .chart-control-bar { display: flex; flex: 0 0 auto; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px 12px; min-width: 0; padding: 2px 12px 10px; }
 .chart-control-bar:empty { display: none; }

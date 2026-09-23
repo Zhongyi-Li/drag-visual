@@ -1,5 +1,13 @@
 import {
   Dataset,
+  DatasetCalculatedField,
+  DatasetDraft,
+  DatasetDraftPreviewRequest,
+  DatasetDraftUpdateRequest,
+  DatasetProcessingPublishRequest,
+  DatasetProcessingPublishResult,
+  DatasetProcessingRecord,
+  DatasetProcessingTask,
   DatasetFieldOptions,
   DatasetQueryResult,
   DatasetSummary,
@@ -16,6 +24,7 @@ import {
 } from "./dataset.repository.js";
 import {
   DatasetInvalidResponseError,
+  DatasetNameConflictError,
   DatasetNotFoundError,
   DatasetQueryInvalidError,
 } from "./dataset.errors.js";
@@ -30,6 +39,7 @@ import {
 
 export {
   DatasetInvalidResponseError,
+  DatasetNameConflictError,
   DatasetNotFoundError,
   DatasetQueryInvalidError,
 } from "./dataset.errors.js";
@@ -107,6 +117,40 @@ export class DatasetService {
     const result = await this.repository.getFieldOptions?.(id, fieldKey, search, limit, ownerId);
     if (!result) throw new DatasetNotFoundError(id);
     return DatasetFieldOptions.parse(result);
+  }
+
+  async getDraft(id: string, ownerId?: string): Promise<DatasetDraft> {
+    const draft = await this.repository.getDraft?.(id, ownerId);
+    if (!draft) throw new DatasetNotFoundError(id);
+    return DatasetDraft.parse(draft);
+  }
+
+  async updateDraft(id: string, ownerId: string, request: DatasetDraftUpdateRequest): Promise<DatasetDraft> {
+    const parsed = DatasetDraftUpdateRequest.parse(request);
+    const draft = await this.repository.updateDraft?.(id, ownerId, parsed);
+    if (!draft) throw new DatasetNotFoundError(id);
+    return DatasetDraft.parse(draft);
+  }
+
+  async publishDraft(id: string, ownerId: string, request: DatasetProcessingPublishRequest): Promise<DatasetProcessingPublishResult> {
+    const result = await this.repository.publishDraft?.(id, ownerId, DatasetProcessingPublishRequest.parse(request));
+    if (!result) throw new DatasetNotFoundError(id);
+    return DatasetProcessingPublishResult.parse(result);
+  }
+
+  async listProcessingTasks(ownerId: string): Promise<readonly DatasetProcessingTask[]> {
+    return DatasetProcessingTask.array().parse(await this.repository.listProcessingTasks?.(ownerId) ?? []);
+  }
+
+  async listProcessingRecords(ownerId: string): Promise<readonly DatasetProcessingRecord[]> {
+    return DatasetProcessingRecord.array().parse(await this.repository.listProcessingRecords?.(ownerId) ?? []);
+  }
+
+  async previewDraft(id: string, ownerId: string, request: DatasetDraftPreviewRequest): Promise<DatasetQueryResult> {
+    const parsed = DatasetDraftPreviewRequest.parse(request);
+    const result = await this.repository.previewDraft?.(id, ownerId, parsed);
+    if (!result) throw new DatasetNotFoundError(id);
+    return DatasetQueryResult.parse(result);
   }
 
   private validateParameters(

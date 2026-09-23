@@ -105,7 +105,9 @@ export class DatasetUploadService {
   }
 
   async delete(ownerId: string, datasetId: string): Promise<boolean> {
-    if (!datasetId.startsWith("uploaded-")) return false;
+    // Published processing results are stored in the same dataset table and
+    // are also removable from the data-center list.
+    if (!datasetId.startsWith("uploaded-") && !datasetId.startsWith("processed-")) return false;
     return this.repository.delete(datasetId, ownerId);
   }
 }

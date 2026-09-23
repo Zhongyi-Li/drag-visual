@@ -20,7 +20,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Avatar, Button, Dropdown, Input, Modal, Space, Spin, Tag, Typography } from "antd";
 import type { Dashboard } from "@drag-visual/contracts";
 import { useMemo, useState, useSyncExternalStore } from "react";
-import { useNavigate } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 
 import { createDashboard, deleteDashboard, listDashboards, publishDashboard, unpublishDashboard } from "./dashboardApi.js";
 import { clearAuthSession, readAuthSession, subscribeAuthSession } from "../auth/authSession.js";
@@ -115,9 +115,15 @@ export const DashboardHome = () => {
   return (
     <div className="dashboard-home">
       <header className="dashboard-home__header">
-        <div className="dashboard-home__brand" aria-label="极眸">
-          <img className="dashboard-home__brand-mark" src={appPath("images/jimou-orbit-lens-mark.png")} alt="" />
-          <span>极眸</span>
+        <div className="dashboard-home__brand-cluster">
+          <div className="dashboard-home__brand" aria-label="极眸">
+            <img className="dashboard-home__brand-mark" src={appPath("images/jimou-orbit-lens-mark.png")} alt="" />
+            <span>极眸</span>
+          </div>
+          <nav className="dashboard-home__primary-nav" aria-label="主导航">
+            <NavLink to="/" end className={({ isActive }) => isActive ? "is-active" : undefined}>看板中心</NavLink>
+            <NavLink to="/data" className={({ isActive }) => isActive ? "is-active" : undefined}>数据中心</NavLink>
+          </nav>
         </div>
         <Input
           className="dashboard-home__header-search"

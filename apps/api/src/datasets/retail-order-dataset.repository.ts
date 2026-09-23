@@ -255,7 +255,7 @@ export class RetailOrderDatasetRepository implements DatasetRepository {
 
   async list(): Promise<readonly DatasetSummary[]> {
     const { id, name, schemaVersion } = mysqlTableDataset(this.config, await this.datasetName());
-    return [{ id, name, schemaVersion }];
+    return [{ id, name, sourceName: this.config.table, schemaVersion }];
   }
 
   async getSchema(id: string): Promise<Dataset | null> {

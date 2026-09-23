@@ -405,6 +405,10 @@ export const handlers: RequestHandler[] = [
 
   http.get("*/datasets", () => HttpResponse.json(clone(datasetSummaryFixtures))),
 
+  http.get("*/datasets/processing/tasks", () => HttpResponse.json([])),
+
+  http.get("*/datasets/processing/records", () => HttpResponse.json([])),
+
   http.get("*/datasets/:datasetId/schema", ({ params, request }) => {
     const dataset = findDataset(String(params.datasetId ?? ""));
     if (dataset === undefined) return apiError(404, "DATASET_NOT_FOUND");

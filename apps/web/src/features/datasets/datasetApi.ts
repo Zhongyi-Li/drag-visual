@@ -1,5 +1,12 @@
 import {
   Dataset,
+  DatasetCalculatedField,
+  DatasetDraft,
+  DatasetDraftUpdateRequest,
+  DatasetDraftPreviewRequest,
+  DatasetProcessingPublishResult,
+  DatasetProcessingRecord,
+  DatasetProcessingTask,
   DatasetFieldOptions,
   DatasetQueryResult,
   DatasetSummary,
@@ -27,6 +34,50 @@ export const getDataset = async (
   client: ApiClient = apiClient,
 ): Promise<DatasetValue> => Dataset.parse(
   await client.request(`datasets/${encodeURIComponent(id)}/schema`),
+);
+
+export const getDatasetDraft = async (
+  id: string,
+  client: ApiClient = apiClient,
+): Promise<DatasetDraft> => DatasetDraft.parse(await client.request(`datasets/${encodeURIComponent(id)}/draft`));
+
+export const updateDatasetDraft = async (
+  id: string,
+  request: DatasetDraftUpdateRequest | readonly DatasetCalculatedField[],
+  client: ApiClient = apiClient,
+): Promise<DatasetDraft> => DatasetDraft.parse(await client.request(`datasets/${encodeURIComponent(id)}/draft`, {
+  method: "PUT",
+  body: JSON.stringify(Array.isArray(request) ? { calculatedFields: request, combine: null } : request),
+}));
+
+export const previewDatasetDraft = async (
+  id: string,
+  request: Omit<DatasetDraftPreviewRequest, "combine" | "filters" | "selectedFields"> & Partial<Pick<DatasetDraftPreviewRequest, "combine" | "filters" | "selectedFields">>,
+  client: ApiClient = apiClient,
+): Promise<DatasetQueryResultValue> => DatasetQueryResult.parse(await client.request(`datasets/${encodeURIComponent(id)}/draft/preview`, {
+  method: "POST",
+  body: JSON.stringify({ ...request, combine: request.combine ?? null }),
+}));
+
+export const publishDatasetDraft = async (
+  id: string,
+  name: string,
+  client: ApiClient = apiClient,
+): Promise<import("@drag-visual/contracts").DatasetProcessingPublishResult> => DatasetProcessingPublishResult.parse(await client.request(`datasets/${encodeURIComponent(id)}/publish`, {
+  method: "POST",
+  body: JSON.stringify({ name }),
+}));
+
+export const listDatasetProcessingTasks = async (
+  client: ApiClient = apiClient,
+): Promise<import("@drag-visual/contracts").DatasetProcessingTask[]> => DatasetProcessingTask.array().parse(
+  await client.request("datasets/processing/tasks"),
+);
+
+export const listDatasetProcessingRecords = async (
+  client: ApiClient = apiClient,
+): Promise<import("@drag-visual/contracts").DatasetProcessingRecord[]> => DatasetProcessingRecord.array().parse(
+  await client.request("datasets/processing/records"),
 );
 
 export const queryDataset = async (

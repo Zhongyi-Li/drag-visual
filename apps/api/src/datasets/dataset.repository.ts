@@ -1,5 +1,13 @@
 import type {
   Dataset,
+  DatasetCalculatedField,
+  DatasetDraftUpdateRequest,
+  DatasetDraft,
+  DatasetDraftPreviewRequest,
+  DatasetProcessingPublishRequest,
+  DatasetProcessingPublishResult,
+  DatasetProcessingRecord,
+  DatasetProcessingTask,
   DatasetFieldOptions,
   DatasetQueryRequest,
   DatasetQueryResult,
@@ -28,4 +36,10 @@ export interface DatasetRepository {
     limit: number,
     ownerId?: string,
   ): Promise<DatasetFieldOptions | null>;
+  getDraft?(id: string, ownerId?: string): Promise<DatasetDraft | null>;
+  updateDraft?(id: string, ownerId: string, request: DatasetDraftUpdateRequest): Promise<DatasetDraft | null>;
+  publishDraft?(id: string, ownerId: string, request: DatasetProcessingPublishRequest): Promise<DatasetProcessingPublishResult | null>;
+  previewDraft?(id: string, ownerId: string, request: DatasetDraftPreviewRequest): Promise<DatasetQueryResult | null>;
+  listProcessingTasks?(ownerId: string): Promise<readonly DatasetProcessingTask[]>;
+  listProcessingRecords?(ownerId: string): Promise<readonly DatasetProcessingRecord[]>;
 }

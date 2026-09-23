@@ -5,6 +5,13 @@ export class DatasetNotFoundError extends Error {
   }
 }
 
+export class DatasetNameConflictError extends Error {
+  constructor(name: string) {
+    super(`Dataset name already exists: ${name}`);
+    this.name = "DatasetNameConflictError";
+  }
+}
+
 export class DatasetQueryInvalidError extends Error {
   constructor() {
     super("Dataset query is invalid");

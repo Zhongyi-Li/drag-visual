@@ -47,6 +47,8 @@ export const DatasetSummary = z
   .object({
     id: nonEmptyString,
     name: nonEmptyString,
+    /** Human-facing source table or original uploaded file name. */
+    sourceName: nonEmptyString.optional(),
     schemaVersion: nonEmptyString,
   })
   .strict();
@@ -207,6 +209,8 @@ export const DatasetQueryResult = z
     // Keep it with the snapshot so UI consumers can label the dataset without
     // deriving a name from a technical endpoint or identifier.
     datasetName: nonEmptyString.optional(),
+    /** Non-blocking quality or cardinality notices produced while processing data. */
+    warnings: z.array(nonEmptyString).max(10).optional(),
     sampledAt: z.iso.datetime(),
   })
   .strict()
@@ -215,6 +219,142 @@ export const DatasetQueryResult = z
   });
 
 export type DatasetQueryResult = z.infer<typeof DatasetQueryResult>;
+
+/** A reusable, row-level numeric calculation owned by a dataset draft. */
+export const DatasetCalculatedField = z.object({
+  id: nonEmptyString,
+  label: nonEmptyString.max(100),
+  leftField: nonEmptyString,
+  operator: z.enum(["+", "-", "*", "/", "percent"]),
+  rightField: nonEmptyString,
+}).strict();
+
+export type DatasetCalculatedField = z.infer<typeof DatasetCalculatedField>;
+
+export const DatasetJoinCondition = z.object({
+  leftField: nonEmptyString,
+  rightField: nonEmptyString,
+}).strict();
+export type DatasetJoinCondition = z.infer<typeof DatasetJoinCondition>;
+
+export const DatasetUnionFieldMapping = z.object({
+  targetField: nonEmptyString,
+  sourceField: nonEmptyString,
+}).strict();
+export type DatasetUnionFieldMapping = z.infer<typeof DatasetUnionFieldMapping>;
+
+export const DatasetCombineStep = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("join"),
+    sourceDatasetId: nonEmptyString,
+    joinType: z.enum(["left", "right", "inner", "full"]),
+    leftField: nonEmptyString,
+    rightField: nonEmptyString,
+    additionalConditions: z.array(DatasetJoinCondition).max(4).optional(),
+    selectedFields: z.array(nonEmptyString).max(100).default([]),
+  }).strict(),
+  z.object({
+    kind: z.literal("union"),
+    sourceDatasetId: nonEmptyString,
+    fieldMappings: z.array(DatasetUnionFieldMapping).max(100).optional(),
+  }).strict(),
+]);
+export type DatasetCombineStep = z.infer<typeof DatasetCombineStep>;
+
+export const DatasetCombineConfig = z.union([
+  DatasetCombineStep,
+  z.object({ kind: z.literal("pipeline"), steps: z.array(DatasetCombineStep).min(1).max(5) }).strict(),
+]);
+export type DatasetCombineConfig = z.infer<typeof DatasetCombineConfig>;
+
+/** A row filter that can be composed with joins and calculated fields. */
+export const DatasetProcessingFilter = z.object({
+  id: nonEmptyString,
+  fieldKey: nonEmptyString,
+  operator: z.enum(["eq", "neq", "contains", "gt", "gte", "lt", "lte", "isEmpty", "isNotEmpty"]),
+  value: z.union([z.string(), z.number(), z.boolean()]).optional(),
+}).strict().superRefine((filter, context) => {
+  if (!filter.operator.startsWith("is") && filter.value === undefined) context.addIssue({ code: "custom", message: "Filter value is required", path: ["value"] });
+});
+export type DatasetProcessingFilter = z.infer<typeof DatasetProcessingFilter>;
+
+export const DatasetDraftUpdateRequest = z.object({
+  calculatedFields: z.array(DatasetCalculatedField).max(20),
+  combine: DatasetCombineConfig.nullable().default(null),
+  filters: z.array(DatasetProcessingFilter).max(20).default([]),
+  selectedFields: z.array(nonEmptyString).max(100).nullable().default(null),
+}).strict();
+export type DatasetDraftUpdateRequest = z.infer<typeof DatasetDraftUpdateRequest>;
+
+export const DatasetDraft = z.object({
+  dataset: Dataset,
+  calculatedFields: z.array(DatasetCalculatedField).max(20),
+  combine: DatasetCombineConfig.nullable().default(null),
+  filters: z.array(DatasetProcessingFilter).max(20).default([]),
+  selectedFields: z.array(nonEmptyString).max(100).nullable().default(null),
+  version: z.number().int().nonnegative(),
+  publishedVersion: z.number().int().nonnegative(),
+  publishedAt: z.iso.datetime().nullable(),
+}).strict();
+
+export type DatasetDraft = z.infer<typeof DatasetDraft>;
+
+export const DatasetDraftPreviewRequest = z.object({
+  parameters: safeJsonRecord,
+  calculatedFields: z.array(DatasetCalculatedField).max(20),
+  combine: DatasetCombineConfig.nullable(),
+  filters: z.array(DatasetProcessingFilter).max(20).default([]),
+  selectedFields: z.array(nonEmptyString).max(100).nullable().default(null),
+}).strict();
+
+export type DatasetDraftPreviewRequest = z.infer<typeof DatasetDraftPreviewRequest>;
+
+export const DatasetProcessingStatus = z.enum(["draft", "published", "failed"]);
+export type DatasetProcessingStatus = z.infer<typeof DatasetProcessingStatus>;
+
+/** A source dataset with a saved processing draft or a published result. */
+export const DatasetProcessingTask = z.object({
+  id: nonEmptyString,
+  sourceDatasetId: nonEmptyString,
+  sourceDatasetName: nonEmptyString,
+  status: DatasetProcessingStatus,
+  draftVersion: z.number().int().nonnegative(),
+  publishedVersion: z.number().int().nonnegative(),
+  calculatedFieldCount: z.number().int().nonnegative(),
+  combineKind: z.enum(["join", "union", "pipeline"]).nullable(),
+  updatedAt: z.iso.datetime(),
+  publishedAt: z.iso.datetime().nullable(),
+}).strict();
+export type DatasetProcessingTask = z.infer<typeof DatasetProcessingTask>;
+
+/** Immutable audit entry created whenever a processing draft is published. */
+export const DatasetProcessingRecord = z.object({
+  id: nonEmptyString,
+  sourceDatasetId: nonEmptyString,
+  sourceDatasetName: nonEmptyString,
+  resultDatasetId: nonEmptyString.nullable(),
+  resultDatasetName: nonEmptyString.nullable(),
+  status: DatasetProcessingStatus,
+  version: z.number().int().positive(),
+  calculatedFieldCount: z.number().int().nonnegative(),
+  combineKind: z.enum(["join", "union", "pipeline"]).nullable(),
+  rowCount: z.number().int().nonnegative().nullable(),
+  errorMessage: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+}).strict();
+export type DatasetProcessingRecord = z.infer<typeof DatasetProcessingRecord>;
+
+export const DatasetProcessingPublishRequest = z.object({
+  name: nonEmptyString.max(100),
+}).strict();
+export type DatasetProcessingPublishRequest = z.infer<typeof DatasetProcessingPublishRequest>;
+
+export const DatasetProcessingPublishResult = z.object({
+  draft: DatasetDraft,
+  resultDataset: DatasetSummary,
+  record: DatasetProcessingRecord,
+}).strict();
+export type DatasetProcessingPublishResult = z.infer<typeof DatasetProcessingPublishResult>;
 
 export const ErrorCode = z.enum([
   "DASHBOARD_SCHEMA_INVALID",
