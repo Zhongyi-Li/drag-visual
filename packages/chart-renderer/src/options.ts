@@ -819,6 +819,130 @@ export const buildBarLineOption = (
   };
 };
 
+/** A monetary trend and a percentage trend need independent axes and units. */
+export const buildDualAxisLineOption = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  fields: readonly DatasetField[] = [],
+  rowsAreAggregated = false,
+) => {
+  const dimension = fieldKeys(component, "dimension")[0] ?? "";
+  const amountKey = fieldKeys(component, "amountMeasure")[0] ?? "";
+  const rateKey = fieldKeys(component, "rateMeasure")[0] ?? "";
+  const dimensionField = fields.find((field) => field.key === dimension);
+  const amountLabel = fields.find((field) => field.key === amountKey)?.label ?? amountKey;
+  const rateLabel = fields.find((field) => field.key === rateKey)?.label ?? rateKey;
+  const amountColor = propString(component, "amountColor", "#22964b");
+  const rateColor = propString(component, "rateColor", "#eb6b16");
+  const rateMultiplier = component.props.rateUnit === "fraction" ? 100 : 1;
+  const displayRate = (value: number) => Math.round(value * rateMultiplier * 1e10) / 1e10;
+  const validNumber = (row: Row, key: string): number | null => {
+    const value = row[key];
+    return typeof value === "number" && Number.isFinite(value) ? value : null;
+  };
+  const grouped = new Map<string, Row[]>();
+  for (const row of rows) {
+    const label = lineDimensionLabel(row[dimension], dimensionField);
+    const group = grouped.get(label);
+    if (group === undefined) grouped.set(label, [row]);
+    else group.push(row);
+  }
+  const aggregate = (group: readonly Row[], key: string, mode: TrendAggregation): number | null => {
+    const values = group.map((row) => validNumber(row, key)).filter((value): value is number => value !== null);
+    if (values.length === 0) return null;
+    return aggregateNumbers(values, mode);
+  };
+  const amountAggregation = metricAggregationFor(component, "amountMeasure", amountKey, "sum");
+  const rateAggregation = metricAggregationFor(component, "rateMeasure", rateKey, "avg");
+  const points = Array.from(grouped, ([label, group]) => ({
+    label,
+    amount: rowsAreAggregated ? validNumber(group[0]!, amountKey) : aggregate(group, amountKey, amountAggregation),
+    rate: (rowsAreAggregated ? validNumber(group[0]!, rateKey) : aggregate(group, rateKey, rateAggregation)) ?? null,
+  })).sort((left, right) => compareLabels(left.label, right.label));
+  const displayPoints = component.binding?.limit === undefined ? points : points.slice(0, component.binding.limit);
+  const rates = displayPoints.flatMap((point) => point.rate === null ? [] : [displayRate(point.rate)]);
+  const averageRate = rates.length === 0 ? null : rates.reduce((sum, value) => sum + value, 0) / rates.length;
+  const formatAmount = (value: number) => new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(value);
+  const formatRate = (value: number) => `${value.toFixed(1)}%`;
+  const showValues = propBoolean(component, "showValues", true) && displayPoints.length <= 40;
+  const negativeColor = "#d9363e";
+  const pointStyle = (value: number | null, color: string) => value !== null && value < 0
+    ? { color: "#fff", borderColor: negativeColor, borderWidth: 2.5 }
+    : { color: "#fff", borderColor: color, borderWidth: 2.5 };
+  return {
+    animationDuration: 450,
+    title: [
+      {
+        text: `{heading|${component.title ?? amountLabel}}  {separator||}  {amount|${amountLabel}} {separator|·} {rate|${rateLabel}}`,
+        left: 18,
+        top: 8,
+        textStyle: {
+          fontSize: 17,
+          fontWeight: 500,
+          rich: {
+            heading: { color: "#344054", fontSize: 17, fontWeight: 500 },
+            separator: { color: "#667085", fontSize: 16 },
+            amount: { color: amountColor, fontSize: 17, fontWeight: 600 },
+            rate: { color: rateColor, fontSize: 17, fontWeight: 600 },
+          },
+        },
+      },
+      ...(propBoolean(component, "showAverage", true) && averageRate !== null ? [{
+        text: `平均${rateLabel}  ${formatRate(averageRate)}`,
+        right: 22,
+        top: 8,
+        textStyle: { color: "#344054", fontSize: 16, fontWeight: 600 },
+      }] : []),
+    ],
+    grid: { top: 68, right: 86, bottom: displayPoints.length > 8 ? 94 : 62, left: 80, containLabel: false },
+    tooltip: { trigger: "axis", axisPointer: { type: "line", lineStyle: { color: "#98a2b3", type: "dashed" } } },
+    xAxis: {
+      type: "category", boundaryGap: false, data: displayPoints.map((point) => point.label),
+      axisLine: { lineStyle: { color: "#d0d5dd" } }, axisTick: { show: false },
+      axisLabel: { interval: 0, rotate: displayPoints.length > 8 ? 42 : 0, color: "#667085", fontSize: 11, margin: 12, hideOverlap: true },
+    },
+    yAxis: [
+      {
+        type: "value", scale: true, splitNumber: 4,
+        min: ({ min, max }: { min: number; max: number }) => min - Math.max(1, (max - min) * 0.08),
+        max: ({ min, max }: { min: number; max: number }) => max + Math.max(1, (max - min) * 0.08),
+        axisLine: { show: false }, axisTick: { show: false },
+        axisLabel: { color: "#8491a6", formatter: (value: number) => formatAmount(value) },
+        splitLine: { lineStyle: { color: "#e8edf3" } },
+      },
+      {
+        type: "value", scale: true, splitNumber: 4,
+        min: ({ min }: { min: number }) => min,
+        max: ({ max }: { max: number }) => max,
+        axisLine: { show: false }, axisTick: { show: false },
+        axisLabel: { color: "#8491a6", formatter: (value: number) => formatRate(value) },
+        splitLine: { show: false },
+      },
+    ],
+    series: [
+      {
+        type: "line", name: amountLabel, yAxisIndex: 0, smooth: false, connectNulls: false,
+        data: displayPoints.map((point) => ({ value: point.amount, itemStyle: pointStyle(point.amount, amountColor), ...(point.amount !== null && point.amount < 0 ? { label: { color: negativeColor } } : {}) })),
+        symbol: "circle", symbolSize: 9, showSymbol: true,
+        lineStyle: { color: amountColor, width: 3 },
+        label: { show: showValues, position: "top", distance: 7, color: amountColor, fontSize: 11, fontWeight: 600, formatter: ({ value }: { readonly value: unknown }) => typeof value === "number" ? formatAmount(value) : "" },
+        labelLayout: { hideOverlap: true },
+        tooltip: { valueFormatter: (value: unknown) => typeof value === "number" ? formatAmount(value) : "—" },
+        markLine: { silent: true, symbol: "none", label: { show: false }, lineStyle: { color: "#98a2b3", type: "dashed", width: 1 }, data: [{ yAxis: 0 }] },
+      },
+      {
+        type: "line", name: rateLabel, yAxisIndex: 1, smooth: false, connectNulls: false,
+        data: displayPoints.map((point) => ({ value: point.rate === null ? null : displayRate(point.rate), itemStyle: pointStyle(point.rate, rateColor), ...(point.rate !== null && point.rate < 0 ? { label: { color: negativeColor } } : {}) })),
+        symbol: "circle", symbolSize: 9, showSymbol: true,
+        lineStyle: { color: rateColor, width: 3, type: "dashed" },
+        label: { show: showValues, position: "bottom", distance: 7, color: rateColor, fontSize: 11, fontWeight: 600, formatter: ({ value }: { readonly value: unknown }) => typeof value === "number" ? formatRate(value) : "" },
+        labelLayout: { hideOverlap: true },
+        tooltip: { valueFormatter: (value: unknown) => typeof value === "number" ? formatRate(value) : "—" },
+      },
+    ],
+  };
+};
+
 export const buildLineOption = (
   component: ComponentInstance,
   rows: readonly Row[],
@@ -1180,6 +1304,34 @@ const pieItems = (
     ]));
     return { name, value: metricValues[primaryMeasure] ?? 0, metricValues };
   });
+};
+
+/** Shared source for the ring and its adjacent detail rows. Negative values stay visible
+ * in the list but cannot form a pie slice, so their share is reported as zero. */
+export const buildDonutBreakdownModel = (
+  component: ComponentInstance,
+  rows: readonly Row[],
+  fields: readonly DatasetField[] = [],
+  rowsAreAggregated = false,
+) => {
+  const dimension = fieldKeys(component, "dimension")[0] ?? "";
+  const measure = fieldKeys(component, "measure")[0] ?? "";
+  const labels = fieldLabelMap(fields);
+  const items = pieItems(component, rows, dimension, [measure], rowsAreAggregated)
+    .slice(0, pieCategoryLimit(component));
+  const total = items.reduce((sum, item) => sum + Math.max(0, item.value), 0);
+  return {
+    dimensionLabel: (labels.get(dimension) ?? dimension) || "分类",
+    measureLabel: (labels.get(measure) ?? measure) || "指标",
+    isCurrency: isCurrencyMetric(measure, fields),
+    total,
+    items: items.map((item) => ({
+      name: item.name,
+      value: item.value,
+      sliceValue: Math.max(0, item.value),
+      percent: total > 0 ? Math.max(0, item.value) / total * 100 : 0,
+    })),
+  };
 };
 
 const radarMaximum = (values: readonly number[]): number => {

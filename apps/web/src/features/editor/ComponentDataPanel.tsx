@@ -80,6 +80,13 @@ const slotPriority = (
     return 0;
   }
   if (field.type === "number") {
+    if (selected.type === "dualAxisLine") {
+      const name = `${field.key} ${field.label}`;
+      const looksLikeRate = /率|占比|百分|margin|rate|ratio|percent/i.test(name);
+      if (slot.key === "rateMeasure") return looksLikeRate ? 130 : selected.binding?.slots.rateMeasure === undefined ? 80 : 0;
+      if (slot.key === "amountMeasure") return !looksLikeRate ? 120 : selected.binding?.slots.amountMeasure === undefined ? 60 : 0;
+      return 0;
+    }
     if (selected.type === "barLine") {
       const barMeasureBound = selected.binding?.slots.barMeasure !== undefined;
       const lineMeasureBound = selected.binding?.slots.lineMeasure !== undefined;

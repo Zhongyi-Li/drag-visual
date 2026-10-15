@@ -68,7 +68,13 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
       // { id: "metric-breakdown", type: "metricBreakdown", title: "指标拆解", icon: "metric-breakdown" },
     ],
   },
-  // TODO(chart-palette): 整个线/面积图分类待后续开发完成后再恢复展示。
+  {
+    category: "趋势图",
+    items: [
+      { id: "dual-axis-line", type: "dualAxisLine", title: "双轴折线图", icon: <StockOutlined /> },
+    ],
+  },
+  // TODO(chart-palette): 其余线/面积图待后续开发完成后再恢复展示。
   // {
   //   category: "线/面积图",
   //   items: [
@@ -109,6 +115,7 @@ const officialPaletteGroups: ReadonlyArray<{ readonly category: string; readonly
     items: [
       { id: "pie", type: "pie", title: "饼图", icon: "pie" },
       { id: "donut", type: "donut", title: "环形图", icon: "donut" },
+      { id: "donut-breakdown", type: "donutBreakdown", title: "环形构成明细", icon: "donut" },
       { id: "rose", type: "rose", title: "玫瑰图", icon: "rose" },
       // TODO(chart-palette): 旭日图、雷达图、矩形树图待后续开发完成后再恢复展示。
       // { id: "sunburst", type: "sunburst", title: "旭日图", icon: "sunburst" },

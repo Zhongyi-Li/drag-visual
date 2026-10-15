@@ -61,7 +61,7 @@ export const AnalysisGroupCanvas = ({ component, store, registry, createComponen
     if (updates.length > 0) store.getState().dispatch({ type: "layout.change", updates: updates as [GridItem, ...GridItem[]] });
   };
   return <section className={`analysis-group-canvas${activePaletteDrop ? " analysis-group-canvas--drop-target" : ""}${outerIsInteracting ? " analysis-group-canvas--outer-interacting" : ""}`} data-analysis-group-drop-zone={analysisGroupDropId(component.id)} aria-label={`${component.title || "复合分析"}内部画布`} onClick={(event) => event.stopPropagation()}>
-    <AnalysisGroupDateFilterBar control={analysisGroupDateFilter} value={runtimeAnalysisGroupDateSelection} loading={isGroupFiltering} onChange={setRuntimeAnalysisGroupDateSelection} />
+    <AnalysisGroupDateFilterBar theme={dashboard.theme} control={analysisGroupDateFilter} value={runtimeAnalysisGroupDateSelection} loading={isGroupFiltering} onChange={setRuntimeAnalysisGroupDateSelection} />
     <div ref={containerRef} className="analysis-group-canvas__grid" data-drop-zone-id={analysisGroupDropId(component.id)} data-analysis-group-drop-zone={analysisGroupDropId(component.id)}>
       {isGroupFiltering && <div className="analysis-group-canvas__loading" role="status"><span>正在更新组合内图表</span></div>}
       {activePaletteDrop && <div className="analysis-group-canvas__drop-placeholder" role="status" aria-label="复合分析添加提示"><strong>松开添加图表</strong><span>将以默认卡片尺寸放入组内网格</span></div>}

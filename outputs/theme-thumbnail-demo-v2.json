@@ -1,0 +1,114 @@
+{
+  "schema": {
+    "id": "theme-thumbnail-demo-v2",
+    "name": "主题缩略图示例数据",
+    "fields": [
+      {
+        "key": "month",
+        "label": "月份",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "key": "revenue",
+        "label": "收入",
+        "type": "number",
+        "nullable": false
+      },
+      {
+        "key": "profit",
+        "label": "利润",
+        "type": "number",
+        "nullable": false
+      }
+    ],
+    "parameters": [],
+    "schemaVersion": "v1"
+  },
+  "result": {
+    "columns": [
+      {
+        "key": "month",
+        "label": "月份",
+        "type": "string",
+        "nullable": false
+      },
+      {
+        "key": "revenue",
+        "label": "收入",
+        "type": "number",
+        "nullable": false
+      },
+      {
+        "key": "profit",
+        "label": "利润",
+        "type": "number",
+        "nullable": false
+      }
+    ],
+    "rows": [
+      {
+        "month": "1月",
+        "revenue": 420000,
+        "profit": 90000
+      },
+      {
+        "month": "2月",
+        "revenue": 560000,
+        "profit": 130000
+      },
+      {
+        "month": "3月",
+        "revenue": 480000,
+        "profit": 130000
+      },
+      {
+        "month": "4月",
+        "revenue": 630000,
+        "profit": 130000
+      },
+      {
+        "month": "5月",
+        "revenue": 790000,
+        "profit": 190000
+      },
+      {
+        "month": "6月",
+        "revenue": 670000,
+        "profit": 180000
+      },
+      {
+        "month": "7月",
+        "revenue": 860000,
+        "profit": 180000
+      },
+      {
+        "month": "8月",
+        "revenue": 980000,
+        "profit": 240000
+      },
+      {
+        "month": "9月",
+        "revenue": 830000,
+        "profit": 220000
+      },
+      {
+        "month": "10月",
+        "revenue": 1060000,
+        "profit": 220000
+      },
+      {
+        "month": "11月",
+        "revenue": 1180000,
+        "profit": 280000
+      },
+      {
+        "month": "12月",
+        "revenue": 1320000,
+        "profit": 360000
+      }
+    ],
+    "total": 12,
+    "sampledAt": "2026-10-14T09:17:37.711Z"
+  }
+}

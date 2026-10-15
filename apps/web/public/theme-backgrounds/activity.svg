@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="1000" viewBox="0 0 1500 1000">
+  <defs>
+    <linearGradient id="base"><stop stop-color="#fa3c68"/><stop offset=".52" stop-color="#ff7946"/><stop offset="1" stop-color="#ffc637"/></linearGradient>
+    <linearGradient id="gold" x2=".7" y2="1"><stop stop-color="#ffdc42"/><stop offset="1" stop-color="#ff9b29" stop-opacity=".15"/></linearGradient>
+    <filter id="soft"><feGaussianBlur stdDeviation="28"/></filter>
+    <filter id="ring"><feGaussianBlur stdDeviation="5"/></filter>
+  </defs>
+  <path fill="url(#base)" d="M0 0h1500v1000H0z"/>
+  <g filter="url(#soft)" opacity=".28" fill="#ffb42c"><ellipse cx="820" cy="280" rx="360" ry="240"/><ellipse cx="1220" cy="800" rx="240" ry="210"/></g>
+  <path fill="url(#gold)" d="M72 52C140 30 252 83 298 181c17 36 21 72 8 116C272 261 241 224 198 197 105 138 32 104 72 52Z"/>
+  <path fill="url(#gold)" d="M1170 226c68-31 133-2 140 32 9 38-48 42-98 61-49 18-73 49-82 38-20-24 4-87 40-131Z"/>
+  <circle cx="1280" cy="-20" r="138" fill="#ff922c" opacity=".42"/>
+  <g fill="none" stroke="#ffdd35" filter="url(#ring)"><circle cx="193" cy="394" r="60" stroke-width="12" opacity=".86"/><circle cx="1293" cy="540" r="45" stroke-width="9" opacity=".38"/><circle cx="337" cy="97" r="22" stroke-width="10" opacity=".5"/></g>
+  <ellipse cx="1070" cy="795" rx="130" ry="115" fill="#fc6470" filter="url(#soft)" opacity=".35"/>
+</svg>

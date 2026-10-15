@@ -40,6 +40,32 @@ describe("migrateDashboard", () => {
     expect(migrateDashboard({ ...dashboard, theme: { ...dashboard.theme, fontFamily: "serif" } }).theme.fontFamily).toBe("source-han-serif");
   });
 
+  it("renames the retired dual-axis default on saved dashboards without changing their data", () => {
+    const original = {
+      ...dashboard,
+      datasets: [{ datasetId: "sales", schemaVersion: "v1", parameters: {} }],
+      layout: [{ i: "dual-axis", x: 0, y: 0, w: 12, h: 6 }],
+      components: [{
+        id: "dual-axis", type: "dualAxisLine", title: "金额与比率双轴折线图",
+        props: { rateUnit: "fraction" },
+        binding: { datasetId: "sales", slots: { amountMeasure: { fieldKey: "orders" }, rateMeasure: { fieldKey: "conversion" } } },
+      }],
+    };
+    const migrated = migrateDashboard(original);
+    expect(migrated.components[0]).toEqual({ ...original.components[0], title: "双轴折线图" });
+    expect(original.components[0]?.title).toBe("金额与比率双轴折线图");
+    expect(migrateDashboard(migrated)).toEqual(migrated);
+  });
+
+  it("preserves custom, empty and omitted dual-axis titles and other component types", () => {
+    for (const title of ["订单与转化趋势", "双轴折线图", "", undefined]) {
+      const input = { ...dashboard, layout: [{ i: "chart", x: 0, y: 0, w: 12, h: 6 }], components: [{ id: "chart", type: "dualAxisLine", title, props: {} }] };
+      expect(migrateDashboard(input).components[0]?.title).toBe(title);
+    }
+    const otherType = { ...dashboard, layout: [{ i: "chart", x: 0, y: 0, w: 6, h: 5 }], components: [{ id: "chart", type: "line", title: "金额与比率双轴折线图", props: {} }] };
+    expect(migrateDashboard(otherType).components[0]?.title).toBe("金额与比率双轴折线图");
+  });
+
   it("requires an explicit schema version", () => {
     const { schemaVersion: _schemaVersion, ...withoutVersion } = dashboard;
 

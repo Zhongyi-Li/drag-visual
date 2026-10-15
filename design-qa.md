@@ -1,3 +1,89 @@
+# Latest QA — 环形构成明细左侧留白优化
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-f90b00fc-9339-4a6b-9cd5-9185a818bce6.png`，1522 × 499 px。
+- Revised browser capture: `/Users/ethan/Desktop/ZH/drag-visual/outputs/donut-layout-qa.png`，1522 × 499 px；CSS viewport 1522 × 499，deviceScaleFactor 1，无缩放。窄版补充截图：`/Users/ethan/Desktop/ZH/drag-visual/outputs/donut-layout-narrow-qa.png`，500 × 499 px。
+- State: light theme, 14 product categories, one monetary metric, unselected; first ten rows correspond to the reference's visible names and amounts. Remaining categories are synthetic test data, so ring segment colors and overall proportions are not compared for exact equality.
+
+**Findings and iteration**
+
+- [P2, fixed] Source chart's ring is low and small (approximately y=306–457, 150px diameter), leaving a large blank region above it. The revised same-size capture places a roughly 216px ring at y=116–332, aligned near the first list row. It fills the left column without displacing the detail list.
+- [P2, fixed] Previously the long list could determine the flex row's vertical center. The revised layout aligns both columns at the top and scrolls only the detail list. Browser interaction measured `listScrollTop=154` while the ring stayed at y=74.39.
+- [P3, fixed] A measure already named “总价格” previously appeared as “总总价格” in the center. The revised capture reads “总价格”.
+- No remaining actionable P0/P1/P2 differences for the requested left-column spacing adjustment. The ring is intentionally larger and higher than the source, following the user's correction rather than cloning the old spacing.
+
+**Fidelity and interaction checks**
+
+- Typography/copy: title, helper text, category names, value and percentage remain legible; long names truncate inside the list. Center copy no longer doubles “总”.
+- Layout/spacing: the source and revised full-width screenshots were compared at identical 1522 × 499 pixels. The ring and list now share a top alignment; row gaps, borders and right-aligned percentages remain consistent. At 500px the ring shrinks and the list wraps below it, with the overall card scrolling vertically.
+- Colors/tokens: the existing app theme palette, border colors and selected-state styles remain unchanged. Category colors differ from the source where synthetic off-screen test rows changed the data order.
+- Imagery: native ECharts canvas ring, no replacement raster/image asset.
+- Primary interaction: list scrolling keeps the ring stationary on desktop; selection/reset logic is covered by the renderer test. Targeted renderer test and web typecheck passed; `git diff --check` passed.
+- Focused evidence: the full-resolution 1522 × 499 comparison makes ring position, row labels and percentages readable; no additional crop was needed. `/Users/ethan/Desktop/ZH/drag-visual/outputs/donut-layout-scroll-qa.png` records the scrolled detail state.
+
+final result: passed
+
+---
+
+# Latest QA — 环形构成明细图
+
+**Comparison target**
+
+- Source visual truth: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-31ac33b8-864f-48d1-9937-4af249ecb85c.png` (1850 × 308 px).
+- Browser-rendered implementation screenshot: `/Users/ethan/Desktop/ZH/drag-visual/outputs/donut-breakdown-qa.png` (760 × 770 px viewport, chart content 760 × 302 CSS px; device scale 1). The temporary preview route was removed after capture.
+- State: light theme, five channel categories, one currency metric, initial all-categories view. Same sample values as the source; no density normalization was applied. Source and implementation were opened together for visual comparison, but their viewport widths differ.
+
+**Findings and iteration**
+
+- [P2, fixed] Initial list started at x=300 on the captured 760px view; after widening the ring's layout column, the revised capture starts the list at x=385, close to the source's x=387. Ring diameter remains about 150px. The revised capture is the file linked above.
+- [P2, remaining verification gap] A full-width 1850px browser capture could not be made in the in-app browser's 760px viewport. The responsive composition is implemented, but exact wide-screen spacing is not pixel-verified. This is a QA limitation, not a known rendering failure.
+
+**Fidelity surfaces and interaction**
+
+- Typography and copy: Chinese heading, helper text, category names, full values and one-decimal shares are legible. The helper copy is intentionally generic because the component does not include a trend chart.
+- Layout and spacing: ring left, all detail rows right at 760px; wider reference layout is pending same-viewport capture. Narrow cards can wrap the list below the ring.
+- Colors: blue, orange, slate, pink and purple category sequence matches the reference roles. A dashboard theme palette overrides these defaults consistently for both ring and list.
+- Image quality: native ECharts ring, no raster substitute; zero-value categories remain in the detail list.
+- Interaction: clicked a category row and saw the selected name/share in the center and pressed state; “全部渠道” restored the all-categories state. No console-error check was available through this browser surface.
+- Verification: registry, renderer and web typechecks passed; targeted model, renderer, registry and aggregation tests passed. The broader suites have unrelated pre-existing failing assertions.
+
+**Implementation checklist**
+
+1. Capture the component at 1850 × 308 CSS px and compare exact column and vertical alignment against the source.
+2. Inspect narrow-card wrapping and theme variants in the real editor/viewer.
+
+final result: blocked
+
+---
+
+# Latest QA — 金额与比率双轴折线图
+
+**Comparison target**
+
+- Source: `/var/folders/1m/3dyrf2k55gdgnv6jl18w2gj00000gn/T/codex-clipboard-340bc8a2-7fac-4d5a-951d-bbe1d60991a6.png`，1834 × 742 px。
+- Implementation: temporary local chart preview, rendered at 1834 × 742 CSS px and compared beside the source at identical 0.33 scale in the in-app browser. The source and implementation were present in one comparison view; a separate full-size implementation capture was also inspected for labels and negative points. Preview files were removed after QA.
+- State: desktop, light theme, 30 daily categories, with positive and negative values. Preview numbers were transcribed from the screenshot for layout testing; they are not production data.
+
+**Findings and iteration**
+
+- [P2, fixed] Initial right-axis automatic bounds rounded 32.1% up to 50%, flattening the orange line compared with the source. The rate axis now uses the data extrema; a revised side-by-side browser capture confirmed the intended vertical range.
+- [P2, fixed] Initial negative labels kept the series colors. Negative amount and rate points/labels now use red; the revised capture showed the ending drop and red labels.
+- Remaining: no actionable P0/P1/P2 visual difference. The preview's average is 13.2% rather than the source's 13.3% because the hand-transcribed sample rates are not the source dataset; the chart calculates the average from its bound values.
+
+**Fidelity and runtime checks**
+
+- Typography/copy: Chinese title, colored metric names, axis labels and average summary remain legible at the full-size capture.
+- Layout/spacing: left amount axis, right percentage axis, diagonal dates, horizontal grid, and dashed zero reference align with the source's hierarchy.
+- Colors: green solid amount line, orange dashed percentage line, white-centered markers, and red negative emphasis match the reference role encoding.
+- Imagery: the chart is native ECharts vector/canvas rendering; no bitmap approximation or replacement asset is used.
+- Responsive: the full-width chart viewport was visually checked; dense labels use overlap avoidance, and authoring can disable value labels. Narrow dashboard cards were not visually inspected.
+- Typecheck: contracts, registry, chart renderer and web passed. New dual-axis option tests, registry tests and aggregation tests passed. `git diff --check` passed. Existing unrelated expectations in the broader options/registry suites remain failing and are not part of this chart.
+
+final result: passed
+
+---
+
 # Latest QA — 仪表板背景模糊渐隐融合
 
 **Comparison target**

@@ -14,7 +14,8 @@ import { ComponentFrame } from "./ComponentFrame.js";
 import { createEditorStore } from "./store/editorStore.js";
 import { useEditorShortcuts } from "./useEditorShortcuts.js";
 
-vi.mock("@drag-visual/chart-renderer", () => ({
+vi.mock("@drag-visual/chart-renderer", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@drag-visual/chart-renderer")>(),
   DashboardComponentRenderer: vi.fn(() => <div>当前图表无数据</div>),
   ResponsiveChartContainer: ({ children }: { readonly children: ReactNode }) => <>{children}</>,
 }));

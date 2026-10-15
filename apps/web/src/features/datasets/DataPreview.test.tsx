@@ -4,7 +4,7 @@ import type { DatasetQueryResult } from "@drag-visual/contracts";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { DataPreview, validatePreviewRows } from "./DataPreview.js";
+import { DataPreview, summarizePreviewRows, validatePreviewRows } from "./DataPreview.js";
 
 const result: DatasetQueryResult = {
   columns: [
@@ -32,6 +32,30 @@ describe("DataPreview", () => {
       ...result,
       rows: [{ name: null, amount: 1 }],
     })).toEqual(['Row 1 column "name" is null but the column is not nullable']);
+  });
+
+  it("groups invalid cells by field and presents a readable Chinese summary", () => {
+    const invalidResult: DatasetQueryResult = {
+      ...result,
+      rows: [
+        { name: null, amount: 1 },
+        { name: "有效名称", amount: null },
+        { name: null, amount: 3 },
+      ],
+    };
+
+    expect(summarizePreviewRows(invalidResult)).toEqual([{
+      columnKey: "name",
+      columnLabel: "名称",
+      rowNumbers: [1, 3],
+    }]);
+
+    render(<DataPreview result={invalidResult} />);
+    expect(screen.getByText("1 个必填字段存在空值")).toBeInTheDocument();
+    expect(screen.getByText("共发现 2 处空值，影响 2 行。请检查数据整合配置或原始数据。")).toBeInTheDocument();
+    expect(screen.getAllByText("第 1、3 行")).toHaveLength(2);
+    expect(screen.getByText("2 处")).toBeInTheDocument();
+    expect(screen.queryByText(/column .* is null/)).not.toBeInTheDocument();
   });
 
   it("keeps wide headers on one line and makes the preview horizontally scrollable", () => {

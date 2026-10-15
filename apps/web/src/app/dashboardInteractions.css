@@ -1,0 +1,5 @@
+.dashboard-chart-jump { cursor: pointer; }
+.dashboard-chart-jump:hover { box-shadow: 0 0 0 1px var(--dashboard-primary); }
+.dashboard-chart-jump:focus-visible { outline: 2px solid var(--dashboard-primary) !important; outline-offset: 2px; }
+
+.dashboard-metric-switch:focus-visible { border-color: var(--dashboard-primary, #1677ff); outline: 2px solid var(--dashboard-primary, #1677ff); outline-offset: 1px; }

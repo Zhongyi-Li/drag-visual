@@ -3,7 +3,7 @@ import type { ComponentInstance, DatasetAggregation, DatasetQueryRequest, FieldB
 import { activeCalculatedMetricReferences, calculatedMetricsForBinding } from "./calculatedMetrics.js";
 
 const aggregationValues = new Set<DatasetAggregation>(["sum", "avg", "count", "max", "min"]);
-const sumByDimensionComponentTypes = new Set(["pie", "donut", "rose", "radar", "treemap", "sunburst"]);
+const sumByDimensionComponentTypes = new Set(["pie", "donut", "donutBreakdown", "rose", "radar", "treemap", "sunburst"]);
 const groupSlotKeys = new Set([
   "dimension",
   "dimensions",
@@ -18,7 +18,7 @@ const groupSlotKeys = new Set([
   "rowDimension",
   "columnDimension",
 ]);
-const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasure", "target", "comparison", "secondaryMeasures", "tooltipMeasures", "salesAmount", "inventoryAmount", "salesQuantity", "inventoryQuantity"]);
+const metricSlotKeys = new Set(["measure", "measures", "barMeasure", "lineMeasure", "amountMeasure", "rateMeasure", "target", "comparison", "secondaryMeasures", "tooltipMeasures", "salesAmount", "inventoryAmount", "salesQuantity", "inventoryQuantity"]);
 
 const asBindings = (value: FieldBinding | readonly FieldBinding[] | undefined): readonly FieldBinding[] =>
   value === undefined ? [] : Array.isArray(value) ? value as readonly FieldBinding[] : [value as FieldBinding];
@@ -70,7 +70,7 @@ export const buildDatasetAggregation = (
   const calculatedMetricIds = new Set(calculatedMetricsForBinding(component.binding).map((metric) => metric.id));
   const metricBindings = Object.entries(component.binding.slots)
     .filter(([slotKey]) => metricSlotKeys.has(slotKey))
-    .flatMap(([, value]) => asBindings(value))
+    .flatMap(([slotKey, value]) => asBindings(value).map((binding) => ({ ...binding, aggregation: binding.aggregation ?? (component.type === "dualAxisLine" ? (slotKey === "rateMeasure" ? "avg" : "sum") : undefined) })))
     .filter((binding) => !calculatedMetricIds.has(binding.fieldKey));
   const calculatedReferences = activeCalculatedMetricReferences(component.binding);
   if (metricBindings.length === 0 && calculatedReferences.length === 0) return undefined;

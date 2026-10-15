@@ -6,10 +6,12 @@ import {
   areaDefinition,
   barDefinition,
   barLineDefinition,
+  dualAxisLineDefinition,
   crosstabDefinition,
   dashboardHeaderDefinition,
   createDefaultRegistry,
   donutDefinition,
+  donutBreakdownDefinition,
   flipNumberDefinition,
   gaugeDefinition,
   globalFilterSummaryDefinition,
@@ -49,6 +51,8 @@ describe("component registry", () => {
       "crosstab",
       "dashboardHeader",
       "donut",
+      "donutBreakdown",
+      "dualAxisLine",
       "flipNumber",
       "gauge",
       "globalFilterSummary",
@@ -88,6 +92,14 @@ describe("component registry", () => {
     expect(dashboardHeaderDefinition.defaultLayout).toEqual({ w: 12, h: 3 });
   });
 
+  it("uses generic metric names and requires a dimension, a numeric metric, and a rate", () => {
+    expect(dualAxisLineDefinition.title).toBe("双轴折线图");
+    expect(dualAxisLineDefinition.dataSlots.map((slot) => slot.title)).toEqual(["日期或分类", "数值指标（左轴）", "比率指标（右轴）"]);
+    expect(dualAxisLineDefinition.createDefaults()).toMatchObject({ rateUnit: "percent", showAverage: true });
+    expect(dualAxisLineDefinition.dataSlots.map((slot) => slot.key)).toEqual(["dimension", "amountMeasure", "rateMeasure"]);
+    expect(dualAxisLineDefinition.validateBinding?.({ datasetId: "sales", slots: { dimension: { fieldKey: "date" }, amountMeasure: { fieldKey: "profit" } } }).valid).toBe(false);
+  });
+
   it("defines a data-free summary card for dashboard-wide query controls", () => {
     expect(globalFilterSummaryDefinition.title).toBe("条件摘要");
     expect(globalFilterSummaryDefinition.defaultLayout).toEqual({ w: 3, h: 3 });
@@ -121,6 +133,12 @@ describe("component registry", () => {
     expect(donut.defaultLayout).toEqual({ w: 7, h: 5 });
     expect(donut.createDefaults()).toEqual({ aggregation: "sum", color: "#1677ff", maxCategoryCount: 20, showLegend: true });
     expect(donut.dataSlots).toEqual(createDefaultRegistry().get("pie").dataSlots);
+  });
+
+  it("defines a donut breakdown with one category and one measure", () => {
+    expect(donutBreakdownDefinition.defaultLayout).toEqual({ w: 10, h: 5 });
+    expect(donutBreakdownDefinition.dataSlots.map((slot) => slot.multiple)).toEqual([false, false]);
+    expect(donutBreakdownDefinition.validateBinding?.(undefined).valid).toBe(false);
   });
 
   it("defines a sunburst chart with a multi-select metric slot", () => {

@@ -1,5 +1,5 @@
 import { MoreOutlined } from "@ant-design/icons";
-import { DashboardComponentRenderer, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
+import { DashboardComponentRenderer, DashboardInteractionTheme, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
 import type { ComponentRegistry } from "@drag-visual/component-registry";
 import { ComponentContainerStyle, ComponentTitleStyle, DashboardGlobalFilterConfig, type ComponentInstance, type DatasetFilter, type DatasetQueryRequest, type DatasetQueryResult } from "@drag-visual/contracts";
 import { applyTransforms } from "@drag-visual/data-engine";
@@ -434,11 +434,11 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
   };
 
   return (
-    <section
+    <DashboardInteractionTheme theme={dashboardTheme}><section
       aria-label={hasTitle ? title : topLeftHint ?? component.type}
-      className={`component-frame${selected ? " component-frame--selected" : ""}${hasTitle ? "" : " component-frame--untitled"}${hasHeaderHint ? " component-frame--has-header-hint" : ""}${isDashboardHeader ? " component-frame--dashboard-header" : ""}${chartComponent.type === "analysisGroup" ? " component-frame--analysis-group" : ""}${chartComponent.type === "kpiInsight" ? " component-frame--kpi-insight" : ""}${chartComponent.type === "globalFilterSummary" ? " component-frame--global-filter-summary" : ""}${containerStyle.customBackground ? " component-frame--custom-background" : ""}${dashboardTheme.mode === "dark" ? " component-frame--dark" : ""}`}
+      className={`component-frame${selected ? " component-frame--selected" : ""}${hasTitle ? "" : " component-frame--untitled"}${hasHeaderHint ? " component-frame--has-header-hint" : ""}${isDashboardHeader ? " component-frame--dashboard-header" : ""}${chartComponent.type === "analysisGroup" ? " component-frame--analysis-group" : ""}${chartComponent.type === "kpiInsight" ? " component-frame--kpi-insight" : ""}${chartComponent.type === "globalFilterSummary" ? " component-frame--global-filter-summary" : ""}${containerStyle.customBackground ? " component-frame--custom-background" : ""}${dashboardTheme.mode === "dark" ? " component-frame--dark" : ""}${dashboardTheme.preset === "activity" ? " component-frame--activity" : ""}`}
       role="group"
-      style={{ borderRadius: globalRadius, padding: `${globalPadding.top}px ${globalPadding.right}px ${globalPadding.bottom}px ${globalPadding.left}px`, ...(containerStyle.customBackground ? { backgroundColor: containerStyle.backgroundColor } : {}) }}
+      style={{ ...{ "--dashboard-primary": dashboardTheme.primaryColor }, borderRadius: globalRadius, padding: `${globalPadding.top}px ${globalPadding.right}px ${globalPadding.bottom}px ${globalPadding.left}px`, ...(containerStyle.customBackground ? { backgroundColor: containerStyle.backgroundColor } : {}) }}
       tabIndex={0}
       onClick={select}
       onFocus={(event) => { if (event.target === event.currentTarget) select(); }}
@@ -462,7 +462,7 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
               }}
             />
           ) : (
-            <button className={`component-frame__title-button${hasTitle ? "" : " component-frame__title-button--empty"}`} style={{ color: titleStyle.color, fontSize: titleStyle.fontSize, fontStyle: titleStyle.fontStyle, fontWeight: titleStyle.fontWeight, textAlign: titleStyle.textAlign }} type="button" onClick={beginTitleEdit}>
+            <button className={`component-frame__title-button${hasTitle ? "" : " component-frame__title-button--empty"}`} style={{ color: component.titleStyle?.color ?? (dashboardTheme.preset === "activity" ? "#fff" : titleStyle.color), fontSize: titleStyle.fontSize, fontStyle: titleStyle.fontStyle, fontWeight: titleStyle.fontWeight, textAlign: component.titleStyle?.textAlign ?? (dashboardTheme.preset === "activity" ? "center" : titleStyle.textAlign) }} type="button" onClick={beginTitleEdit}>
               {hasTitle ? title : "添加标题"}
             </button>
           ))}
@@ -605,6 +605,6 @@ export const ComponentFrame = ({ component: suppliedComponent, store, createComp
           </Space>
         )}
       </Drawer>
-    </section>
+    </section></DashboardInteractionTheme>
   );
 };

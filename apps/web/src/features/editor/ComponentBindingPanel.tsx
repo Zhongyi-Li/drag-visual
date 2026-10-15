@@ -208,6 +208,8 @@ const slotHelpText = (slotKey: string, slotTitle: string, componentType: Compone
   if (componentType === "horizontalBar" && slotKey === "measure") return "建议选择不超过两个数值指标，按第一个指标从高到低排列。单位不同或量级相差较大时，系统会自动使用独立刻度。";
   if (componentType === "barLine" && slotKey === "barMeasure") return "选择以柱状展示的主指标，例如库存金额或销售额。";
   if (componentType === "barLine" && slotKey === "lineMeasure") return "选择以折线展示的对比指标，例如库存数量或订单数；该指标使用右侧纵轴。";
+  if (componentType === "dualAxisLine" && slotKey === "amountMeasure") return "选择销售额、订单数、时长等数值指标，使用左侧纵轴；同一日期或分类有多行时默认求和，可调整聚合方式。";
+  if (componentType === "dualAxisLine" && slotKey === "rateMeasure") return "选择毛利率、转化率、完成率等比率指标，使用右侧百分比纵轴；同一日期或分类有多行时默认求平均。可在样式中选择数据为百分数还是小数。";
   if (componentType === "ringBar" && slotKey === "measure") return "主指标决定各维度同心环的长度，系统会按所选聚合方式汇总。";
   if (componentType === "ringBar" && slotKey === "tooltipMeasures") return "可选的辅助指标，只在鼠标悬浮同心环时显示，不会生成新的环。";
   if (componentType === "ranking" && slotKey === "measure") return "只选择参与排名的业务指标，例如订单数、访客数。只选一个指标时会自动按该指标从高到低排行；选择多个指标后，可决定按主指标或综合加权结果排行。";
@@ -231,6 +233,7 @@ const slotHelpText = (slotKey: string, slotTitle: string, componentType: Compone
   if (componentType === "radar" && slotKey === "measure") return "可选择多个指标。每个指标会作为一块半透明面积，围绕同一组维度进行比较。";
   if (componentType === "treemap" && slotKey === "measure") return "可选择多个指标。图表默认展示第一项，可在图表右上角切换当前展示的指标；系统按维度汇总后，用矩形面积和百分比展示占比。";
   if ((componentType === "pie" || componentType === "donut" || componentType === "rose") && slotKey === "measure") return "可选择多个指标。第一项决定扇区角度或玫瑰半径；鼠标悬浮扇区时会展示全部已选指标。";
+  if (componentType === "donutBreakdown" && slotKey === "measure") return "选择一个数值指标，环形扇区和右侧明细会按分类汇总并计算占比。";
   if (componentType === "metricBreakdown" && slotKey === "dimension") return "作为指标拆解的归因维度，可选择产品线、渠道、地区、门店或品类。";
   if (componentType === "metricBreakdown" && slotKey === "measure") return "作为要拆解的核心指标，系统会按维度汇总、排序并计算贡献占比。";
   if ((componentType === "gauge" || componentType === "liquid") && slotKey === "dimension") return "按该字段拆分为多张图，每个分组会分别按组件的聚合方式计算实际值和目标值。";

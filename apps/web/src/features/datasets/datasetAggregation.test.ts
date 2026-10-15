@@ -15,6 +15,35 @@ const baseDashboard = {
 };
 
 describe("buildDatasetAggregation", () => {
+  it("groups donut breakdown categories and sums their metric", () => {
+    const chart = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1", type: "donutBreakdown", props: { aggregation: "sum", maxCategoryCount: 5_000 },
+        binding: { datasetId: "sales", slots: { dimension: { fieldKey: "channel" }, measure: { fieldKey: "profit" } } },
+      }],
+    }).components[0]!;
+    expect(buildDatasetAggregation(chart)).toEqual({
+      groupBy: ["channel"],
+      measures: [{ fieldKey: "profit", aggregation: "sum" }],
+    });
+  });
+  it("sums amounts but averages rates for a dual-axis trend", () => {
+    const chart = DashboardSchema.parse({
+      ...baseDashboard,
+      components: [{
+        id: "chart-1",
+        type: "dualAxisLine",
+        props: { amountColor: "#22964b", rateColor: "#eb6b16", rateUnit: "percent", showValues: true, showAverage: true },
+        binding: { datasetId: "sales", slots: { dimension: { fieldKey: "day" }, amountMeasure: { fieldKey: "profit" }, rateMeasure: { fieldKey: "margin" } } },
+      }],
+    }).components[0]!;
+    expect(buildDatasetAggregation(chart)).toEqual({
+      groupBy: ["day"],
+      measures: [{ fieldKey: "profit", aggregation: "sum" }, { fieldKey: "margin", aggregation: "avg" }],
+    });
+  });
+
   it("sends dimensions and per-metric aggregation to a remote query", () => {
     const component = DashboardSchema.parse({
       ...baseDashboard,

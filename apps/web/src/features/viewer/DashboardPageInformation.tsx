@@ -25,6 +25,8 @@ export const DashboardPageHeader = ({ dashboard, headingLevel = 2, navigation, s
     <header className="dashboard-page-information" aria-label="页面信息">
       {navigation}
       {settings.titleVisible && <Heading style={{
+        color: settings.titleColor,
+        textAlign: settings.titleTextAlign,
         fontFamily: pageInformationFontFamilies[settings.titleFontFamily],
         fontSize: settings.titleFontSize,
         letterSpacing: settings.titleLetterSpacing,

@@ -35,6 +35,19 @@ export function migrateDashboard(input: unknown): Dashboard {
       ) {
         return { ...component, type: "goalTaskProgress" };
       }
+      // The first dual-axis release persisted this default as an instance
+      // title. Updating the registry alone cannot rename saved dashboards.
+      // Match only that retired default; leave authored and empty titles alone.
+      if (
+        typeof component === "object" &&
+        component !== null &&
+        "type" in component &&
+        component.type === "dualAxisLine" &&
+        "title" in component &&
+        component.title === "金额与比率双轴折线图"
+      ) {
+        return { ...component, title: "双轴折线图" };
+      }
       return component;
     })
     : draft.components;

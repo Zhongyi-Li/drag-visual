@@ -1,0 +1,66 @@
+[
+  {
+    "id": "default",
+    "label": "默认",
+    "thumbnail": "default-v2.png",
+    "primaryColor": "#1677ff",
+    "backgroundColor": "#f0f4fa",
+    "mode": "light",
+    "chartPalette": [
+      "#1677ff",
+      "#36cfc9",
+      "#9254de",
+      "#fa8c16",
+      "#13c2c2",
+      "#eb2f96"
+    ]
+  },
+  {
+    "id": "deepBlue",
+    "label": "深蓝",
+    "thumbnail": "deep-blue-v2.png",
+    "primaryColor": "#38bdf8",
+    "backgroundColor": "#08152f",
+    "mode": "dark",
+    "chartPalette": [
+      "#38bdf8",
+      "#60a5fa",
+      "#2dd4bf",
+      "#a78bfa",
+      "#fbbf24",
+      "#fb7185"
+    ]
+  },
+  {
+    "id": "technology",
+    "label": "科技",
+    "thumbnail": "technology-v2.png",
+    "primaryColor": "#0891b2",
+    "backgroundColor": "#dceff5",
+    "mode": "light",
+    "chartPalette": [
+      "#0891b2",
+      "#6366f1",
+      "#14b8a6",
+      "#3b82f6",
+      "#f59e0b",
+      "#d946ef"
+    ]
+  },
+  {
+    "id": "minimal",
+    "label": "简约",
+    "thumbnail": "minimal-v2.png",
+    "primaryColor": "#475569",
+    "backgroundColor": "#eeeeee",
+    "mode": "light",
+    "chartPalette": [
+      "#475569",
+      "#7c93b5",
+      "#65a8a0",
+      "#a795ba",
+      "#c5a275",
+      "#8c949f"
+    ]
+  }
+]

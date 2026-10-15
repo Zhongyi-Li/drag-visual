@@ -2,7 +2,7 @@
 
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { DashboardSchema } from "@drag-visual/contracts";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -23,6 +23,35 @@ const dashboard = DashboardSchema.parse({
 });
 
 describe("InspectorPanel", () => {
+  it("preserves page configuration state while switching to chart settings and back", async () => {
+    const store = createEditorStore(DashboardSchema.parse({
+      ...dashboard,
+      components: [{ id: "bar-1", type: "bar", title: "销售额", props: { color: "#1677ff", showLegend: true } }],
+      layout: [{ i: "bar-1", x: 0, y: 0, w: 6, h: 5 }],
+    }));
+    const view = render(<AppProviders><InspectorPanel store={store} registry={createDefaultRegistry()} collapsed={false} onToggleCollapsed={() => undefined} /></AppProviders>);
+    const search = screen.getByRole("textbox", { name: "搜索全局配置" });
+    await userEvent.type(search, "主题");
+    await userEvent.click(screen.getByText("仪表板主题"));
+    await waitFor(() => expect(screen.getByRole("button", { name: /仪表板主题/ })).toHaveAttribute("aria-expanded", "true"));
+    const scroll = view.container.querySelector<HTMLElement>(".dashboard-settings-tabs > .ant-tabs-body-holder, .dashboard-settings-tabs > .ant-tabs-content-holder")!;
+    scroll.scrollTop = 170;
+    fireEvent.scroll(scroll);
+    act(() => store.getState().select("bar-1"));
+    expect(screen.getByRole("tab", { name: "字段" })).toBeVisible();
+    expect(screen.queryByRole("textbox", { name: "搜索全局配置" })).not.toBeInTheDocument();
+    scroll.scrollTop = 0;
+    fireEvent.scroll(scroll);
+    act(() => store.getState().select(null));
+    expect(screen.getByRole("textbox", { name: "搜索全局配置" })).toBe(search);
+    expect(search).toHaveValue("主题");
+    expect(screen.getByRole("button", { name: /仪表板主题/ })).toHaveAttribute("aria-expanded", "true");
+    expect(scroll.scrollTop).toBe(170);
+    await userEvent.click(screen.getByRole("tab", { name: "高级" }));
+    act(() => store.getState().select("bar-1"));
+    act(() => store.getState().select(null));
+    expect(screen.getByRole("tab", { name: "高级" })).toHaveAttribute("aria-selected", "true");
+  });
   it("shows dashboard-level settings when no component is selected", () => {
     const store = createEditorStore(dashboard);
     render(
@@ -50,9 +79,10 @@ describe("InspectorPanel", () => {
 
     await userEvent.clear(screen.getByRole("textbox", { name: "搜索全局配置" }));
     await userEvent.click(screen.getByText("仪表板主题"));
-    const color = screen.getByLabelText("主题色");
-    fireEvent.change(color, { target: { value: "#112233" } });
-    expect(store.getState().history.present.theme.primaryColor).toBe("#112233");
+    await userEvent.click(screen.getByRole("button", { name: "主题色" }));
+    await userEvent.click(await within(await screen.findByLabelText("主题色调色面板")).findByRole("button", { name: "选择颜色 #36c99a" }));
+    await waitFor(() => expect(store.getState().history.present.theme.primaryColor).toBe("#36c99a"));
+    expect(screen.queryByLabelText("主题色透明度")).not.toBeInTheDocument();
   });
 
   it("keeps the data panel available when only configuration is collapsed", () => {

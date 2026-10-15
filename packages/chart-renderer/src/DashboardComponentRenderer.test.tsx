@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ComponentInstance, DatasetField } from "@drag-visual/contracts";
+import { DashboardTableStyle, type ComponentInstance, type DatasetField } from "@drag-visual/contracts";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 
@@ -33,6 +33,67 @@ vi.stubGlobal("matchMedia", (query: string) => ({
 }));
 
 afterEach(cleanup);
+
+it("uses the live page theme color for the donut breakdown all-category button", () => {
+  const component: ComponentInstance = {
+    id: "donut-theme", type: "donutBreakdown", title: "构成明细", props: {},
+    binding: { datasetId: "sales", slots: { dimension: { fieldKey: "channel" }, measure: { fieldKey: "profit" } } },
+  };
+  const fields: DatasetField[] = [
+    { key: "channel", label: "渠道", type: "string", nullable: false },
+    { key: "profit", label: "毛利", type: "number", nullable: false },
+  ];
+  const rows = [{ channel: "亚马逊", profit: 100 }];
+  const view = (primaryColor: string) => <DashboardComponentRenderer component={component} fields={fields} rows={rows} theme={{ primaryColor, backgroundColor: "#fff" }} />;
+  const { rerender } = render(view("#9254de"));
+  const all = screen.getByRole("button", { name: "查看全部渠道" });
+  expect(all.style.backgroundColor).toBe("rgb(146, 84, 222)");
+  fireEvent.click(screen.getByRole("button", { name: /亚马逊.*CNY/ }));
+  expect(all.style.backgroundColor).toBe("rgb(146, 84, 222)");
+  rerender(view("#36c99a"));
+  expect(all.style.backgroundColor).toBe("rgb(54, 201, 154)");
+  fireEvent.click(all);
+  expect(all.style.backgroundColor).toBe("rgb(54, 201, 154)");
+});
+
+it("updates active metric switches with the dashboard interaction theme", () => {
+  const component: ComponentInstance = { id: "theme-trend", type: "metricTrend", title: "趋势", props: { aggregation: "sum", showSummary: true, timeGranularity: "month" }, binding: { datasetId: "sales", slots: { timeDimension: { fieldKey: "businessDate" }, measure: [{ fieldKey: "revenue" }, { fieldKey: "orders" }] } } };
+  const fields: DatasetField[] = [{ key: "businessDate", label: "日期", type: "date", nullable: false }, { key: "revenue", label: "收入", type: "number", nullable: false }, { key: "orders", label: "订单", type: "number", nullable: false }];
+  const view = (primaryColor: string) => <DashboardComponentRenderer component={component} fields={fields} rows={[{ businessDate: "2026-01-01", revenue: 100, orders: 10 }]} theme={{ primaryColor, backgroundColor: "#fff" }} />;
+  const { rerender } = render(view("#9254de"));
+  expect(screen.getByRole("button", { name: "关注指标 收入" }).style.color).toBe("rgb(146, 84, 222)");
+  fireEvent.click(screen.getByRole("button", { name: "关注指标 订单" }));
+  rerender(view("#36c99a"));
+  const selected = screen.getByRole("button", { name: "关注指标 订单" });
+  expect(selected.getAttribute("aria-pressed")).toBe("true");
+  expect(selected.style.borderBottomColor).toBe("rgb(54, 201, 154)");
+});
+
+it("shows donut breakdown values and focuses a category until clicked again", () => {
+  render(<DashboardComponentRenderer
+    component={{
+      id: "donut-breakdown-1", type: "donutBreakdown", title: "毛利渠道",
+      props: { aggregation: "sum", maxCategoryCount: 20 },
+      binding: { datasetId: "sales", slots: { dimension: { fieldKey: "channel" }, measure: { fieldKey: "profit" } } },
+    }}
+    fields={[
+      { key: "channel", label: "渠道", type: "string", nullable: false },
+      { key: "profit", label: "总毛利", type: "number", nullable: false },
+    ]}
+    rows={[{ channel: "亚马逊", profit: 100 }, { channel: "速卖通", profit: 300 }]}
+  />);
+  expect(screen.getByTestId("donut-breakdown-surface")).toBeTruthy();
+  expect(screen.getByTestId("donut-breakdown-ring").parentElement?.style.alignItems).toBe("flex-start");
+  expect(screen.getByLabelText("分类指标及占比").style.overflowY).toBe("auto");
+  expect(screen.getByText("总毛利")).toBeTruthy();
+  expect(screen.getByText("CNY 100.00")).toBeTruthy();
+  expect(screen.getByText("25.0%")).toBeTruthy();
+  const category = screen.getByRole("button", { name: /亚马逊.*CNY 100.00.*25.0%/ });
+  fireEvent.click(category);
+  expect(category.getAttribute("aria-pressed")).toBe("true");
+  fireEvent.click(category);
+  expect(category.getAttribute("aria-pressed")).toBe("false");
+});
 
 it("renders a summary of the selected dashboard-wide filter value", () => {
   const component: ComponentInstance = {
@@ -415,8 +476,10 @@ it("forwards a configured KPI insight metric click", () => {
     fields={[{ key: "product", label: "商品名称", type: "string", nullable: false }, { key: "supplyPrice", label: "供货价", type: "number", nullable: false }]}
     rows={[{ product: "小米电视 A32", supplyPrice: 725.76 }]}
     onChartJump={onChartJump}
+    theme={{ primaryColor: "#9254de", backgroundColor: "#fff" }}
   />);
 
+  expect(screen.getByLabelText("供货价指标值").style.color).toBe("rgb(146, 84, 222)");
   fireEvent.click(screen.getByRole("button", { name: "供货价指标，点击跳转" }));
   expect(onChartJump).toHaveBeenCalledWith(rule, { product: "小米电视 A32", supplyPrice: 725.76 });
 });
@@ -1284,7 +1347,7 @@ it("aggregates repeated detail-table dimensions when row aggregation is enabled"
   />);
 
   expect(screen.getAllByText("小米电视机 A32")).toHaveLength(1);
-  expect(screen.getByText("5")).toBeTruthy();
+  expect(screen.getByText("5 件")).toBeTruthy();
   expect(screen.getAllByText("2 行").length).toBeGreaterThan(0);
 });
 
@@ -1929,4 +1992,63 @@ it("hides dashboard header filter actions until a filter is configured", () => {
   expect(screen.queryByLabelText("全局筛选器")).toBeNull();
   expect(screen.queryByRole("button", { name: "重置筛选" })).toBeNull();
   expect(screen.queryByRole("button", { name: "应用筛选" })).toBeNull();
+});
+
+
+it("applies saved page table styles to rendered headers and cells", () => {
+  render(<DashboardComponentRenderer
+    component={{ id: "styled-table", type: "table", props: { pageSize: 20 }, binding: { datasetId: "sales", slots: { columns: [{ fieldKey: "name" }, { fieldKey: "value" }] } } }}
+    fields={[{ key: "name", label: "商品", type: "string", nullable: false }, { key: "value", label: "数量", type: "number", nullable: false }]}
+    rows={[{ name: "示例商品", value: 10 }, { name: "空值商品", value: null }]}
+    theme={{ primaryColor: "#1677ff", backgroundColor: "#ffffff", tableStyle: DashboardTableStyle.parse({ preset: "simple", colorScheme: "custom", customColor: "#36c99a", header: { color: "#9254de", fontSize: 18, bold: true }, body: { fontSize: 16, italic: true } }) }}
+  />);
+  expect(screen.getByRole("table").style.borderTop).toContain("1px solid");
+  const header = screen.getByRole("columnheader", { name: "商品" });
+  expect(header.style.fontSize).toBe("18px");
+  expect(header.style.color).toBe("rgb(146, 84, 222)");
+  expect(screen.getByText("示例商品").style.fontSize).toBe("16px");
+  expect(screen.getByText("示例商品").style.fontStyle).toBe("italic");
+  expect(screen.getByRole("columnheader", { name: "数量" }).style.textAlign).toBe("right");
+  expect(screen.getByText("—").style.textAlign).toBe("right");
+  expect(screen.getByText("示例商品").parentElement?.style.background).not.toBe(screen.getByText("空值商品").parentElement?.style.background);
+});
+
+it.each(["crosstab", "multidimensional", "heatmap"])("shares table typography with the %s surface", (type) => {
+  const slots = type === "multidimensional"
+    ? { dateDimension: { fieldKey: "date" }, dimensions: [{ fieldKey: "region" }], measures: [{ fieldKey: "revenue" }] }
+    : { rowDimension: { fieldKey: "region" }, columnDimension: { fieldKey: "date" }, measure: { fieldKey: "revenue" } };
+  render(<DashboardComponentRenderer
+    component={{ id: `styled-${type}`, type, props: { showTotals: true, showValues: true, aggregation: "sum", timeGranularity: "day" }, binding: { datasetId: "sales", slots } }}
+    fields={[{ key: "region", label: "区域", type: "string", nullable: false }, { key: "date", label: "日期", type: "date", nullable: false }, { key: "revenue", label: "收入", type: "number", nullable: false }]}
+    rows={[{ region: "华东", date: "2026-01-01", revenue: 10 }]}
+    theme={{ primaryColor: "#1677ff", backgroundColor: "#ffffff", tableStyle: DashboardTableStyle.parse({ preset: "grid", header: { fontSize: 18 }, body: { fontSize: 16, italic: true } }) }}
+  />);
+  const table = screen.getByRole("table");
+  const header = table.querySelector("thead th") as HTMLElement;
+  const body = table.querySelector("tbody td") as HTMLElement;
+  expect(header.style.fontSize).toBe("18px");
+  expect(body.style.fontSize).toBe("16px");
+  expect(body.style.fontStyle).toBe("italic");
+  if (type === "heatmap") expect(body.style.background).not.toBe("inherit");
+});
+
+
+it("themes the entire detail table surface and pagination when switching between dark and light", () => {
+  const component: ComponentInstance = { id: "dark-table", type: "table", title: "明细表", props: { pageSize: 1 }, binding: { datasetId: "sales", slots: { columns: [{ fieldKey: "month" }] } } };
+  const fields: DatasetField[] = [{ key: "month", label: "月份", type: "string", nullable: false }];
+  const view = (mode: "dark" | "light") => <DashboardComponentRenderer component={component} fields={fields} rows={[{ month: "1月" }, { month: "2月" }]} theme={{ primaryColor: "#38bdf8", backgroundColor: "#08152f", mode, tableStyle: DashboardTableStyle.parse({}) }} />;
+  const { rerender } = render(view("dark"));
+  const surface = screen.getByTestId("detail-table-surface");
+  const footer = surface.querySelector("footer")!;
+  expect(surface.style.background).toBe("rgb(16, 35, 68)");
+  expect(footer.style.background).toBe("rgb(16, 35, 68)");
+  expect(footer.style.color).toBe("rgb(159, 179, 207)");
+  expect(screen.getByRole("button", { name: "下一页" }).style.background).toBe("rgb(22, 46, 82)");
+  expect(screen.getByRole("button", { name: "上一页" }).style.opacity).toBe("0.45");
+  fireEvent.click(screen.getByRole("button", { name: "下一页" }));
+  expect(screen.getByText("第 2 / 2 页")).toBeTruthy();
+  expect(screen.getByText("2月")).toBeTruthy();
+  rerender(view("light"));
+  expect(footer.style.background).toBe("rgb(255, 255, 255)");
+  expect(screen.getByRole("button", { name: "上一页" }).style.background).toBe("rgb(255, 255, 255)");
 });

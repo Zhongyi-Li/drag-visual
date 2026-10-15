@@ -1,4 +1,4 @@
-import { ArrowDownOutlined, ArrowLeftOutlined, ArrowUpOutlined, DeleteOutlined, EditOutlined, EyeOutlined, FilterOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
+import { ArrowDownOutlined, ArrowLeftOutlined, ArrowUpOutlined, DeleteOutlined, DownOutlined, EditOutlined, EyeOutlined, FilterOutlined, PlusOutlined, SaveOutlined } from "@ant-design/icons";
 import type { DatasetCombineConfig, DatasetCombineStep, DatasetField, DatasetProcessingFilter, DatasetQueryResult } from "@drag-visual/contracts";
 import { Alert, Button, Card, Checkbox, Empty, Input, Modal, Select, Space, Spin, Tag, Typography } from "antd";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -52,7 +52,6 @@ export const DatasetDetail = () => {
       setCombine(draft.data.combine);
       setFilters(draft.data.filters);
       setSelectedFields(draft.data.selectedFields);
-      setCalculationEditorOpen(draft.data.calculatedFields.length > 0);
     }
   }, [draft.data]);
   const preview = useQuery({ queryKey: ["datasets", datasetId, "query", "data-center-detail", schema.data?.schemaVersion, JSON.stringify(fields), JSON.stringify(combine), JSON.stringify(filters), JSON.stringify(selectedFields)], queryFn: () => previewDatasetDraft(datasetId!, { parameters: previewParameters(schema.data?.parameters ?? []), calculatedFields: fields, combine, filters, selectedFields }), enabled: previewOpen && datasetId !== undefined && schema.data !== undefined && draft.data !== undefined });
@@ -89,12 +88,14 @@ export const DatasetDetail = () => {
     ...fields.map((field) => ({ key: field.id, label: field.label, type: "number" as const, nullable: true })),
   ], [availableFields, fields]);
   const processingFields = useMemo(() => [...availableFields, ...fields.map((field) => ({ key: field.id, label: field.label, type: "number" as const, nullable: true }))], [availableFields, fields]);
+  const selectedFieldKeys = useMemo(() => processingFields.map((field) => field.key).filter((key) => selectedFields === null || selectedFields.includes(key)), [processingFields, selectedFields]);
+  const allFieldsSelected = processingFields.length > 0 && selectedFieldKeys.length === processingFields.length;
   const numericFieldOptions = useMemo(() => numericFields.map((field) => ({ label: `${field.label}（${field.key}）`, value: field.key })), [numericFields]);
   const filterFieldOptions = useMemo(() => processingFields.map((field) => ({ label: `${field.label}（${field.key}）`, value: field.key })), [processingFields]);
   const filterOperatorOptions = [{ label: "等于", value: "eq" }, { label: "不等于", value: "neq" }, { label: "包含", value: "contains" }, { label: "大于", value: "gt" }, { label: "大于等于", value: "gte" }, { label: "小于", value: "lt" }, { label: "小于等于", value: "lte" }, { label: "为空", value: "isEmpty" }, { label: "不为空", value: "isNotEmpty" }];
   const calculatedPreview = useMemo(() => preview.data, [preview.data]);
   const combineValidationMessage = useMemo(() => {
-    if (combine === null) return undefined;
+    if (combine === null) return "请添加整合步骤。";
     for (const [index, step] of combineSteps.entries()) {
       const source = sourceSchemas[index];
       if (!step.sourceDatasetId) return `第 ${index + 1} 步请选择数据集。`;
@@ -173,6 +174,7 @@ export const DatasetDetail = () => {
     setCombine(null);
     setFilters([]);
     setSelectedFields(null);
+    setActiveStep(1);
     if (datasetId !== undefined) saveMutation.mutate({ fields: [], combine: null, filters: [], selectedFields: null });
     setMessage("已清空当前数据集的加工草稿并同步到服务端。");
   };
@@ -196,11 +198,18 @@ export const DatasetDetail = () => {
   const stepSummaries = [
     combineSteps.length > 0 ? `已配置 ${combineSteps.length} 个整合步骤` : "尚未配置整合",
     fields.length > 0 ? `已创建 ${fields.length} 个派生字段` : "可选",
-    `${selectedFields === null ? processingFields.length : selectedFields.length} 个字段将发布`,
+    `${selectedFieldKeys.length} 个字段将发布`,
     filters.length > 0 ? `已添加 ${filters.length} 个条件` : "未添加条件",
   ];
-  const goToStep = (step: number) => { if (step >= 1 && step <= 4) setActiveStep(step as 1 | 2 | 3 | 4); };
-  const canAdvance = activeStep === 1 ? !combineBlocked : activeStep === 3 ? processingFields.length > 0 : true;
+  const stepTitles = ["数据关联", "派生字段", "字段选择", "结果筛选"];
+  const stepDescriptions = [
+    "添加整合步骤，选择整合方式与数据集，并完成匹配条件。",
+    "用现有数值字段计算新指标，例如用销售额减去成本得到利润。此步可以跳过。",
+    "选择最终结果中需要保留的字段，减少无关信息。",
+    "按条件保留需要的记录。确认结果后即可保存草稿或发布。",
+  ];
+  const goToStep = (step: number) => { if (step >= 1 && step <= 4 && (step === 1 || !combineBlocked) && (step !== 4 || selectedFieldKeys.length > 0)) setActiveStep(step as 1 | 2 | 3 | 4); };
+  const canAdvance = activeStep === 1 ? !combineBlocked : activeStep === 3 ? selectedFieldKeys.length > 0 : true;
 
   return (
     <div className="data-center data-center--detail">
@@ -211,19 +220,24 @@ export const DatasetDetail = () => {
       <main className="data-center__main data-center__detail-main">
         {schema.isLoading || draft.isLoading ? <div className="data-center__loading"><Spin /></div> : schema.isError ? <Alert type="error" showIcon title="加载数据集失败" description={errorMessage(schema.error)} /> : draft.isError ? <Alert type="warning" showIcon title="该数据集暂不支持加工" description="只有已上传的数据集支持服务端草稿和发布。" /> : schema.data === undefined ? <Empty description="数据集不存在" /> : (
           <>
-            <div className="data-center__detail-intro"><div><Typography.Text className="data-center__eyebrow">数据集加工</Typography.Text><Typography.Title level={1}>{schema.data.name}</Typography.Title><Typography.Paragraph>在不改变原始数据的前提下添加可复用的计算字段，并实时查看结果。</Typography.Paragraph></div><Space wrap><Button icon={<EyeOutlined />} disabled={combineBlocked} onClick={() => setPreviewOpen(true)}>预览加工结果</Button><Button onClick={reset} disabled={saveMutation.isPending}>清空草稿</Button><Button icon={<SaveOutlined />} loading={saveMutation.isPending} disabled={combineBlocked} onClick={save}>保存草稿</Button><Button type="primary" loading={publishMutation.isPending} disabled={combineBlocked} onClick={() => { setResultName(`${schema.data.name} · 加工结果`); setPublishOpen(true); }}>发布为新数据集</Button></Space></div>
             {message && <Alert className="data-center__alert" type="success" showIcon title={message} />}
             <div className="data-center__detail-grid data-center__wizard-layout">
               <aside className="data-center__wizard-nav" aria-label="数据加工步骤">
-                <div className="data-center__wizard-nav-title"><FilterOutlined /> <strong>加工步骤</strong></div>
-                {["数据关联", "派生字段", "字段选择", "结果筛选"].map((title, index) => { const step = (index + 1) as 1 | 2 | 3 | 4; return <button key={title} type="button" className={`data-center__wizard-nav-item${activeStep === step ? " is-active" : ""}`} onClick={() => goToStep(step)}><span className="data-center__wizard-nav-index">{step}</span><span><strong>{title}</strong><small>{stepSummaries[index]}</small></span></button>; })}
+                <div className="data-center__wizard-context"><small>当前数据集</small><strong title={schema.data.name}>{schema.data.name}</strong><span>设置完成后可发布为新数据集</span></div>
+                <div className="data-center__wizard-nav-title"><FilterOutlined /> <strong>加工步骤</strong><small>{activeStep} / 4</small></div>
+                <nav aria-label="加工步骤导航">
+                  {stepTitles.map((title, index) => { const step = (index + 1) as 1 | 2 | 3 | 4; return <button key={title} type="button" aria-current={activeStep === step ? "step" : undefined} disabled={(step > 1 && combineBlocked) || (step === 4 && selectedFieldKeys.length === 0)} className={`data-center__wizard-nav-item${activeStep === step ? " is-active" : ""}`} onClick={() => goToStep(step)}><span className="data-center__wizard-nav-index">{step}</span><span><strong>{title}</strong><small>{stepSummaries[index]}</small></span></button>; })}
+                </nav>
               </aside>
               <div className="data-center__wizard-main">
-              <Card title={<span className="data-center__card-title"><FilterOutlined /> 数据加工步骤</span>} className={`data-center__processing-steps data-center__wizard-card${activeStep === 2 ? " is-step-hidden" : ""}`}>
+              <div className="data-center__wizard-hero">
+                <div className="data-center__wizard-hero-copy"><span>第 {activeStep} 步 · 共 4 步</span><h1>{stepTitles[activeStep - 1]}</h1><p>{stepDescriptions[activeStep - 1]}</p></div>
+                <div className="data-center__wizard-progress" role="progressbar" aria-label="加工步骤进度" aria-valuenow={activeStep} aria-valuemin={1} aria-valuemax={4}><span style={{ width: `${activeStep * 25}%` }} /></div>
+              </div>
+              <Card className={`data-center__processing-steps data-center__wizard-card${activeStep === 2 ? " is-step-hidden" : ""}`}>
                 <div className={`data-center__step-section data-center__wizard-step${activeStep === 1 ? " is-active" : ""}`} data-wizard-step="1">
-                  <div className="data-center__step-heading"><span><b>1</b><Typography.Text strong>数据关联</Typography.Text></span><Typography.Text type="secondary">配置两份数据如何匹配，并选择需要带入的字段</Typography.Text></div>
                   <div className="data-center__combine-pipeline">
-                    {combineSteps.length === 0 && <Typography.Text type="secondary">还没有整合步骤，可添加一个 Join 或 Union。</Typography.Text>}
+                    {combineSteps.length === 0 && <div className="data-center__step-empty"><strong>尚未添加整合步骤</strong><span>请先添加整合步骤，并完成整合方式、数据集和匹配条件配置。</span></div>}
                     {combineSteps.map((step, index) => {
                       const source = sourceSchemas[index];
                       const inputFields = stepInputFields[index] ?? schema.data.fields;
@@ -245,20 +259,22 @@ export const DatasetDetail = () => {
                       </div>;
                     })}
                     <Button type="dashed" icon={<PlusOutlined />} onClick={addCombineStep}>添加下一步整合</Button>
-                    {combineValidationMessage && <Alert className="data-center__combine-validation" type="warning" showIcon title="整合配置尚未完成" description={combineValidationMessage} />}
                   </div>
                 </div>
-                <div className={`data-center__step-section data-center__wizard-step${activeStep === 3 ? " is-active" : ""}`} data-wizard-step="3"><div className="data-center__step-heading"><span><b>3</b><Typography.Text strong>字段选择</Typography.Text></span><Typography.Text type="secondary">发布时只保留勾选字段</Typography.Text></div>{joinedFields.length > 0 && <div className="data-center__selected-source-fields"><strong>第二数据集带入字段</strong><span>{joinedFields.map((field) => field.label).join("、")}</span></div>}<Checkbox.Group value={selectedFields ?? processingFields.map((field) => field.key)} onChange={(values) => setSelectedFields(values.map(String))} options={processingFields.map((field) => ({ label: field.label, value: field.key }))} /></div>
-                <div className={`data-center__step-section data-center__wizard-step${activeStep === 4 ? " is-active" : ""}`} data-wizard-step="4"><div className="data-center__step-heading"><span><b>4</b><Typography.Text strong>结果筛选 <Tag bordered={false}>可选</Tag></Typography.Text></span><Typography.Text type="secondary">过滤整合后的最终结果；多个条件同时满足</Typography.Text></div>{filters.length > 0 && <div className="data-center__filter-list">{filters.map((filter) => <div className="data-center__filter-item" key={filter.id}><span>{processingFields.find((field) => field.key === filter.fieldKey)?.label ?? filter.fieldKey} · {filterOperatorOptions.find((option) => option.value === filter.operator)?.label}{filter.value === undefined ? "" : ` ${String(filter.value)}`}</span><Button type="text" danger onClick={() => setFilters((current) => current.filter((item) => item.id !== filter.id))}>删除</Button></div>)}</div>}<div className="data-center__filter-composer"><Select aria-label="结果筛选字段" placeholder="选择结果字段（可不选）" allowClear showSearch optionFilterProp="label" value={filterField} options={filterFieldOptions} onChange={setFilterField} /><Select aria-label="结果筛选条件" value={filterOperator} options={filterOperatorOptions} onChange={setFilterOperator} /><Input aria-label="结果筛选值" placeholder={filterOperator.startsWith("is") ? "无需填写" : "输入筛选值"} disabled={filterOperator.startsWith("is")} value={filterValue} onChange={(event) => setFilterValue(event.target.value)} onPressEnter={addFilter} /><Button icon={<PlusOutlined />} onClick={addFilter} disabled={!filterField || (!filterOperator.startsWith("is") && !filterValue.trim())}>添加筛选条件</Button></div></div>
+                <div className={`data-center__step-section data-center__wizard-step${activeStep === 3 ? " is-active" : ""}`} data-wizard-step="3">
+                  {joinedFields.length > 0 && <div className="data-center__selected-source-fields"><strong>第二数据集带入字段</strong><span>{joinedFields.map((field) => field.label).join("、")}</span></div>}
+                  <div className="data-center__field-selection-toolbar"><span aria-live="polite">已选 {selectedFieldKeys.length} / {processingFields.length} 个字段</span><Space size="small"><Button size="small" type="link" disabled={allFieldsSelected} onClick={() => setSelectedFields(null)}>全选</Button><Button size="small" type="link" disabled={selectedFieldKeys.length === 0} onClick={() => setSelectedFields([])}>取消全选</Button></Space></div>
+                  <Checkbox.Group value={selectedFieldKeys} onChange={(values) => setSelectedFields(values.map(String))} options={processingFields.map((field) => ({ label: field.label, value: field.key }))} />
+                  {selectedFieldKeys.length === 0 && <Typography.Text type="secondary">请选择至少一个字段，才能进入下一步。</Typography.Text>}
+                </div>
+                <div className={`data-center__step-section data-center__wizard-step${activeStep === 4 ? " is-active" : ""}`} data-wizard-step="4">{filters.length === 0 && <div className="data-center__step-empty"><strong>暂未设置筛选条件</strong><span>不筛选时会保留全部结果记录，可以直接预览或发布。</span></div>}{filters.length > 0 && <div className="data-center__filter-list">{filters.map((filter) => <div className="data-center__filter-item" key={filter.id}><span>{processingFields.find((field) => field.key === filter.fieldKey)?.label ?? filter.fieldKey} · {filterOperatorOptions.find((option) => option.value === filter.operator)?.label}{filter.value === undefined ? "" : ` ${String(filter.value)}`}</span><Button type="text" danger onClick={() => setFilters((current) => current.filter((item) => item.id !== filter.id))}>删除</Button></div>)}</div>}<div className="data-center__filter-composer"><Select aria-label="结果筛选字段" placeholder="选择结果字段（可不选）" allowClear showSearch optionFilterProp="label" value={filterField} options={filterFieldOptions} onChange={setFilterField} /><Select aria-label="结果筛选条件" value={filterOperator} options={filterOperatorOptions} onChange={setFilterOperator} /><Input aria-label="结果筛选值" placeholder={filterOperator.startsWith("is") ? "无需填写" : "输入筛选值"} disabled={filterOperator.startsWith("is")} value={filterValue} onChange={(event) => setFilterValue(event.target.value)} onPressEnter={addFilter} /><Button icon={<PlusOutlined />} onClick={addFilter} disabled={!filterField || (!filterOperator.startsWith("is") && !filterValue.trim())}>添加筛选条件</Button></div></div>
               </Card>
-              <Card title={<span className="data-center__field-editor-title"><b>2</b><span>派生字段 <small>仅在需要公式时创建新指标</small></span><Tag bordered={false}>可选</Tag></span>} className={`data-center__field-editor data-center__wizard-step${activeStep === 2 ? " is-active" : ""}`} data-wizard-step="2">
-                <div className="data-center__field-source-note"><span><strong>结果字段</strong><small>包含当前数据集字段{joinedFields.length > 0 ? `及第二数据集带入的 ${joinedFields.length} 个字段` : ""}</small></span><Tag color={joinedFields.length > 0 ? "blue" : "default"}>{availableFields.length} 个字段</Tag></div>
-                <div className="data-center__fields data-center__fields--detail">{availableFields.map((field) => <div className="data-center__field" key={field.key}><span><strong>{field.label}</strong><small>{field.key}</small></span><Tag>{typeLabel[field.type]}</Tag></div>)}</div>
-                <div className="data-center__calculated-heading"><span><Typography.Title level={5}>已创建的派生字段</Typography.Title><Typography.Text type="secondary">用于公式计算，不会替代上方的原始字段</Typography.Text></span><Space size={8}><Tag color="blue">当前草稿 {fields.length}</Tag><Button type={calculationEditorOpen ? "default" : "primary"} icon={<PlusOutlined />} onClick={() => setCalculationEditorOpen((open) => !open)}>{calculationEditorOpen ? "收起编辑器" : "新建派生字段"}</Button></Space></div>
+              <Card className={`data-center__field-editor data-center__wizard-step${activeStep === 2 ? " is-active" : ""}`} data-wizard-step="2">
+                <div className="data-center__calculated-heading"><span><Typography.Title level={5}>我的派生字段 <Tag color="blue" bordered={false}>{fields.length} 个</Tag></Typography.Title><Typography.Text type="secondary">新字段会加入结果，不会覆盖原始数据。</Typography.Text></span><Button type={calculationEditorOpen ? "default" : "primary"} icon={calculationEditorOpen ? undefined : <PlusOutlined />} onClick={() => setCalculationEditorOpen((open) => !open)}>{calculationEditorOpen ? "收起创建表单" : "新建派生字段"}</Button></div>
                 {calculationError && <Alert className="data-center__calculation-error" type="warning" showIcon title={calculationError} closable onClose={() => setCalculationError(undefined)} />}
-                {fields.length === 0 ? <Typography.Text type="secondary">还没有计算字段。先选择两个数值字段并设置运算。</Typography.Text> : <div className="data-center__calculated-list">{fields.map((field, index) => <div className="data-center__calculated-item" key={field.id}><span><strong>{field.label}</strong><small>{field.leftField} {operatorText[field.operator]} {field.rightField}{field.operator === "percent" ? " × 100" : ""}</small></span><Space size={0}><Button type="text" icon={<ArrowUpOutlined />} disabled={index === 0} aria-label={`上移计算字段 ${field.label}`} onClick={() => moveField(index, -1)} /><Button type="text" icon={<ArrowDownOutlined />} disabled={index === fields.length - 1} aria-label={`下移计算字段 ${field.label}`} onClick={() => moveField(index, 1)} /><Button type="text" icon={<EditOutlined />} aria-label={`重命名计算字段 ${field.label}`} onClick={() => setRenameField({ id: field.id, label: field.label })} /><Button type="text" danger icon={<DeleteOutlined />} aria-label={`删除计算字段 ${field.label}`} onClick={() => deleteField(field)} /></Space></div>)}</div>}
+                {fields.length === 0 && !calculationEditorOpen ? <div className="data-center__calculated-empty"><div className="data-center__calculated-empty-icon"><PlusOutlined /></div><strong>还没有派生字段</strong><span>需要新指标时，点“新建派生字段”选择两个数值字段和运算方式。</span></div> : fields.length > 0 ? <div className="data-center__calculated-list">{fields.map((field, index) => <div className="data-center__calculated-item" key={field.id}><span><strong>{field.label}</strong><small>{selectedFieldLabel(field.leftField)} {operatorText[field.operator]} {selectedFieldLabel(field.rightField)}{field.operator === "percent" ? " × 100" : ""}</small></span><Space size={0}><Button type="text" icon={<ArrowUpOutlined />} disabled={index === 0} aria-label={`上移计算字段 ${field.label}`} onClick={() => moveField(index, -1)} /><Button type="text" icon={<ArrowDownOutlined />} disabled={index === fields.length - 1} aria-label={`下移计算字段 ${field.label}`} onClick={() => moveField(index, 1)} /><Button type="text" icon={<EditOutlined />} aria-label={`重命名计算字段 ${field.label}`} onClick={() => setRenameField({ id: field.id, label: field.label })} /><Button type="text" danger icon={<DeleteOutlined />} aria-label={`删除计算字段 ${field.label}`} onClick={() => deleteField(field)} /></Space></div>)}</div> : null}
                 {calculationEditorOpen && <div className="data-center__formula-editor">
-                  <div className="data-center__formula-header"><span><Typography.Text strong>新增计算字段</Typography.Text><Typography.Text type="secondary">为结果命名，再用两个数值字段组成公式</Typography.Text></span></div>
+                  <div className="data-center__formula-header"><span><Typography.Text strong>设置新指标</Typography.Text><Typography.Text type="secondary">先给新字段命名，再选择两个数值字段和计算方式。</Typography.Text></span></div>
                   <label className="data-center__formula-name"><span>字段名称</span><Input aria-label="计算字段名称" placeholder="例如：利润率" value={label} onChange={(event) => setLabel(event.target.value)} onPressEnter={() => { if (formulaReady) addField(); }} maxLength={100} showCount /></label>
                   <div className="data-center__formula-composer">
                     <label><span>第一个字段</span><Select aria-label="计算字段左值" placeholder="选择数值字段" value={leftField} options={numericFieldOptions} showSearch optionFilterProp="label" onChange={setLeftField} /></label>
@@ -270,24 +286,30 @@ export const DatasetDetail = () => {
                     <Button type="primary" icon={<PlusOutlined />} onClick={addField} disabled={!formulaReady}>添加计算字段</Button>
                   </div>
                 </div>}
+                <details className="data-center__source-fields-disclosure"><summary><span><strong>查看可用的原始字段</strong><small>共 {availableFields.length} 个，其中 {availableFields.filter((field) => field.type === "number").length} 个数值字段可用于计算</small></span><DownOutlined aria-hidden="true" /></summary><div className="data-center__fields data-center__fields--detail">{availableFields.map((field) => <div className="data-center__field" key={field.key}><span><strong>{field.label}</strong><small>{field.key}</small></span><Tag>{typeLabel[field.type]}</Tag></div>)}</div></details>
               </Card>
-                <div className="data-center__wizard-actions">
+                <div className={`data-center__wizard-actions${activeStep === 4 ? " is-final-step" : ""}`}>
                   <Button onClick={() => goToStep(activeStep - 1)} disabled={activeStep === 1}>上一步</Button>
                   <span>步骤 {activeStep} / 4</span>
-                  <Button
-                    type="primary"
-                    disabled={!canAdvance || saveMutation.isPending}
-                    loading={activeStep === 4 && saveMutation.isPending}
-                    onClick={() => {
-                      if (activeStep === 4) {
-                        save();
-                        return;
-                      }
-                      goToStep(activeStep + 1);
-                    }}
-                  >
-                    {activeStep === 4 ? "完成" : `下一步：${["派生字段", "字段选择", "结果筛选"][activeStep - 1]}`}
-                  </Button>
+                  <div className="data-center__wizard-action-buttons">
+                    {activeStep === 4 && <><Button icon={<EyeOutlined />} disabled={combineBlocked} onClick={() => setPreviewOpen(true)}>预览加工结果</Button><Button onClick={reset} disabled={saveMutation.isPending}>清空草稿</Button></>}
+                    <Button
+                      type={activeStep === 4 ? "default" : "primary"}
+                      icon={activeStep === 4 ? <SaveOutlined /> : undefined}
+                      disabled={!canAdvance || saveMutation.isPending}
+                      loading={activeStep === 4 && saveMutation.isPending}
+                      onClick={() => {
+                        if (activeStep === 4) {
+                          save();
+                          return;
+                        }
+                        goToStep(activeStep + 1);
+                      }}
+                    >
+                      {activeStep === 4 ? "保存草稿" : `下一步：${["派生字段", "字段选择", "结果筛选"][activeStep - 1]}`}
+                    </Button>
+                    {activeStep === 4 && <Button type="primary" loading={publishMutation.isPending} disabled={combineBlocked} onClick={() => { setResultName(`${schema.data.name} · 加工结果`); setPublishOpen(true); }}>发布为新数据集</Button>}
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,3 +1,4 @@
+import { DashboardInteractionTheme } from "@drag-visual/chart-renderer";
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import { AnalysisGroupDateFilterControl, ComponentContainerStyle, ComponentTitleStyle, type ChartJumpRule, type Dashboard, type Dataset, type DatasetField } from "@drag-visual/contracts";
 import { Alert, Card, Empty, Space, Spin } from "antd";
@@ -95,7 +96,7 @@ const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters
   const analysisGroupDateFilters = useMemo(() => analysisGroupDateFiltersForChildren(analysisGroupDateFilter, runtimeAnalysisGroupDateSelection), [analysisGroupDateFilter, runtimeAnalysisGroupDateSelection]);
   return <section aria-label={`${parent.title || "复合分析"}内容`} style={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", padding: "4px 0 0", boxSizing: "border-box" }}>
     {description && <p style={{ margin: "0 2px 12px", color: "#64748b", fontSize: 13, lineHeight: 1.5 }}>{description}</p>}
-    <AnalysisGroupDateFilterBar control={analysisGroupDateFilter} value={runtimeAnalysisGroupDateSelection} loading={globalFiltersLoading} onChange={setRuntimeAnalysisGroupDateSelection} />
+    <AnalysisGroupDateFilterBar theme={dashboard.theme} control={analysisGroupDateFilter} value={runtimeAnalysisGroupDateSelection} loading={globalFiltersLoading} onChange={setRuntimeAnalysisGroupDateSelection} />
     <ChartQueryFilterBar
       className="chart-query-filter-bar--analysis-group"
       filters={runtimeAnalysisGroupFilterControls}
@@ -121,9 +122,9 @@ const AnalysisGroupViewer = ({ parent, dashboard, currentDatasets, globalFilters
           ? { top: dashboard.theme.customSpacing.paddingTop, right: dashboard.theme.customSpacing.paddingRight, bottom: dashboard.theme.customSpacing.paddingBottom, left: dashboard.theme.customSpacing.paddingLeft }
           : containerStyle.padding;
         const hasHeading = (title?.length ?? 0) > 0 || topLeftHint !== undefined;
-        return <div id={chartJumpTargetElementId(child.id)} key={child.id} style={{ gridColumn: item ? `${item.x + 1} / span ${item.w}` : "span 6", gridRow: item ? `${Math.max(0, item.y) + 1} / span ${Math.max(1, item.h)}` : undefined, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", border: "1px solid #e8ecf1", borderRadius: globalRadius, padding: `${cardPadding.top}px ${cardPadding.right}px ${cardPadding.bottom}px ${cardPadding.left}px`, background: containerStyle.customBackground ? containerStyle.backgroundColor : "#fff", boxShadow: "0 2px 8px rgba(15, 23, 42, .045)" }}>
+        return <div id={chartJumpTargetElementId(child.id)} key={child.id} style={{ gridColumn: item ? `${item.x + 1} / span ${item.w}` : "span 6", gridRow: item ? `${Math.max(0, item.y) + 1} / span ${Math.max(1, item.h)}` : undefined, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden", border: "1px solid #e8ecf1", borderRadius: globalRadius, padding: `${cardPadding.top}px ${cardPadding.right}px ${cardPadding.bottom}px ${cardPadding.left}px`, background: containerStyle.customBackground ? containerStyle.backgroundColor : dashboard.theme.mode === "dark" ? "#102344" : "#fff", boxShadow: "0 2px 8px rgba(15, 23, 42, .045)" }}>
           {hasHeading && <div style={{ flex: "0 0 auto", minWidth: 0, padding: topLeftHint === undefined ? "11px 14px 8px" : "8px 14px 7px" }}>
-            {title !== undefined && title.length > 0 && <div style={{ color: "#262626", fontSize: 14, fontWeight: 600, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
+            {title !== undefined && title.length > 0 && <div style={{ color: dashboard.theme.mode === "dark" ? "#dbe7f5" : "#262626", fontSize: 14, fontWeight: 600, lineHeight: 1.45, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>}
             {topLeftHint !== undefined && <div style={{ color: "#64748b", fontSize: 12, fontWeight: 500, lineHeight: 1.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topLeftHint}>{topLeftHint}</div>}
           </div>}
           <div style={{ display: "flex", flex: "1 1 auto", flexDirection: "column", minHeight: 0, overflow: "hidden", padding: hasHeading ? "0 14px 12px" : "12px 14px" }}>
@@ -225,7 +226,8 @@ export const DashboardViewer = ({
   };
 
   return (
-    <main style={{
+    <DashboardInteractionTheme theme={dashboard.theme}><main data-dashboard-mode={dashboard.theme.mode ?? "light"} style={{
+      ...{ "--dashboard-primary": dashboard.theme.primaryColor },
       minHeight: "100vh",
       background: mode === "preview" ? "#fafafa" : dashboard.theme.backgroundColor,
       padding: embedded ? 12 : headerDensity === "compact" ? "16px 24px 24px" : 24,
@@ -276,7 +278,7 @@ export const DashboardViewer = ({
                   id={chartJumpTargetElementId(component.id)}
                   key={component.id}
                   title={hasComponentHeading ? <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                    {hasComponentTitle && <span style={{ alignSelf: titleStyle.textAlign === "left" ? "flex-start" : titleStyle.textAlign === "center" ? "center" : "flex-end", color: titleStyle.color, fontSize: titleStyle.fontSize, fontStyle: titleStyle.fontStyle, fontWeight: titleStyle.fontWeight, lineHeight: 1.45, textAlign: titleStyle.textAlign }}>{componentTitle}</span>}
+                    {hasComponentTitle && <span style={{ alignSelf: dashboard.theme.preset === "activity" && component.titleStyle?.textAlign === undefined ? "center" : titleStyle.textAlign === "left" ? "flex-start" : titleStyle.textAlign === "center" ? "center" : "flex-end", color: component.titleStyle?.color ?? (dashboard.theme.preset === "activity" ? "#fff" : dashboard.theme.mode === "dark" ? "#dbe7f5" : titleStyle.color), fontSize: titleStyle.fontSize, fontStyle: titleStyle.fontStyle, fontWeight: titleStyle.fontWeight, lineHeight: 1.45, textAlign: titleStyle.textAlign }}>{componentTitle}</span>}
                     {hasTopLeftHint && <span style={{ overflow: "hidden", color: "#64748b", fontSize: 12, fontWeight: 500, lineHeight: 1.5, textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={topLeftHint}>{topLeftHint}</span>}
                   </div> : undefined}
                   style={{
@@ -293,7 +295,7 @@ export const DashboardViewer = ({
                     flexDirection: "column",
                     overflow: "hidden",
                     borderWidth: mode === "preview" ? 0 : undefined,
-                    borderRadius: containerStyle.borderRadius,
+                    borderRadius: dashboard.theme.borderRadiusStyle === undefined ? containerStyle.borderRadius : dashboard.theme.borderRadiusStyle === "large" ? 14 : dashboard.theme.borderRadiusStyle === "small" ? 6 : 0,
                     padding: `${containerStyle.padding.top}px ${containerStyle.padding.right}px ${containerStyle.padding.bottom}px ${containerStyle.padding.left}px`,
                     backgroundColor: containerStyle.customBackground ? containerStyle.backgroundColor : undefined,
                   }}
@@ -302,7 +304,7 @@ export const DashboardViewer = ({
                     // connected to the chart instead of rendering Ant Design's
                     // default divider and 24px body top padding beneath every title.
                     header: hasComponentHeading
-                      ? { borderBottom: "none", flex: "0 0 auto", minHeight: hasTopLeftHint ? 60 : 44, padding: hasTopLeftHint ? "8px 24px" : "0 24px" }
+                      ? { ...(dashboard.theme.preset === "activity" ? { background: "#ff8519 url(\"/theme-backgrounds/activity-header.svg\") center top / cover", textAlign: "center" as const } : {}), borderBottom: "none", flex: "0 0 auto", minHeight: hasTopLeftHint ? 60 : 44, padding: hasTopLeftHint ? "8px 24px" : "0 24px" }
                       : { display: "none" },
                     body: {
                       display: "flex",
@@ -379,6 +381,6 @@ export const DashboardViewer = ({
       <DashboardPageFooter dashboard={dashboard} />
       </Space>
       </div>
-    </main>
+    </main></DashboardInteractionTheme>
   );
 };

@@ -6,6 +6,9 @@ import { DatasetFilter } from "./dataset.js";
 const nonEmptyString = z.string().min(1);
 const hexColor = z.string().regex(/^#[0-9A-Fa-f]{6}$/);
 
+export const DashboardThemePreset = z.enum(["default", "deepBlue", "technology", "activity", "minimal", "custom"]);
+export type DashboardThemePreset = z.infer<typeof DashboardThemePreset>;
+
 export const DashboardThemeMode = z.enum(["light", "dark"]);
 export const DashboardFontFamily = z.enum(["system", "source-han-sans", "source-han-serif", "alibaba-puhuiti", "harmonyos-sans", "lxgw-wenkai"]);
 export type DashboardThemeMode = z.infer<typeof DashboardThemeMode>;
@@ -20,10 +23,34 @@ export const DashboardBackground = z.object({
 
 export type DashboardBackground = z.infer<typeof DashboardBackground>;
 
+export const DashboardTableTextStyle = z.object({
+  opacity: z.number().min(0).max(1).optional(),
+  color: hexColor.optional(),
+  fontFamily: DashboardFontFamily.default("system"),
+  fontSize: z.number().int().min(10).max(48).default(12),
+  bold: z.boolean().default(false),
+  italic: z.boolean().default(false),
+}).strict();
+
+/** Page-wide presentation for chart surfaces that render tabular data. */
+export const DashboardTableStyle = z.object({
+  preset: z.enum(["default", "grid", "simple", "minimal"]).default("default"),
+  colorScheme: z.enum(["theme", "gray", "custom"]).default("theme"),
+  customColor: hexColor.default("#36c99a"),
+  customOpacity: z.number().min(0).max(1).optional(),
+  header: DashboardTableTextStyle.default({ fontFamily: "system", fontSize: 12, bold: false, italic: false }),
+  body: DashboardTableTextStyle.default({ fontFamily: "system", fontSize: 12, bold: false, italic: false }),
+}).strict();
+
+export type DashboardTableStyle = z.infer<typeof DashboardTableStyle>;
+export type DashboardTableTextStyle = z.infer<typeof DashboardTableTextStyle>;
+
 /** Page-level presentation shared by the editor canvas and read-only viewer. */
 const dashboardPageLayoutSchema = z.object({
   layoutMode: z.enum(["fitContent", "fitViewport"]).default("fitContent"),
   titleVisible: z.boolean().default(true),
+  titleColor: hexColor.optional(),
+  titleTextAlign: z.enum(["left", "center", "right"]).optional(),
   titleFontSize: z.number().int().min(12).max(72).default(22),
   titleFontFamily: DashboardFontFamily.default("system"),
   titleLetterSpacing: z.number().min(-2).max(12).default(0),
@@ -84,6 +111,7 @@ export const ComponentType = z.enum([
   "percentBar",
   "horizontalBar",
   "barLine",
+  "dualAxisLine",
   "ringBar",
   "ranking",
   "productMovementRanking",
@@ -97,6 +125,7 @@ export const ComponentType = z.enum([
   "percentArea",
   "pie",
   "donut",
+  "donutBreakdown",
   "rose",
   "sunburst",
   "radar",
@@ -435,6 +464,8 @@ export const DashboardSchema = z
     name: z.string().min(1).max(100),
     theme: z
       .object({
+        preset: DashboardThemePreset.optional(),
+        presetAdjusted: z.boolean().optional(),
         primaryColor: hexColor,
         backgroundColor: hexColor,
         mode: DashboardThemeMode.optional(),
@@ -455,6 +486,7 @@ export const DashboardSchema = z
         }).strict().optional(),
         pageLayout: DashboardPageLayout.optional(),
         semanticColors: DashboardSemanticColors.optional(),
+        tableStyle: DashboardTableStyle.optional(),
       })
       .strict(),
     layout: z.array(GridItem).max(100),

@@ -1,8 +1,10 @@
 import { areaDefinition } from "./definitions/area.js";
 import { barDefinition } from "./definitions/bar.js";
 import { barLineDefinition } from "./definitions/barLine.js";
+import { dualAxisLineDefinition } from "./definitions/dualAxisLine.js";
 import { crosstabDefinition } from "./definitions/crosstab.js";
 import { donutDefinition } from "./definitions/donut.js";
+import { donutBreakdownDefinition } from "./definitions/donutBreakdown.js";
 import { dashboardHeaderDefinition } from "./definitions/dashboardHeader.js";
 import { analysisGroupDefinition } from "./definitions/analysisGroup.js";
 import { flipNumberDefinition } from "./definitions/flipNumber.js";
@@ -40,9 +42,11 @@ import { ComponentRegistry } from "./registry.js";
 
 export { barDefinition } from "./definitions/bar.js";
 export { barLineDefinition } from "./definitions/barLine.js";
+export { dualAxisLineDefinition } from "./definitions/dualAxisLine.js";
 export { areaDefinition } from "./definitions/area.js";
 export { crosstabDefinition } from "./definitions/crosstab.js";
 export { donutDefinition } from "./definitions/donut.js";
+export { donutBreakdownDefinition } from "./definitions/donutBreakdown.js";
 export { dashboardHeaderDefinition } from "./definitions/dashboardHeader.js";
 export { analysisGroupDefinition } from "./definitions/analysisGroup.js";
 export { flipNumberDefinition } from "./definitions/flipNumber.js";
@@ -94,6 +98,7 @@ export const createDefaultRegistry = (): ComponentRegistry =>
     .register(areaDefinition)
     .register(barDefinition)
     .register(barLineDefinition)
+    .register(dualAxisLineDefinition)
     .register(crosstabDefinition)
     .register(heatmapDefinition)
     .register(horizontalBarDefinition)
@@ -109,6 +114,7 @@ export const createDefaultRegistry = (): ComponentRegistry =>
     .register(productMovementRankingDefinition)
     .register(pieDefinition)
     .register(donutDefinition)
+    .register(donutBreakdownDefinition)
     .register(roseDefinition)
     .register(sunburstDefinition)
     .register(radarDefinition)

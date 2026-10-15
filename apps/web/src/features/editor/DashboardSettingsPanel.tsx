@@ -1,10 +1,13 @@
 import { BorderOutlined, DeleteOutlined, FormOutlined, FullscreenOutlined, LockOutlined, PictureOutlined, SearchOutlined, UnlockOutlined } from "@ant-design/icons";
-import { DashboardBackground, DashboardPageLayout, type Dashboard } from "@drag-visual/contracts";
-import { Alert, Button, Checkbox, Collapse, Empty, Input, InputNumber, Popover, Radio, Select, Tooltip, Typography } from "antd";
+import { DashboardBackground, DashboardPageLayout, DashboardTableStyle, type Dashboard } from "@drag-visual/contracts";
+import { Alert, Button, Checkbox, Collapse, Empty, Input, InputNumber, Popover, Radio, Select, Tabs, Tooltip, Typography } from "antd";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
 
+import { ColorPalettePicker } from "../../components/ColorPalettePicker/ColorPalettePicker.js";
 import { DashboardBackgroundPicker, DashboardBackgroundThumbnail } from "./DashboardBackgroundPanel.js";
+import { dashboardThemePresets } from "./dashboardThemePresets.js";
+import { TableStyleSettings, type DashboardTableStylePatch } from "./TableStyleSettings.js";
 import { editorSelectors, type EditorStore } from "./store/editorStore.js";
 
 interface DashboardSettingsPanelProps {
@@ -134,20 +137,19 @@ const ThemeColorField = ({
   label,
   value,
   onChange,
+  inline = false,
+  disabled = false,
 }: {
   readonly label: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
+  readonly inline?: boolean;
+  readonly disabled?: boolean;
 }) => (
-  <label className="dashboard-settings__field">
+  <label className={`dashboard-settings__field${inline ? " dashboard-settings__field--inline" : ""}`}>
     <span>{label}</span>
     <span className="dashboard-settings__color-control">
-      <input
-        aria-label={label}
-        type="color"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
+      <ColorPalettePicker label={label} ariaLabel={label} color={value} disabled={disabled} disabledAlpha onChange={({ color }) => onChange(color)} />
       <code>{value.toUpperCase()}</code>
     </span>
   </label>
@@ -156,6 +158,7 @@ const ThemeColorField = ({
 export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) => {
   const dashboard = useStore(store, editorSelectors.dashboard);
   const [query, setQuery] = useState("");
+  const [themeTab, setThemeTab] = useState(dashboard.theme.preset === undefined || dashboard.theme.preset === "custom" ? "custom" : "official");
   const [customPaletteOpen, setCustomPaletteOpen] = useState(false);
   const [paddingLocked, setPaddingLocked] = useState(true);
   const [backgroundImageError, setBackgroundImageError] = useState<string | null>(null);
@@ -169,17 +172,45 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
   const [draftSpacing, setDraftSpacing] = useState({ rowGap: 8, columnGap: 8, paddingTop: 8, paddingRight: 12, paddingBottom: 8, paddingLeft: 12 });
 
   const updateTheme = (patch: Partial<Dashboard["theme"]>) => {
+    const current = store.getState().history.present.theme;
+    const visualEdit = patch.preset === undefined && (
+      Object.keys(patch).some((key) => key !== "pageLayout") ||
+      (patch.pageLayout !== undefined && (["backgroundColorEnabled", "backgroundImageEnabled", "backgroundImage", "titleColor", "titleTextAlign"] as const).some((key) =>
+        patch.pageLayout?.[key] !== DashboardPageLayout.parse(current.pageLayout ?? {})[key]))
+    );
     store.getState().dispatch({
       type: "dashboard.theme.update",
-      nextTheme: { ...store.getState().history.present.theme, ...patch } as Dashboard["theme"],
+      nextTheme: { ...current, ...(visualEdit && current.preset && current.preset !== "custom" ? { presetAdjusted: true } : {}), ...patch } as Dashboard["theme"],
+    });
+  };
+  const updateTableStyle = (patch: DashboardTableStylePatch) => {
+    const current = DashboardTableStyle.parse(store.getState().history.present.theme.tableStyle ?? {});
+    updateTheme({ tableStyle: DashboardTableStyle.parse({
+      ...current, ...patch,
+      header: { ...current.header, ...patch.header },
+      body: { ...current.body, ...patch.body },
+    }) });
+  };
+  const selectedPreset = dashboardThemePresets.find((preset) => preset.id === dashboard.theme.preset || (dashboard.theme.preset === "minimal" && preset.id === "activity"));
+  const applyPreset = (preset: typeof dashboardThemePresets[number]) => {
+    const current = store.getState().history.present.theme;
+    const layout = DashboardPageLayout.parse(current.pageLayout ?? {});
+    const builtInImage = layout.backgroundImage.startsWith("/theme-backgrounds/");
+    const useActivityImage = preset.id === "activity" && (!layout.backgroundImage || builtInImage);
+    updateTheme({ preset: preset.id, presetAdjusted: false, primaryColor: preset.primaryColor,
+      backgroundColor: preset.backgroundColor, chartPalette: [...preset.chartPalette], mode: preset.mode,
+      fontFamily: "system", borderRadiusStyle: preset.id === "activity" ? "large" : preset.id === "technology" ? "small" : "none", spacingStyle: "compact", spacing: 8,
+      chartGradient: true, semanticColors: { ...semanticGroups.标准 }, tableStyle: DashboardTableStyle.parse((preset.id === "technology" || preset.id === "activity") ? { header: { color: "#262626" }, body: { color: "#262626" } } : {}),
+      pageLayout: DashboardPageLayout.parse({ ...layout, ...(useActivityImage ? { backgroundImage: "/theme-backgrounds/activity.svg", backgroundImageEnabled: true } : builtInImage ? { backgroundImage: "", backgroundImageEnabled: false } : {}), backgroundColorEnabled: true, titleColor: preset.id === "activity" ? "#ffffff" : preset.id === "technology" ? "#dce8ff" : preset.mode === "dark" ? "#dbe7f5" : "#172033", titleTextAlign: (preset.id === "technology" || preset.id === "activity") ? "center" : "left" }),
     });
   };
   const pageLayout = DashboardPageLayout.parse(dashboard.theme.pageLayout ?? {});
   const dashboardBackground = DashboardBackground.parse(dashboard.theme.dashboardBackground ?? {});
+  useEffect(() => setThemeTab(dashboard.theme.preset === undefined || dashboard.theme.preset === "custom" ? "custom" : "official"), [dashboard.theme.preset]);
   useEffect(() => setTitleDraft(dashboard.name), [dashboard.name]);
   useEffect(() => setFooterDraft(pageLayout.footerText), [pageLayout.footerText]);
   const updatePageLayout = (patch: Partial<typeof pageLayout>) => updateTheme({
-    pageLayout: DashboardPageLayout.parse({ ...pageLayout, ...patch }),
+    pageLayout: DashboardPageLayout.parse({ ...DashboardPageLayout.parse(store.getState().history.present.theme.pageLayout ?? {}), ...patch }),
   });
   const updateCustomMargin = (side: keyof typeof pageLayout.customMargins, next: number) => {
     const margins = pageLayout.customMargins;
@@ -227,7 +258,7 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
     reader.onload = () => {
       if (typeof reader.result !== "string") return;
       setBackgroundImageError(null);
-      updatePageLayout({ backgroundImage: reader.result, backgroundImageEnabled: true, backgroundColorEnabled: false });
+      updatePageLayout({ backgroundImage: reader.result, backgroundImageEnabled: true });
     };
     reader.onerror = () => setBackgroundImageError("背景图片读取失败");
     reader.readAsDataURL(file);
@@ -263,10 +294,30 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
     {
       key: "theme",
       label: "仪表板主题",
-      keywords: "仪表板主题 品牌 主色 调色",
+      keywords: "仪表板主题 品牌 主色 调色 官方 默认 深蓝 科技 活动 自定义",
       content: <div className="dashboard-settings__section-body">
-        <ThemeColorField label="主题色" value={dashboard.theme.primaryColor} onChange={(primaryColor) => updateTheme({ primaryColor })} />
-        <Typography.Text type="secondary">主题色用于按钮、选中状态和重点信息。</Typography.Text>
+        <Tabs
+          className="dashboard-theme-tabs"
+          size="small"
+          activeKey={themeTab}
+          onChange={setThemeTab}
+          tabBarGutter={24}
+          items={[
+            { key: "official", label: "官方", children: (
+        <div className="dashboard-theme-presets" role="group" aria-label="官方仪表板主题">
+          {dashboardThemePresets.map((preset) => <button key={preset.id} type="button" aria-label={`${preset.label}仪表板主题`} aria-pressed={dashboard.theme.preset === preset.id} className={`dashboard-theme-presets__option${dashboard.theme.preset === preset.id ? " dashboard-theme-presets__option--selected" : ""}`} onClick={() => applyPreset(preset)}>
+            <img className="dashboard-theme-presets__preview" src={`${import.meta.env.BASE_URL}theme-thumbnails/${preset.thumbnail}`} alt="" aria-hidden="true" width={1672} height={941} decoding="async" />
+            <span className="dashboard-theme-presets__label">{preset.label}</span>
+          </button>)}
+        </div>
+            ) },
+            { key: "custom", label: "自定义", children: <div className="dashboard-settings__section-body">
+              <ThemeColorField inline label="主题色" value={dashboard.theme.primaryColor} onChange={(primaryColor) => updateTheme({ primaryColor })} />
+              <Typography.Text type="secondary">可基于当前主题调整，主题色用于按钮、选中状态和重点信息。</Typography.Text>
+            </div> },
+          ]}
+        />
+        {selectedPreset && <div className="dashboard-settings__setting-row"><span>{selectedPreset.label}{dashboard.theme.presetAdjusted ? " · 已调整" : ""}</span><Button size="small" onClick={() => applyPreset(selectedPreset)}>恢复主题默认</Button></div>}
       </div>,
     },
     {
@@ -309,6 +360,8 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
                 <span>页面标题</span><Input aria-label="页面标题" size="small" maxLength={100} value={titleDraft} onChange={(event) => setTitleDraft(event.target.value)} onBlur={commitTitle} onPressEnter={(event) => event.currentTarget.blur()} />
                 <span>文字大小</span><InputNumber aria-label="页面标题文字大小" size="small" min={12} max={72} suffix="px" value={pageLayout.titleFontSize} onChange={(value) => typeof value === "number" && updatePageLayout({ titleFontSize: value })} />
                 <span>字体</span><Select aria-label="页面标题字体" size="small" value={pageLayout.titleFontFamily} options={pageFontOptions} onChange={(titleFontFamily) => updatePageLayout({ titleFontFamily })} />
+                <span>颜色</span><ColorPalettePicker label="页面标题颜色" ariaLabel="页面标题颜色" color={pageLayout.titleColor ?? "#172033"} disabledAlpha onChange={({ color }) => updatePageLayout({ titleColor: color })} />
+                <span>对齐</span><Select aria-label="页面标题对齐" size="small" value={pageLayout.titleTextAlign ?? "left"} options={[{ value: "left", label: "左对齐" }, { value: "center", label: "居中" }, { value: "right", label: "右对齐" }]} onChange={(titleTextAlign) => updatePageLayout({ titleTextAlign })} />
                 <span>字间距</span><InputNumber aria-label="页面标题字间距" size="small" min={-2} max={12} step={0.5} suffix="px" value={pageLayout.titleLetterSpacing} onChange={(value) => typeof value === "number" && updatePageLayout({ titleLetterSpacing: value })} />
               </div>}
             ><Button className="dashboard-settings__inline-edit" aria-label="编辑页面标题" type="text" size="small" icon={<FormOutlined />} /></Popover>}
@@ -329,34 +382,6 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
             ><Button className="dashboard-settings__inline-edit" aria-label="编辑页尾文字" type="text" size="small" icon={<FormOutlined />} /></Popover>}
           </span>
         </div></div>
-        <div className="dashboard-settings__setting-row"><span>页面背景</span><div className="dashboard-settings__page-background">
-          <Radio.Group
-            aria-label="页面背景类型"
-            value={pageLayout.backgroundImageEnabled ? "image" : pageLayout.backgroundColorEnabled ? "color" : undefined}
-            onChange={(event) => updatePageLayout({
-              backgroundColorEnabled: event.target.value === "color",
-              backgroundImageEnabled: event.target.value === "image",
-            })}
-          >
-            <Radio
-              value="color"
-              onClick={() => pageLayout.backgroundColorEnabled && updatePageLayout({ backgroundColorEnabled: false })}
-            ><span className="dashboard-settings__background-color-option">颜色<input aria-label="页面背景颜色" type="color" value={dashboard.theme.backgroundColor} disabled={!pageLayout.backgroundColorEnabled} onClick={(event) => event.stopPropagation()} onChange={(event) => updateTheme({ backgroundColor: event.target.value })} /></span></Radio>
-            <Radio
-              value="image"
-              disabled={pageLayout.backgroundImage.length === 0}
-              onClick={() => pageLayout.backgroundImageEnabled && updatePageLayout({ backgroundImageEnabled: false })}
-            >图片</Radio>
-          </Radio.Group>
-          <Tooltip title={pageLayout.backgroundImage.length > 0 ? "更换背景图片" : "选择背景图片"}>
-            <label className={`dashboard-settings__background-upload${pageLayout.backgroundImage.length > 0 ? " dashboard-settings__background-upload--has-image" : ""}`} style={pageLayout.backgroundImage.length > 0 ? { backgroundImage: `url(${pageLayout.backgroundImage})` } : undefined}>
-              {pageLayout.backgroundImage.length === 0 && <PictureOutlined aria-hidden="true" />}
-              <input aria-label="选择页面背景图片" type="file" accept="image/*" onChange={(event) => selectBackgroundImage(event.target.files?.[0])} />
-            </label>
-          </Tooltip>
-          {pageLayout.backgroundImage.length > 0 && <Tooltip title="移除背景图片"><Button className="dashboard-settings__background-remove" aria-label="移除背景图片" size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => updatePageLayout({ backgroundImage: "", backgroundImageEnabled: false })} /></Tooltip>}
-        </div></div>
-        {backgroundImageError && <Alert className="dashboard-settings__background-error" type="error" showIcon message={backgroundImageError} />}
         <div className="dashboard-settings__setting-row"><span>页面宽度</span><div className="dashboard-settings__page-width">
           <Radio.Group value={pageLayout.widthMode} onChange={(event) => updatePageLayout({ widthMode: event.target.value })} options={[{ label: "自适应", value: "adaptive" }, { label: "固定", value: "fixed" }]} />
           <InputNumber aria-label="固定页面宽度" size="small" min={960} max={2560} step={20} suffix="px" disabled={pageLayout.widthMode !== "fixed"} value={pageLayout.fixedWidth} onChange={(value) => typeof value === "number" && updatePageLayout({ fixedWidth: value })} />
@@ -385,6 +410,14 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
       label: "仪表板背景",
       keywords: "仪表板背景 页面 底色 颜色",
       content: <div className="dashboard-settings__section-body">
+        <div className="dashboard-settings__setting-row dashboard-settings__background-row"><Checkbox checked={pageLayout.backgroundColorEnabled} onChange={(event) => updatePageLayout({ backgroundColorEnabled: event.target.checked })}>背景颜色</Checkbox><ColorPalettePicker label="背景颜色" ariaLabel="背景颜色" color={dashboard.theme.backgroundColor} disabled={!pageLayout.backgroundColorEnabled} disabledAlpha onChange={({ color }) => updateTheme({ backgroundColor: color })} /></div>
+        <div className="dashboard-settings__setting-row dashboard-settings__background-row"><Checkbox checked={pageLayout.backgroundImageEnabled} disabled={!pageLayout.backgroundImage} onChange={(event) => updatePageLayout({ backgroundImageEnabled: event.target.checked })}>整页背景图片</Checkbox><div className="dashboard-settings__page-background">
+          <Tooltip title="选择或更换整页背景图片"><label className={`dashboard-settings__background-upload${pageLayout.backgroundImage ? " dashboard-settings__background-upload--has-image" : ""}`} style={pageLayout.backgroundImage ? { backgroundImage: `url(${pageLayout.backgroundImage})` } : undefined}>
+            {!pageLayout.backgroundImage && <PictureOutlined aria-hidden="true" />}<input aria-label="选择页面背景图片" type="file" accept="image/*" onChange={(event) => selectBackgroundImage(event.target.files?.[0])} />
+          </label></Tooltip>
+          {pageLayout.backgroundImage && <Button aria-label="移除背景图片" size="small" type="text" danger icon={<DeleteOutlined />} onClick={() => updatePageLayout({ backgroundImage: "", backgroundImageEnabled: false })} />}
+        </div></div>
+        {backgroundImageError && <Alert className="dashboard-settings__background-error" type="error" showIcon message={backgroundImageError} />}
         <div className="dashboard-background-settings">
           {(["top", "bottom"] as const).map((target) => {
             const enabled = target === "top" ? dashboardBackground.topVisible : dashboardBackground.bottomVisible;
@@ -405,8 +438,7 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
             </div>;
           })}
         </div>
-        <ThemeColorField label="背景颜色" value={dashboard.theme.backgroundColor} onChange={(backgroundColor) => updateTheme({ backgroundColor })} />
-        <Typography.Text type="secondary">背景图片会显示在仪表板顶部或底部，发布后对访问者可见。</Typography.Text>
+        <Typography.Text type="secondary">底色、整页图片和顶部/底部装饰可叠加使用。</Typography.Text>
       </div>,
     },
     {
@@ -420,12 +452,21 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
     {
       key: "content-style",
       label: "通用内容样式",
-      keywords: "通用内容样式 文字 数字 字体",
+      keywords: "通用内容样式 文字 数字 字体 表类样式 表格 明细表 交叉表 多维分析 热力矩阵 表头 内容 配色 线框 简版 极简",
       content: <div className="dashboard-settings__section-body">
-        <Typography.Text type="secondary">内容默认继承当前主题，以保持整张仪表板的视觉一致性。</Typography.Text>
+        <Collapse
+          className="dashboard-settings__collapse dashboard-settings__collapse--nested"
+          ghost
+          defaultActiveKey={["table-style"]}
+          items={[{
+            key: "table-style",
+            label: "表类样式",
+            children: <TableStyleSettings value={dashboard.theme.tableStyle} primaryColor={dashboard.theme.primaryColor} dark={mode === "dark"} onChange={updateTableStyle} />,
+          }]}
+        />
       </div>,
     },
-  ], [dashboard.name, titleDraft, footerDraft, titleEditorOpen, footerEditorOpen, marginSelectOpen, marginLocked, backgroundPickerTarget, dashboard.theme.backgroundColor, dashboard.theme.primaryColor, dashboard.theme.mode, dashboard.theme.fontFamily, dashboard.theme.borderRadiusStyle, dashboard.theme.spacingStyle, dashboard.theme.spacing, JSON.stringify(dashboard.theme.customSpacing), JSON.stringify(dashboard.theme.pageLayout), JSON.stringify(dashboard.theme.dashboardBackground), dashboard.theme.chartGradient, JSON.stringify(dashboard.theme.chartPalette), JSON.stringify(dashboard.theme.semanticColors), backgroundImageError, customPaletteOpen, paddingLocked]);
+  ], [dashboard.theme.presetAdjusted, themeTab, JSON.stringify(dashboard.theme.tableStyle), dashboard.name, titleDraft, footerDraft, titleEditorOpen, footerEditorOpen, marginSelectOpen, marginLocked, backgroundPickerTarget, dashboard.theme.backgroundColor, dashboard.theme.preset, dashboard.theme.primaryColor, dashboard.theme.mode, dashboard.theme.fontFamily, dashboard.theme.borderRadiusStyle, dashboard.theme.spacingStyle, dashboard.theme.spacing, JSON.stringify(dashboard.theme.customSpacing), JSON.stringify(dashboard.theme.pageLayout), JSON.stringify(dashboard.theme.dashboardBackground), dashboard.theme.chartGradient, JSON.stringify(dashboard.theme.chartPalette), JSON.stringify(dashboard.theme.semanticColors), backgroundImageError, customPaletteOpen, paddingLocked]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN");
   const visibleSections = normalizedQuery.length === 0
@@ -450,7 +491,9 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
           ghost
           items={visibleSections.map((section) => ({
             key: section.key,
+            ...(section.key === "theme" ? { className: "dashboard-settings__collapse-item--theme" } : {}),
             ...(section.key === "layout" ? { className: "dashboard-settings__collapse-item--page-layout" } : {}),
+            ...(section.key === "content-style" ? { className: "dashboard-settings__collapse-item--content-style" } : {}),
             label: section.label,
             children: section.content,
           }))}

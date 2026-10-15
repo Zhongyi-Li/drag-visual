@@ -1,0 +1,112 @@
+.data-preview-validation {
+  border-radius: 8px;
+}
+
+.data-preview-validation .ant-alert-message {
+  color: #8f1d1d;
+  font-weight: 650;
+}
+
+.data-preview-validation__content {
+  display: grid;
+  gap: 12px;
+  max-height: calc(100vh - 330px);
+  padding-top: 2px;
+  overflow: auto;
+  color: #4a3131;
+}
+
+.data-preview-validation__content > p {
+  margin: 0;
+  color: #6e4a4a;
+}
+
+.data-preview-validation__issues {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.data-preview-validation__issues li {
+  display: grid;
+  grid-template-columns: minmax(160px, .8fr) minmax(220px, 1.6fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  color: #594343;
+  background: rgb(255 255 255 / 66%);
+  border: 1px solid #ffd1cc;
+  border-radius: 7px;
+}
+
+.data-preview-validation__field {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+}
+
+.data-preview-validation__field strong {
+  overflow: hidden;
+  color: #382727;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-preview-validation__field code {
+  overflow: hidden;
+  padding: 1px 5px;
+  color: #865656;
+  background: #fff1ef;
+  border-radius: 4px;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.data-preview-validation__count {
+  padding: 2px 8px;
+  color: #a13b32;
+  background: #ffe4e0;
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.data-preview-validation__hint {
+  padding: 9px 11px;
+  color: #695b42;
+  background: #fff9e8;
+  border: 1px solid #f8e5ad;
+  border-radius: 7px;
+}
+
+.data-preview-validation__details {
+  color: #785656;
+}
+
+.data-preview-validation__details summary {
+  width: max-content;
+  color: #b33b32;
+  cursor: pointer;
+  user-select: none;
+}
+
+.data-preview-validation__details p {
+  margin: 8px 0 0;
+  overflow-wrap: anywhere;
+  line-height: 1.7;
+}
+
+@media (max-width: 640px) {
+  .data-preview-validation__issues li {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .data-preview-validation__issues li > span:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

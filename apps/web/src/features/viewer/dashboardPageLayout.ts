@@ -6,6 +6,7 @@ export interface DashboardPageSource {
   readonly revision: number;
   readonly theme: {
     readonly backgroundColor: string;
+    readonly preset?: string | undefined;
     readonly pageLayout?: unknown;
   };
 }
@@ -22,7 +23,7 @@ export const pageMargin = (settings: ReturnType<typeof resolveDashboardPageLayou
 
 const safeBackgroundImage = (value: string): string | undefined => {
   const trimmed = value.trim();
-  return /^(https?:\/\/|data:image\/)/i.test(trimmed) ? trimmed : undefined;
+  return /^(https?:\/\/|data:image\/|\/theme-backgrounds\/)/i.test(trimmed) ? trimmed : undefined;
 };
 
 export const pageSurfaceStyle = (
@@ -45,7 +46,7 @@ export const pageSurfaceStyle = (
     minHeight: `calc(100vh - ${viewportInset}px)`,
     marginInline: settings.widthMode === "fixed" ? "auto" : undefined,
     padding: pageMargin(settings),
-    backgroundColor: image === undefined && settings.backgroundColorEnabled ? dashboard.theme.backgroundColor : "transparent",
+    backgroundColor: settings.backgroundColorEnabled ? dashboard.theme.backgroundColor : "transparent",
     backgroundImage: image === undefined ? undefined : `url(${JSON.stringify(image)})`,
     backgroundPosition: "center",
     backgroundRepeat: "no-repeat",

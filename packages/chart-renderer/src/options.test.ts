@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBarOption,
   buildBarLineOption,
+  buildDualAxisLineOption,
   buildKpiValue,
   buildLineOption,
   buildMetricTrendModel,
@@ -11,6 +12,7 @@ import {
   buildMetricBreakdownModel,
   buildMultidimensionalModel,
   buildPieOption,
+  buildDonutBreakdownModel,
   buildRadarOption,
   buildSunburstOption,
   buildTreemapOption,
@@ -53,12 +55,86 @@ const component = (overrides: Partial<ComponentInstance>): ComponentInstance => 
   ...overrides,
 });
 
+describe("donut breakdown", () => {
+  const chart = component({
+    type: "donutBreakdown",
+    title: "毛利渠道",
+    props: { aggregation: "sum", maxCategoryCount: 20 },
+    binding: { datasetId: "sales", slots: { dimension: { fieldKey: "channel" }, measure: { fieldKey: "profit" } } },
+  });
+  const fields: readonly DatasetField[] = [
+    { key: "channel", label: "渠道", type: "string", nullable: false },
+    { key: "profit", label: "毛利", type: "number", nullable: false },
+  ];
+
+  it("uses one grouped value for both the ring and the detail percentage", () => {
+    const model = buildDonutBreakdownModel(chart, [
+      { channel: "亚马逊", profit: 100 },
+      { channel: "速卖通", profit: 300 },
+      { channel: "亚马逊", profit: 100 },
+      { channel: "SHEIN", profit: 0 },
+    ], fields);
+    expect(model).toMatchObject({ dimensionLabel: "渠道", measureLabel: "毛利", isCurrency: true, total: 500 });
+    expect(model.items).toEqual([
+      { name: "亚马逊", value: 200, sliceValue: 200, percent: 40 },
+      { name: "速卖通", value: 300, sliceValue: 300, percent: 60 },
+      { name: "SHEIN", value: 0, sliceValue: 0, percent: 0 },
+    ]);
+  });
+
+  it("keeps negative values readable without creating invalid pie slices", () => {
+    const model = buildDonutBreakdownModel(chart, [
+      { channel: "盈利", profit: 60 },
+      { channel: "亏损", profit: -10 },
+    ], fields, true);
+    expect(model.total).toBe(60);
+    expect(model.items[1]).toEqual({ name: "亏损", value: -10, sliceValue: 0, percent: 0 });
+  });
+});
+
 describe("metric unit inference", () => {
   it("treats sales quantity metrics as item counts instead of currency", () => {
     const fields: readonly DatasetField[] = [{ key: "sales", label: "销售数量", type: "number", nullable: false }];
 
     expect(isQuantityMetric("sales", fields)).toBe(true);
     expect(isCurrencyMetric("sales", fields)).toBe(false);
+  });
+});
+
+describe("dual-axis amount and rate line", () => {
+  const fields: readonly DatasetField[] = [
+    { key: "day", label: "日期", type: "date", nullable: false },
+    { key: "profit", label: "毛利", type: "number", nullable: true },
+    { key: "margin", label: "毛利率", type: "number", nullable: true },
+  ];
+  const chart = component({
+    type: "dualAxisLine",
+    title: "预估毛利（CNY）",
+    props: { amountColor: "#22964b", rateColor: "#eb6b16", rateUnit: "percent", showValues: true, showAverage: true },
+    binding: { datasetId: "sales", slots: { dimension: { fieldKey: "day" }, amountMeasure: { fieldKey: "profit" }, rateMeasure: { fieldKey: "margin" } } },
+  });
+
+  it("sorts dates, aggregates amount and rate independently, and retains negative values", () => {
+    const option = buildDualAxisLineOption(chart, [
+      { day: "2026-09-23", profit: -65504, margin: -198.1 },
+      { day: "2026-09-22", profit: 30000, margin: 20 },
+      { day: "2026-09-22", profit: 9704, margin: 26.2 },
+    ], fields);
+    expect(option.xAxis.data).toEqual(["2026-09-22", "2026-09-23"]);
+    expect(option.series[0]!.data.map((point) => point.value)).toEqual([39704, -65504]);
+    expect(option.series[1]!.data.map((point) => point.value)).toEqual([23.1, -198.1]);
+    expect(option.series[1]!.yAxisIndex).toBe(1);
+    expect(option.title[1]?.text).toContain("-87.5%");
+  });
+
+  it("converts fractional rates and leaves missing measurements as gaps", () => {
+    const option = buildDualAxisLineOption({ ...chart, props: { ...chart.props, rateUnit: "fraction" } }, [
+      { day: "2026-09-22", profit: null, margin: 0.173 },
+      { day: "2026-09-23", profit: -100, margin: null },
+    ], fields, true);
+    expect(option.series[0]!.data.map((point) => point.value)).toEqual([null, -100]);
+    expect(option.series[1]!.data.map((point) => point.value)).toEqual([17.3, null]);
+    expect(option.title[1]?.text).toContain("17.3%");
   });
 });
 

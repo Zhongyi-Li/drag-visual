@@ -4,7 +4,7 @@ export const DEFAULT_PIE_CATEGORY_LIMIT = 20;
 export const MAX_PIE_CATEGORY_LIMIT = 5_000;
 
 export const isPieCategoryChart = (type: ComponentType): boolean =>
-  type === "pie" || type === "donut" || type === "rose";
+  type === "pie" || type === "donut" || type === "donutBreakdown" || type === "rose";
 
 const positiveInteger = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isInteger(value) && value > 0
@@ -35,10 +35,10 @@ export const supportsChartResultLimit = (component: ResultLimitComponent): boole
   isPieCategoryChart(component.type) && hasBoundSlot(component, "dimension");
 
 export const pieCategoryLimitDraft = (component: CategoryLimitComponent): number =>
-  positiveInteger(component.props?.maxCategoryCount) ?? DEFAULT_PIE_CATEGORY_LIMIT;
+  positiveInteger(component.props?.maxCategoryCount) ?? (component.type === "donutBreakdown" ? MAX_PIE_CATEGORY_LIMIT : DEFAULT_PIE_CATEGORY_LIMIT);
 
 /** Value used by the chart/query after the author clicks 更新. */
 export const appliedPieCategoryLimit = (component: CategoryLimitComponent, allowDraftFallback = false): number =>
   positiveInteger(component.props?.appliedMaxCategoryCount)
   ?? (allowDraftFallback ? positiveInteger(component.props?.maxCategoryCount) : undefined)
-  ?? DEFAULT_PIE_CATEGORY_LIMIT;
+  ?? (component.type === "donutBreakdown" ? MAX_PIE_CATEGORY_LIMIT : DEFAULT_PIE_CATEGORY_LIMIT);

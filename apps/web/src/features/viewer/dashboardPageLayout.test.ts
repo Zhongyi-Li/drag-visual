@@ -8,6 +8,7 @@ const dashboard = {
   theme: {
     backgroundColor: "#f5f7fa",
     pageLayout: {
+      backgroundColorEnabled: true,
       backgroundImageEnabled: true,
       backgroundImage: "data:image/png;base64,ZmFrZQ==",
     },
@@ -15,9 +16,15 @@ const dashboard = {
 };
 
 describe("pageSurfaceStyle", () => {
-  it("uses the image as the exclusive, cover background when enabled", () => {
+  it("renders background colors and images together for every theme source", () => {
+    for (const preset of ["default", "deepBlue", "technology", "minimal", "custom"]) {
+      const themed = { ...dashboard, theme: { ...dashboard.theme, preset, backgroundColor: "#eefbfc", pageLayout: { ...dashboard.theme.pageLayout, backgroundColorEnabled: true } } };
+      expect(pageSurfaceStyle(themed)).toMatchObject({ backgroundColor: "#eefbfc", backgroundImage: 'url("data:image/png;base64,ZmFrZQ==")' });
+    }
+  });
+  it("uses a cover image with the configured base color", () => {
     expect(pageSurfaceStyle(dashboard)).toMatchObject({
-      backgroundColor: "transparent",
+      backgroundColor: "#f5f7fa",
       backgroundImage: 'url("data:image/png;base64,ZmFrZQ==")',
       backgroundPosition: "center",
       backgroundRepeat: "no-repeat",
@@ -54,3 +61,7 @@ describe("pageSurfaceStyle", () => {
     }, { editor: true })).toHaveProperty("minHeight", "calc(100vh - 96px)");
   });
 });
+
+ it("renders the built-in activity decoration as the page image", () => {
+   expect(pageSurfaceStyle({ ...dashboard, theme: { backgroundColor: "#ff8844", preset: "activity", pageLayout: { backgroundImageEnabled: true, backgroundImage: "/theme-backgrounds/activity.svg" } } }).backgroundImage).toBe('url("/theme-backgrounds/activity.svg")');
+ });

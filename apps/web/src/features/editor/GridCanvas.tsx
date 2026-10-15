@@ -237,6 +237,7 @@ export const GridCanvas = ({ store, registry, createComponentId, onStartFromLibr
       ref={setNodeRef}
       className={`editor-canvas${isOver ? " editor-canvas--drop-target" : ""}`}
       style={{ "--dashboard-background": dashboard.theme.backgroundColor } as CSSProperties}
+      data-dashboard-mode={dashboard.theme.mode ?? "light"}
       aria-label="看板画布"
       data-drop-zone-id={PALETTE_DROP_ID}
       onClick={clearComponentSelection}

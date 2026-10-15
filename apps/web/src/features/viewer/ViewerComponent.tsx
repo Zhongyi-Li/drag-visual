@@ -1,7 +1,7 @@
 import { createDefaultRegistry } from "@drag-visual/component-registry";
 import type { ChartJumpRule, ComponentInstance, Dashboard, Dataset, DatasetFilter, DatasetQueryResult } from "@drag-visual/contracts";
 import { applyTransforms, validateBinding } from "@drag-visual/data-engine";
-import { DashboardComponentRenderer, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
+import { DashboardComponentRenderer, DashboardInteractionTheme, ResponsiveChartContainer } from "@drag-visual/chart-renderer";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Alert, Empty, Spin } from "antd";
 import { useEffect, useState } from "react";
@@ -261,7 +261,7 @@ const BoundViewerComponent = ({ component, savedDataset, globalFilterValues = {}
   </div>;
 };
 
-export const ViewerComponent = ({ component, savedDataset, currentDataset, globalFilterValues, globalFilters, globalFilterOptions, onGlobalFilterChange, globalFilterApplyVersion, onGlobalFilterQuerySettled, globalFiltersLoading, onGlobalFiltersApply, onChartJump, analysisGroupFilters, theme }: ViewerComponentProps) => {
+const ViewerComponentBody = ({ component, savedDataset, currentDataset, globalFilterValues, globalFilters, globalFilterOptions, onGlobalFilterChange, globalFilterApplyVersion, onGlobalFilterQuerySettled, globalFiltersLoading, onGlobalFiltersApply, onChartJump, analysisGroupFilters, theme }: ViewerComponentProps) => {
   const hasGlobalFilterTarget = (globalFilters ?? []).some((filter) => filter.targets.some((target) => target.componentId === component.id));
   // Preview callers can provide a materialized dataset directly. Those
   // components have no query lifecycle to report, so acknowledge the global
@@ -309,3 +309,5 @@ export const ViewerComponent = ({ component, savedDataset, currentDataset, globa
     theme={theme}
   />;
 };
+
+export const ViewerComponent = (props: ViewerComponentProps) => <DashboardInteractionTheme theme={props.theme}><ViewerComponentBody {...props} /></DashboardInteractionTheme>;

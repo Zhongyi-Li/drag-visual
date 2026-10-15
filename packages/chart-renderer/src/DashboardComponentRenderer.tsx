@@ -4,14 +4,18 @@ import { Avatar, Button, Checkbox, DatePicker, Input, InputNumber, Modal, Progre
 import zhCN from "antd/es/date-picker/locale/zh_CN.js";
 import dayjs, { type Dayjs } from "dayjs";
 import "dayjs/locale/zh-cn.js";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useContext, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import { EChart, type EChartPointClick } from "./EChart.js";
+import { DashboardInteractionTheme } from "./DashboardInteractionTheme.js";
+import { DonutBreakdownChart } from "./DonutBreakdownChart.js";
 import { applyComponentFieldStyle } from "./fieldStyle.js";
+import { tablePresentation } from "./tablePresentation.js";
 import { ChartThemeContext, type ChartTheme } from "./chartTheme.js";
 import {
   buildBarOption,
   buildBarLineOption,
+  buildDualAxisLineOption,
   type BarLineDisplayMode,
   buildCrosstabModel,
   buildFlipNumberModel,
@@ -471,7 +475,7 @@ const tableScrollStyle: CSSProperties = {
   scrollbarColor: "#cbd5e1 transparent",
 };
 
-const dataTableStyle: CSSProperties = {
+const defaultDataTableStyle: CSSProperties = {
   borderCollapse: "separate",
   borderSpacing: 0,
   fontSize: 12,
@@ -479,7 +483,7 @@ const dataTableStyle: CSSProperties = {
   tableLayout: "auto",
 };
 
-const tableHeaderCellStyle: CSSProperties = {
+const defaultTableHeaderCellStyle: CSSProperties = {
   background: "#ffffff",
   borderBottom: "1px solid #dce9ff",
   color: "#334155",
@@ -492,7 +496,7 @@ const tableHeaderCellStyle: CSSProperties = {
   zIndex: 2,
 };
 
-const tableCellStyle: CSSProperties = {
+const defaultTableCellStyle: CSSProperties = {
   borderBottom: "none",
   color: "#1e293b",
   maxWidth: 260,
@@ -502,14 +506,14 @@ const tableCellStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const tableNumericCellStyle: CSSProperties = {
-  ...tableCellStyle,
+const defaultTableNumericCellStyle: CSSProperties = {
+  ...defaultTableCellStyle,
   fontVariantNumeric: "tabular-nums",
   textAlign: "right",
 };
 
-const tableRowHeaderCellStyle: CSSProperties = {
-  ...tableCellStyle,
+const defaultTableRowHeaderCellStyle: CSSProperties = {
+  ...defaultTableCellStyle,
   background: "#ffffff",
   color: "#0f172a",
   fontWeight: 650,
@@ -518,21 +522,21 @@ const tableRowHeaderCellStyle: CSSProperties = {
   zIndex: 1,
 };
 
-const tableTotalHeaderCellStyle: CSSProperties = {
-  ...tableHeaderCellStyle,
+const defaultTableTotalHeaderCellStyle: CSSProperties = {
+  ...defaultTableHeaderCellStyle,
   background: "#eef6ff",
   color: "#1d4ed8",
 };
 
-const tableTotalCellStyle: CSSProperties = {
-  ...tableNumericCellStyle,
+const defaultTableTotalCellStyle: CSSProperties = {
+  ...defaultTableNumericCellStyle,
   background: "#f8fbff",
   color: "#0f172a",
   fontWeight: 700,
 };
 
-const heatmapCellBaseStyle: CSSProperties = {
-  ...tableNumericCellStyle,
+const defaultHeatmapCellBaseStyle: CSSProperties = {
+  ...defaultTableNumericCellStyle,
   borderBottom: "2px solid #fff",
   borderLeft: "2px solid #fff",
   color: "#0f172a",
@@ -1915,11 +1919,7 @@ const kpiBoardRowValueStyle: CSSProperties = {
   whiteSpace: "nowrap",
 };
 
-const disabledPagerButtonStyle: CSSProperties = {
-  ...tablePagerButtonStyle,
-  color: "#bfbfbf",
-  cursor: "not-allowed",
-};
+
 
 const titleIncludes = (component: ComponentInstance, ...keywords: readonly string[]): boolean => {
   const title = component.title ?? "";
@@ -2248,24 +2248,27 @@ const HeatmapDemo = () => (
   </div>
 );
 
-const TableDemo = () => (
+const TableDemo = () => {
+  const presentation = tablePresentation(useContext(ChartThemeContext));
+  return (
   <div data-testid="empty-demo-table" style={{ padding: "28px 40px" }}>
-    <table style={{ borderCollapse: "collapse", width: "100%" }}>
+    <table style={{ borderCollapse: "collapse", width: "100%", ...presentation?.table }}>
       <thead>
-        <tr>{["Region", "Sales", "Growth"].map((column) => <th key={column} style={{ borderBottom: "1px solid #e5e5e5", color: "#aaa", padding: 8, textAlign: "left" }}>{column}</th>)}</tr>
+        <tr>{["Region", "Sales", "Growth"].map((column) => <th key={column} style={{ borderBottom: "1px solid #e5e5e5", color: "#aaa", padding: 8, textAlign: "left", ...presentation?.header }}>{column}</th>)}</tr>
       </thead>
       <tbody>
         {["North", "East", "South"].map((region, index) => (
-          <tr key={region}>
-            <td style={{ borderBottom: "1px solid #ededed", color: "#b6b6b6", padding: 8 }}>{region}</td>
-            <td style={{ borderBottom: "1px solid #ededed", color: "#b6b6b6", padding: 8 }}>{[1280, 960, 760][index]}</td>
-            <td style={{ borderBottom: "1px solid #ededed", color: "#b6b6b6", padding: 8 }}>{["12.3%", "8.5%", "6.2%"][index]}</td>
+          <tr key={region} style={presentation?.row(index)}>
+            <td style={{ borderBottom: "1px solid #ededed", color: "#b6b6b6", padding: 8, ...presentation?.body }}>{region}</td>
+            <td style={{ borderBottom: "1px solid #ededed", color: "#b6b6b6", padding: 8, ...presentation?.body }}>{[1280, 960, 760][index]}</td>
+            <td style={{ borderBottom: "1px solid #ededed", color: "#b6b6b6", padding: 8, ...presentation?.body }}>{["12.3%", "8.5%", "6.2%"][index]}</td>
           </tr>
         ))}
       </tbody>
     </table>
   </div>
-);
+  );
+};
 
 const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
   if (component.type === "flipNumber") return <FlipNumberDemo />;
@@ -2292,7 +2295,9 @@ const buildEmptyDataDemo = (component: ComponentInstance): React.ReactNode => {
   if (component.type === "ringBar") return <RingBarDemo />;
   if (component.type === "horizontalBar") return <BarDemo horizontal />;
   if (component.type === "barLine") return <BarDemo />;
+  if (component.type === "dualAxisLine") return <LineDemo />;
   if (component.type === "donut") return <PieDemo donut />;
+  if (component.type === "donutBreakdown") return <PieDemo donut />;
   if (component.type === "ranking") return <BarDemo horizontal />;
   if (component.type === "bar") {
     if (titleIncludes(component, "漏斗")) return <FunnelDemo />;
@@ -2669,38 +2674,42 @@ const DataSurface = ({
   readonly chips?: readonly React.ReactNode[];
   readonly variant?: "default" | "flat" | "borderless";
   readonly hideHeader?: boolean;
-}) => (
-  <section
+}) => {
+  const dark = useContext(ChartThemeContext)?.mode === "dark";
+  const surfaceStyle = { ...dataSurfaceStyle, ...(dark ? { background: "#102344", borderColor: "#294366", color: "#dbe7f5" } : {}) };
+  const headerStyle = { ...dataSurfaceHeaderStyle, ...(dark ? { borderColor: "#294366" } : {}) };
+  return (<section
     data-testid={testId}
     style={variant === "flat"
-      ? { ...dataSurfaceStyle, background: "transparent", border: "none", borderRadius: 0, boxShadow: "none" }
+      ? { ...surfaceStyle, background: "transparent", border: "none", borderRadius: 0, boxShadow: "none" }
       : variant === "borderless"
-        ? { ...dataSurfaceStyle, border: "none", boxShadow: "none" }
-        : dataSurfaceStyle}
+        ? { ...surfaceStyle, border: "none", boxShadow: "none" }
+        : surfaceStyle}
   >
     {!hideHeader && (eyebrow !== undefined || title !== undefined || chips.length > 0) && (
       <header style={variant === "flat"
-        ? { ...dataSurfaceHeaderStyle, borderBottom: "none", padding: "4px 14px 6px" }
+        ? { ...headerStyle, borderBottom: "none", padding: "4px 14px 6px" }
         : variant === "borderless"
-          ? { ...dataSurfaceHeaderStyle, borderBottom: "none" }
-          : dataSurfaceHeaderStyle}>
+          ? { ...headerStyle, borderBottom: "none" }
+          : headerStyle}>
         {(eyebrow !== undefined || title !== undefined) && (
           <div style={dataSurfaceTitleBlockStyle}>
-            {eyebrow !== undefined && <span style={dataSurfaceEyebrowStyle}>{eyebrow}</span>}
-            {title !== undefined && <strong style={dataSurfaceTitleStyle}>{title}</strong>}
+            {eyebrow !== undefined && <span style={{ ...dataSurfaceEyebrowStyle, ...(dark ? { color: "#9fb3cf" } : {}) }}>{eyebrow}</span>}
+            {title !== undefined && <strong style={{ ...dataSurfaceTitleStyle, ...(dark ? { color: "#dbe7f5" } : {}) }}>{title}</strong>}
           </div>
         )}
         {chips.length > 0 && <div style={chipRailStyle}>{chips.map((chip, index) => <span key={index}>{chip}</span>)}</div>}
       </header>
     )}
     {children}
-    {footer !== undefined && <footer style={tableFooterStyle}>{footer}</footer>}
-  </section>
-);
+    {footer !== undefined && <footer style={{ ...tableFooterStyle, ...(dark ? { background: "#102344", borderColor: "#294366", color: "#9fb3cf" } : {}) }}>{footer}</footer>}
+  </section>);
+};
 
-const TableStatus = ({ children }: { readonly children: React.ReactNode }) => (
-  <div style={tableStatusStyle}>{children}</div>
-);
+const TableStatus = ({ children }: { readonly children: React.ReactNode }) => {
+  const dark = useContext(ChartThemeContext)?.mode === "dark";
+  return <div style={{ ...tableStatusStyle, ...(dark ? { color: "#9fb3cf" } : {}) }}>{children}</div>;
+};
 
 interface ResponsiveBarChartProps {
   readonly component: ComponentInstance;
@@ -2813,8 +2822,20 @@ const DashboardComponentRendererBody = ({
   onDashboardFiltersApply,
   onComponentPropsChange,
   onChartJump,
-  theme: _theme,
+  theme,
 }: Props) => {
+  const primaryColor = theme?.primaryColor ?? "#1677ff";
+  const presentation = tablePresentation(theme);
+  const pagerStyle = { ...tablePagerButtonStyle, ...(theme?.mode === "dark" ? { background: "#162e52", borderColor: "#294366", color: "#dbe7f5" } : {}) };
+  const disabledPagerStyle = { ...pagerStyle, ...(theme?.mode === "dark" ? { opacity: 0.45 } : { color: "#bfbfbf" }), cursor: "not-allowed" };
+  const dataTableStyle = { ...defaultDataTableStyle, ...presentation?.table };
+  const tableHeaderCellStyle = { ...defaultTableHeaderCellStyle, ...presentation?.header };
+  const tableCellStyle = { ...defaultTableCellStyle, ...presentation?.body };
+  const tableNumericCellStyle = { ...defaultTableNumericCellStyle, ...presentation?.body };
+  const tableRowHeaderCellStyle = { ...defaultTableRowHeaderCellStyle, ...presentation?.body };
+  const tableTotalHeaderCellStyle = { ...defaultTableTotalHeaderCellStyle, ...presentation?.header };
+  const tableTotalCellStyle = { ...defaultTableTotalCellStyle, ...presentation?.body };
+  const heatmapCellBaseStyle = { ...defaultHeatmapCellBaseStyle, ...presentation?.heatmap };
   const [tablePage, setTablePage] = useState(1);
   const [activeMetricTrendMeasure, setActiveMetricTrendMeasure] = useState<string | null>(null);
   const [activeSunburstMeasure, setActiveSunburstMeasure] = useState<string | null>(null);
@@ -2908,6 +2929,9 @@ const DashboardComponentRendererBody = ({
   if (component.type === "barLine") {
     return <BarLineChart component={component} fields={fields} rows={rows} rowsAreAggregated={rowsAreAggregated} onPointClick={handleChartPointClick} />;
   }
+  if (component.type === "dualAxisLine") {
+    return <EChart option={applyComponentFieldStyle(buildDualAxisLineOption(component, rows, fields, rowsAreAggregated), component)} ariaLabel={`${component.title ?? "双轴折线图"}图表`} onPointClick={handleChartPointClick} />;
+  }
   if (component.type === "line" || component.type === "area" || component.type === "stackedArea" || component.type === "percentArea") {
     const fallbackTitle = component.type === "area"
       ? "面积图"
@@ -2984,7 +3008,7 @@ const DashboardComponentRendererBody = ({
                     type="button"
                     aria-label={`关注指标 ${measure.label}`}
                     aria-pressed={isActive}
-                    style={isActive ? metricTrendActiveTabStyle : metricTrendTabStyle}
+                    style={isActive ? { ...metricTrendActiveTabStyle, color: primaryColor, borderBottomColor: primaryColor } : metricTrendTabStyle}
                     title={`查看${measure.label}趋势`}
                     onMouseDown={(event) => event.stopPropagation()}
                     onPointerDown={(event) => event.stopPropagation()}
@@ -3082,8 +3106,9 @@ const DashboardComponentRendererBody = ({
       <div style={sunburstShellStyle}>
         {measures.length > 1 && onTreemapMeasureChange === undefined && (
           <select
+            className="dashboard-metric-switch"
             aria-label="切换矩形树图指标"
-            style={sunburstMetricSelectStyle}
+            style={{ ...sunburstMetricSelectStyle, ...{ "--dashboard-primary": primaryColor } }}
             value={activeMeasureKey}
             onChange={(event) => (onTreemapMeasureChange ?? setActiveTreemapMeasure)(event.target.value)}
           >
@@ -3111,8 +3136,9 @@ const DashboardComponentRendererBody = ({
       <div style={sunburstShellStyle}>
         {measures.length > 1 && onSunburstMeasureChange === undefined && (
           <select
+            className="dashboard-metric-switch"
             aria-label="切换旭日图指标"
-            style={sunburstMetricSelectStyle}
+            style={{ ...sunburstMetricSelectStyle, ...{ "--dashboard-primary": primaryColor } }}
             value={activeMeasureKey}
             onChange={(event) => (onSunburstMeasureChange ?? setActiveSunburstMeasure)(event.target.value)}
           >
@@ -3138,6 +3164,9 @@ const DashboardComponentRendererBody = ({
   if (component.type === "pie" || component.type === "donut" || component.type === "rose") {
     const fallbackTitle = component.type === "rose" ? "玫瑰图" : component.type === "donut" ? "环形图" : "饼图";
     return <EChart option={applyComponentFieldStyle(buildPieOption(component, rows, fields, rowsAreAggregated), component)} ariaLabel={`${component.title ?? fallbackTitle}图表`} onPointClick={handleChartPointClick} />;
+  }
+  if (component.type === "donutBreakdown") {
+    return <DonutBreakdownChart component={component} fields={fields} rows={rows} rowsAreAggregated={rowsAreAggregated} hideSurfaceHeaders={hideSurfaceHeaders} onPointClick={handleChartPointClick} />;
   }
   if (component.type === "ringBar") {
     return <EChart option={applyComponentFieldStyle(buildRingBarOption(component, rows, fields, rowsAreAggregated), component)} ariaLabel={`${component.title ?? "环形柱图"}图表`} onPointClick={handleChartPointClick} />;
@@ -3382,18 +3411,19 @@ const DashboardComponentRendererBody = ({
           const legacyDescription = measureKeys.length === 1 ? stringProp(component, "description", "").trim() : "";
           const description = metricDescription || legacyDescription;
           const jumpRule = jumpRuleForMetric(measureKey);
-          const canJump = jumpRule !== undefined && onChartJump !== undefined;
+          const hasJump = jumpRule !== undefined;
+          const canJump = hasJump && onChartJump !== undefined;
           if (top !== undefined) {
             const topMetric = `${displayName} ${affixes.prefix}${formatKpiValue(top.value, decimals, measureIsCurrency)}${affixes.suffix}`;
-            return <section key={measureKey} aria-label={`${topLabel} ${displayName}${canJump ? "，点击跳转" : ""}`} role={canJump ? "button" : undefined} tabIndex={canJump ? 0 : undefined} onClick={canJump ? () => handleMetricJump(measureKey, top.row) : undefined} onKeyDown={canJump ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleMetricJump(measureKey, top.row); } } : undefined} style={{ ...insightTopMetricCardStyle, ...(canJump ? { cursor: "pointer", outline: "none" } : {}) }}>
+            return <section className={canJump ? "dashboard-chart-jump" : undefined} key={measureKey} aria-label={`${topLabel} ${displayName}${canJump ? "，点击跳转" : ""}`} role={canJump ? "button" : undefined} tabIndex={canJump ? 0 : undefined} onClick={canJump ? () => handleMetricJump(measureKey, top.row) : undefined} onKeyDown={canJump ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleMetricJump(measureKey, top.row); } } : undefined} style={{ ...insightTopMetricCardStyle, ...(canJump ? { cursor: "pointer", "--dashboard-primary": primaryColor } : {}) }}>
               <div aria-label={`${displayName}最高${dimensionLabel}`} style={insightTopDimensionStyle} title={top.dimension}>{top.dimension}</div>
-              <div style={insightTopMetricStyle} title={topMetric}>{topMetric}</div>
+              <div style={{ ...insightTopMetricStyle, ...(hasJump && configuredFieldStyle === undefined ? { color: primaryColor } : {}), ...metricValueTextStyle }} title={topMetric}>{topMetric}</div>
               {description.length > 0 && <div style={kpiDescriptionStyle} title={description}>{description}</div>}
             </section>;
           }
-          return <section key={measureKey} aria-label={`${displayName}指标${canJump ? "，点击跳转" : ""}`} role={canJump ? "button" : undefined} tabIndex={canJump ? 0 : undefined} onClick={canJump ? () => handleMetricJump(measureKey) : undefined} onKeyDown={canJump ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleMetricJump(measureKey); } } : undefined} style={{ ...insightShellStyle, ...(canJump ? { cursor: "pointer", outline: "none" } : {}) }}>
+          return <section className={canJump ? "dashboard-chart-jump" : undefined} key={measureKey} aria-label={`${displayName}指标${canJump ? "，点击跳转" : ""}`} role={canJump ? "button" : undefined} tabIndex={canJump ? 0 : undefined} onClick={canJump ? () => handleMetricJump(measureKey) : undefined} onKeyDown={canJump ? (event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); handleMetricJump(measureKey); } } : undefined} style={{ ...insightShellStyle, ...(canJump ? { cursor: "pointer", "--dashboard-primary": primaryColor } : {}) }}>
             <div style={insightTitleStyle} title={displayName}>{displayName}</div>
-            <div aria-label={`${displayName}指标值`} style={insightValueStyle}>{affixes.prefix}{formatted}{affixes.suffix}</div>
+            <div aria-label={`${displayName}指标值`} style={{ ...insightValueStyle, ...(hasJump && configuredFieldStyle === undefined ? { color: primaryColor } : {}), ...metricValueTextStyle }}>{affixes.prefix}{formatted}{affixes.suffix}</div>
             {description.length > 0 && <div style={kpiDescriptionStyle} title={description}>{description}</div>}
           </section>;
         });
@@ -3538,7 +3568,7 @@ const DashboardComponentRendererBody = ({
                 <button
                   aria-label="上一页"
                   disabled={currentPage === 1}
-                  style={currentPage === 1 ? disabledPagerButtonStyle : tablePagerButtonStyle}
+                  style={currentPage === 1 ? disabledPagerStyle : pagerStyle}
                   type="button"
                   onClick={() => setTablePage((page) => Math.max(1, page - 1))}
                 >
@@ -3548,7 +3578,7 @@ const DashboardComponentRendererBody = ({
                 <button
                   aria-label="下一页"
                   disabled={currentPage === totalPages}
-                  style={currentPage === totalPages ? disabledPagerButtonStyle : tablePagerButtonStyle}
+                  style={currentPage === totalPages ? disabledPagerStyle : pagerStyle}
                   type="button"
                   onClick={() => setTablePage((page) => Math.min(totalPages, page + 1))}
                 >
@@ -3563,20 +3593,22 @@ const DashboardComponentRendererBody = ({
           <table aria-label={`${component.title ?? "明细表"}数据表`} style={dataTableStyle}>
             <thead><tr>{model.columns.map((column) => {
               const numeric = fields.find((field) => field.key === column.key)?.type === "number";
-              return <th key={column.key} style={{ ...tableHeaderCellStyle, ...(numeric ? metricNameTextStyle : dimensionTextStyle) }}>{column.label}</th>;
+              return <th key={column.key} style={{ ...tableHeaderCellStyle, ...(numeric ? metricNameTextStyle : dimensionTextStyle), ...(presentation && numeric ? { textAlign: "right" } : {}) }}>{column.label}</th>;
             })}</tr></thead>
             <tbody>{pagedRows.map((row, index) => (
-              <tr key={index} style={{ background: "#ffffff" }}>
+              <tr key={index} style={presentation?.row(index) ?? { background: "#ffffff" }}>
                 {model.columns.map((column) => {
                   const value = row[column.key];
+                  const numeric = fields.find((field) => field.key === column.key)?.type === "number" || typeof value === "number";
                   const display = typeof value === "number" && (isCurrencyMetric(column.key, fields) || isQuantityMetric(column.key, fields))
                     ? formatCrosstabMetric(value, isCurrencyMetric(column.key, fields), isQuantityMetric(column.key, fields))
                     : String(value ?? "—");
-                  return <td key={column.key} style={{ ...tableCellStyle, ...(typeof value === "number" ? metricValueTextStyle : dimensionTextStyle) }}>{display}</td>;
+                  return <td key={column.key} style={{ ...(presentation && numeric ? tableNumericCellStyle : tableCellStyle), ...(numeric ? metricValueTextStyle : dimensionTextStyle) }}>{display}</td>;
                 })}
               </tr>
             ))}</tbody>
           </table>
+          {presentation?.bottomRule && <div aria-hidden="true" style={presentation.bottomRule} />}
         </div>
       </DataSurface>
     );
@@ -3615,8 +3647,8 @@ const DashboardComponentRendererBody = ({
               </tr>
             </thead>
             <tbody>
-              {model.rows.map((row) => (
-                <tr key={row.label}>
+              {model.rows.map((row, rowIndex) => (
+                <tr key={row.label} style={presentation?.row(rowIndex)}>
                   <th scope="row" style={{ ...tableRowHeaderCellStyle, ...dimensionTextStyle }}>{row.label}</th>
                   {row.values.map((value, index) => (
                     <td key={model.columns[index]?.key ?? index} style={{ ...tableNumericCellStyle, ...metricValueTextStyle }}>{formatCrosstabMetric(value, model.measureIsCurrency, model.measureIsQuantity)}</td>
@@ -3635,6 +3667,7 @@ const DashboardComponentRendererBody = ({
               )}
             </tbody>
           </table>
+          {presentation?.bottomRule && <div aria-hidden="true" style={presentation.bottomRule} />}
         </div>
       </DataSurface>
     );
@@ -3689,12 +3722,13 @@ const DashboardComponentRendererBody = ({
               </tr>
             </thead>
             <tbody>
-              {model.rows.map((row) => (
-                <tr key={row.label}>
+              {model.rows.map((row, rowIndex) => (
+                <tr key={row.label} style={presentation?.row(rowIndex)}>
                   <th scope="row" style={{ ...tableRowHeaderCellStyle, ...dimensionTextStyle }}>{row.label}</th>
                   {row.cells.map((cell) => (
                     <td
                       key={cell.columnKey}
+                      className={handleHeatmapCellClick === undefined ? undefined : "dashboard-chart-jump"}
                       aria-label={`${row.label} ${cell.columnLabel} ${model.measureLabel} ${formatCrosstabMetric(cell.value, model.measureIsCurrency, model.measureIsQuantity)}`}
                       {...(handleHeatmapCellClick === undefined ? {} : {
                         role: "button",
@@ -3713,6 +3747,7 @@ const DashboardComponentRendererBody = ({
                         background: heatmapCellFill(cell.intensity),
                         color: cell.intensity > 0.7 ? "#fff" : "#0f172a",
                         cursor: handleHeatmapCellClick === undefined ? undefined : "pointer",
+                        ...(handleHeatmapCellClick === undefined ? {} : { "--dashboard-primary": primaryColor }),
                       }}
                     >
                       {model.showValues ? formatCrosstabMetric(cell.value, model.measureIsCurrency, model.measureIsQuantity) : ""}
@@ -3722,6 +3757,7 @@ const DashboardComponentRendererBody = ({
               ))}
             </tbody>
           </table>
+          {presentation?.bottomRule && <div aria-hidden="true" style={presentation.bottomRule} />}
         </div>
       </DataSurface>
     );
@@ -3766,8 +3802,8 @@ const DashboardComponentRendererBody = ({
               </tr>
             </thead>
             <tbody>
-              {model.rows.map((row) => (
-                <tr key={row.key}>
+              {model.rows.map((row, rowIndex) => (
+                <tr key={row.key} style={presentation?.row(rowIndex)}>
                   {row.dimensions.map((value, index) => index === 0 ? (
                     <th key={model.dimensions[index]?.key ?? index} scope="row" style={{ ...tableRowHeaderCellStyle, ...dimensionTextStyle }}>{value}</th>
                   ) : (
@@ -3791,6 +3827,7 @@ const DashboardComponentRendererBody = ({
               )}
             </tbody>
           </table>
+          {presentation?.bottomRule && <div aria-hidden="true" style={presentation.bottomRule} />}
         </div>
       </DataSurface>
     );
@@ -3807,6 +3844,6 @@ const DashboardComponentRendererBody = ({
 
 export const DashboardComponentRenderer = (props: Props) => (
   <ChartThemeContext.Provider value={props.theme}>
-    <DashboardComponentRendererBody {...props} />
+    <DashboardInteractionTheme theme={props.theme}><DashboardComponentRendererBody {...props} /></DashboardInteractionTheme>
   </ChartThemeContext.Provider>
 );

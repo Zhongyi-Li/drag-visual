@@ -1,4 +1,5 @@
 import { createContext } from "react";
+import type { DashboardTableStyle } from "@drag-visual/contracts";
 
 export const defaultLightPalette = ["#1677ff", "#36cfc9", "#9254de", "#fa8c16", "#13c2c2", "#eb2f96"];
 export const defaultDarkPalette = ["#5b8ff9", "#5ad8a6", "#9270ca", "#f6bd16", "#5dc5d5", "#e8684a"];
@@ -10,6 +11,7 @@ export type ChartTheme = {
   readonly chartPalette?: readonly string[] | undefined;
   readonly chartGradient?: boolean | undefined;
   readonly semanticColors?: Readonly<{ positive: string; negative: string; neutral: string }> | undefined;
+  readonly tableStyle?: DashboardTableStyle | undefined;
 };
 
 export const ChartThemeContext = createContext<ChartTheme | undefined>(undefined);

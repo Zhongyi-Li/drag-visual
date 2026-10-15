@@ -941,3 +941,12 @@ describe("DashboardSchema", () => {
     ).toBe(false);
   });
 });
+
+it("round trips official/custom theme identity and leaves legacy themes untouched", () => {
+  for (const preset of ["default", "deepBlue", "technology", "minimal", "custom"]) {
+    const saved = DashboardSchema.parse({ ...validDashboard(), theme: { ...validDashboard().theme, preset } });
+    expect(DashboardSchema.parse(JSON.parse(JSON.stringify(saved))).theme.preset).toBe(preset);
+  }
+  expect(DashboardSchema.parse(validDashboard()).theme.preset).toBeUndefined();
+  expect(DashboardSchema.safeParse({ ...validDashboard(), theme: { ...validDashboard().theme, preset: "unknown" } }).success).toBe(false);
+});

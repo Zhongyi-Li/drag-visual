@@ -1,7 +1,7 @@
 import type { ComponentInstance, DataBinding } from "@drag-visual/contracts";
 import { describe, expect, it } from "vitest";
 
-import { supportsChartResultLimit } from "./chartCategoryLimit.js";
+import { appliedPieCategoryLimit, supportsChartResultLimit } from "./chartCategoryLimit.js";
 
 const component = (
   type: ComponentInstance["type"],
@@ -17,7 +17,12 @@ describe("supportsChartResultLimit", () => {
   it("keeps the control only for pie categories and record tables", () => {
     expect(supportsChartResultLimit(component("pie", { dimension: { fieldKey: "store" }, measure: { fieldKey: "revenue" } }))).toBe(true);
     expect(supportsChartResultLimit(component("donut", { dimension: { fieldKey: "store" }, measure: { fieldKey: "revenue" } }))).toBe(true);
+    expect(supportsChartResultLimit(component("donutBreakdown", { dimension: { fieldKey: "store" }, measure: { fieldKey: "revenue" } }))).toBe(true);
     expect(supportsChartResultLimit(component("table", { columns: [{ fieldKey: "orderNo" }] }))).toBe(false);
+  });
+
+  it("includes all categories by default for the composition detail chart", () => {
+    expect(appliedPieCategoryLimit(component("donutBreakdown", { dimension: { fieldKey: "store" } }))).toBe(5_000);
   });
 
   it("removes the redundant control from ordinary and fixed metric charts", () => {

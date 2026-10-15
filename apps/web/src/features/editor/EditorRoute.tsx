@@ -1,5 +1,5 @@
 import { ArrowLeftOutlined, ReloadOutlined } from "@ant-design/icons";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Result, Spin, message } from "antd";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -99,6 +99,7 @@ const InterfaceDatasetBootstrap = () => {
 };
 
 const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
+  const queryClient = useQueryClient();
   const [store] = useState<EditorStore>(() => createEditorStore(dashboard));
   const [conflictOpen, setConflictOpen] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
@@ -113,6 +114,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
     const request = (async () => {
       const saved = await saveDashboard(snapshot);
       store.getState().markSaved(saved);
+      queryClient.setQueryData(["dashboard", saved.id], saved);
       return saved;
     })();
     savingPromise.current = request;
@@ -127,7 +129,7 @@ const LoadedEditor = ({ dashboard }: { dashboard: Dashboard }) => {
     } finally {
       if (savingPromise.current === request) savingPromise.current = null;
     }
-  }, [store]);
+  }, [store, queryClient]);
 
   const save = useCallback(async (_snapshot: Dashboard) => {
     if (savingPromise.current) await savingPromise.current;

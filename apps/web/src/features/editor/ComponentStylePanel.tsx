@@ -33,6 +33,10 @@ const propertyLabels: Readonly<Record<string, string>> = {
   messageTemplate: "提示文案",
   detailTemplate: "详情文案",
   barColor: "柱状颜色",
+  amountColor: "左轴折线颜色",
+  rateColor: "右轴折线颜色",
+  rateUnit: "比率数据格式",
+  showAverage: "显示平均比率",
   color: "主题颜色",
   content: "文本内容",
   decimals: "小数位数",
@@ -94,6 +98,10 @@ const selectOptions: Readonly<Record<string, readonly { readonly label: string; 
     { label: "左对齐", value: "left" },
     { label: "居中", value: "center" },
     { label: "右对齐", value: "right" },
+  ],
+  rateUnit: [
+    { label: "百分数（17.3 表示 17.3%）", value: "percent" },
+    { label: "小数（0.173 表示 17.3%）", value: "fraction" },
   ],
   multiMetricScale: [
     { label: "自动", value: "auto" },
