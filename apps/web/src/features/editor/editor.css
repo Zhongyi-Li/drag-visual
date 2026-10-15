@@ -1414,6 +1414,7 @@
 .dashboard-settings__background-row { justify-content: flex-start; }
 .dashboard-settings__background-row .ant-checkbox-wrapper { margin-inline-start: 0; flex: 0 0 100px; font-size: 12px; }
 
+.component-frame--activity { background-clip: padding-box; }
 .component-frame--activity .component-frame__header { background: #ff8519 url("/theme-backgrounds/activity-header.svg") center top / cover; }
 .component-frame--activity .component-frame__heading { flex: 1; align-items: stretch !important; }
 .component-frame--activity .component-frame__title-button { width: 100%; font-weight: 600; }

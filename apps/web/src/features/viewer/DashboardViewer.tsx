@@ -294,7 +294,7 @@ export const DashboardViewer = ({
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
-                    borderWidth: mode === "preview" ? 0 : undefined,
+                    borderWidth: mode === "preview" || dashboard.theme.preset === "activity" ? 0 : undefined,
                     borderRadius: dashboard.theme.borderRadiusStyle === undefined ? containerStyle.borderRadius : dashboard.theme.borderRadiusStyle === "large" ? 14 : dashboard.theme.borderRadiusStyle === "small" ? 6 : 0,
                     padding: `${containerStyle.padding.top}px ${containerStyle.padding.right}px ${containerStyle.padding.bottom}px ${containerStyle.padding.left}px`,
                     backgroundColor: containerStyle.customBackground ? containerStyle.backgroundColor : undefined,
