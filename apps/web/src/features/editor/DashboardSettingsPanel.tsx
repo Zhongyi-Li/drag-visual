@@ -173,14 +173,9 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
 
   const updateTheme = (patch: Partial<Dashboard["theme"]>) => {
     const current = store.getState().history.present.theme;
-    const visualEdit = patch.preset === undefined && (
-      Object.keys(patch).some((key) => key !== "pageLayout") ||
-      (patch.pageLayout !== undefined && (["backgroundColorEnabled", "backgroundImageEnabled", "backgroundImage", "titleColor", "titleTextAlign"] as const).some((key) =>
-        patch.pageLayout?.[key] !== DashboardPageLayout.parse(current.pageLayout ?? {})[key]))
-    );
     store.getState().dispatch({
       type: "dashboard.theme.update",
-      nextTheme: { ...current, ...(visualEdit && current.preset && current.preset !== "custom" ? { presetAdjusted: true } : {}), ...patch } as Dashboard["theme"],
+      nextTheme: { ...current, ...patch } as Dashboard["theme"],
     });
   };
   const updateTableStyle = (patch: DashboardTableStylePatch) => {
@@ -191,13 +186,12 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
       body: { ...current.body, ...patch.body },
     }) });
   };
-  const selectedPreset = dashboardThemePresets.find((preset) => preset.id === dashboard.theme.preset || (dashboard.theme.preset === "minimal" && preset.id === "activity"));
   const applyPreset = (preset: typeof dashboardThemePresets[number]) => {
     const current = store.getState().history.present.theme;
     const layout = DashboardPageLayout.parse(current.pageLayout ?? {});
     const builtInImage = layout.backgroundImage.startsWith("/theme-backgrounds/");
     const useActivityImage = preset.id === "activity" && (!layout.backgroundImage || builtInImage);
-    updateTheme({ preset: preset.id, presetAdjusted: false, primaryColor: preset.primaryColor,
+    updateTheme({ preset: preset.id, primaryColor: preset.primaryColor,
       backgroundColor: preset.backgroundColor, chartPalette: [...preset.chartPalette], mode: preset.mode,
       fontFamily: "system", borderRadiusStyle: preset.id === "activity" ? "large" : preset.id === "technology" ? "small" : "none", spacingStyle: "compact", spacing: 8,
       chartGradient: true, semanticColors: { ...semanticGroups.标准 }, tableStyle: DashboardTableStyle.parse((preset.id === "technology" || preset.id === "activity") ? { header: { color: "#262626" }, body: { color: "#262626" } } : {}),
@@ -317,7 +311,6 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
             </div> },
           ]}
         />
-        {selectedPreset && <div className="dashboard-settings__setting-row"><span>{selectedPreset.label}{dashboard.theme.presetAdjusted ? " · 已调整" : ""}</span><Button size="small" onClick={() => applyPreset(selectedPreset)}>恢复主题默认</Button></div>}
       </div>,
     },
     {
@@ -466,7 +459,7 @@ export const DashboardSettingsPanel = ({ store }: DashboardSettingsPanelProps) =
         />
       </div>,
     },
-  ], [dashboard.theme.presetAdjusted, themeTab, JSON.stringify(dashboard.theme.tableStyle), dashboard.name, titleDraft, footerDraft, titleEditorOpen, footerEditorOpen, marginSelectOpen, marginLocked, backgroundPickerTarget, dashboard.theme.backgroundColor, dashboard.theme.preset, dashboard.theme.primaryColor, dashboard.theme.mode, dashboard.theme.fontFamily, dashboard.theme.borderRadiusStyle, dashboard.theme.spacingStyle, dashboard.theme.spacing, JSON.stringify(dashboard.theme.customSpacing), JSON.stringify(dashboard.theme.pageLayout), JSON.stringify(dashboard.theme.dashboardBackground), dashboard.theme.chartGradient, JSON.stringify(dashboard.theme.chartPalette), JSON.stringify(dashboard.theme.semanticColors), backgroundImageError, customPaletteOpen, paddingLocked]);
+  ], [themeTab, JSON.stringify(dashboard.theme.tableStyle), dashboard.name, titleDraft, footerDraft, titleEditorOpen, footerEditorOpen, marginSelectOpen, marginLocked, backgroundPickerTarget, dashboard.theme.backgroundColor, dashboard.theme.preset, dashboard.theme.primaryColor, dashboard.theme.mode, dashboard.theme.fontFamily, dashboard.theme.borderRadiusStyle, dashboard.theme.spacingStyle, dashboard.theme.spacing, JSON.stringify(dashboard.theme.customSpacing), JSON.stringify(dashboard.theme.pageLayout), JSON.stringify(dashboard.theme.dashboardBackground), dashboard.theme.chartGradient, JSON.stringify(dashboard.theme.chartPalette), JSON.stringify(dashboard.theme.semanticColors), backgroundImageError, customPaletteOpen, paddingLocked]);
 
   const normalizedQuery = query.trim().toLocaleLowerCase("zh-CN");
   const visibleSections = normalizedQuery.length === 0

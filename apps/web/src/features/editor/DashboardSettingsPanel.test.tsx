@@ -18,7 +18,7 @@ const dashboard = DashboardSchema.parse({
 });
 
 describe("DashboardSettingsPanel", () => {
-  it("applies a theme as an editable shortcut, preserves layout/images and restores visual defaults", async () => {
+  it("keeps theme appearance editable, preserves layout/images and supports undo", async () => {
     const image = "data:image/png;base64,ZmFrZQ==";
     const store = createEditorStore(DashboardSchema.parse({ ...dashboard, theme: { ...dashboard.theme, pageLayout: { backgroundImageEnabled: true, backgroundColorEnabled: false, backgroundImage: image, fixedWidth: 1800, widthMode: "fixed" }, dashboardBackground: { topVisible: true, topImage: image } } }));
     render(<AppProviders><DashboardSettingsPanel store={store} /></AppProviders>);
@@ -28,20 +28,19 @@ describe("DashboardSettingsPanel", () => {
     await userEvent.click(screen.getByRole("button", { name: /页面布局/ }));
     expect(screen.queryByRole("button", { name: "背景颜色" })).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("radio", { name: "自适应" }));
-    expect(store.getState().history.present.theme.presetAdjusted).toBe(false);
     await userEvent.click(screen.getByRole("button", { name: /仪表板背景/ }));
     expect(screen.getByRole("button", { name: "背景颜色" })).not.toBeDisabled();
     expect(screen.getByLabelText("选择页面背景图片")).not.toBeDisabled();
     expect(screen.getByRole("checkbox", { name: "整页背景图片" })).toBeChecked();
     await userEvent.click(screen.getByRole("button", { name: "背景颜色" }));
     await userEvent.click(await within(await screen.findByLabelText("背景颜色调色面板")).findByRole("button", { name: "选择颜色 #c58bf2" }));
-    expect(store.getState().history.present.theme).toMatchObject({ preset: "technology", presetAdjusted: true, backgroundColor: "#c58bf2" });
-    expect(screen.getByText("科技 · 已调整")).toBeInTheDocument();
+    expect(store.getState().history.present.theme).toMatchObject({ preset: "technology", backgroundColor: "#c58bf2" });
     await userEvent.click(screen.getByRole("button", { name: "背景颜色" }));
-    await userEvent.click(screen.getByRole("button", { name: "恢复主题默认" }));
-    expect(store.getState().history.present.theme).toMatchObject({ preset: "technology", presetAdjusted: false, backgroundColor: "#2164df", borderRadiusStyle: "small", pageLayout: { backgroundImage: image, backgroundImageEnabled: true, backgroundColorEnabled: true, titleColor: "#dce8ff", titleTextAlign: "center", widthMode: "adaptive", fixedWidth: 1800 }, dashboardBackground: { topImage: image } });
+    expect(store.getState().history.present.theme).toMatchObject({ preset: "technology", backgroundColor: "#c58bf2", borderRadiusStyle: "small", pageLayout: { backgroundImage: image, backgroundImageEnabled: true, backgroundColorEnabled: true, titleColor: "#dce8ff", titleTextAlign: "center", widthMode: "adaptive", fixedWidth: 1800 }, dashboardBackground: { topImage: image } });
     act(() => store.getState().undo());
-    expect(store.getState().history.present.theme.presetAdjusted).toBe(true);
+    expect(store.getState().history.present.theme.backgroundColor).toBe("#2164df");
+    act(() => store.getState().redo());
+    expect(store.getState().history.present.theme.backgroundColor).toBe("#c58bf2");
   }, 20_000);
   it("applies official dashboard themes, keeps component overrides and preserves custom/undo state", async () => {
     const store = createEditorStore(DashboardSchema.parse({ ...dashboard, theme: { ...dashboard.theme, primaryColor: "#a18bfa", tableStyle: { colorScheme: "custom", customColor: "#36c99a" } } }));
@@ -72,7 +71,7 @@ describe("DashboardSettingsPanel", () => {
     expect(screen.getByRole("button", { name: "主题色" })).toHaveAttribute("data-color", "#ff7a18");
     await userEvent.click(screen.getByRole("button", { name: "主题色" }));
     await userEvent.click(await within(await screen.findByLabelText("主题色调色面板")).findByRole("button", { name: "选择颜色 #a18bfa" }));
-    await waitFor(() => expect(store.getState().history.present.theme).toMatchObject({ preset: "activity", presetAdjusted: true, primaryColor: "#a18bfa" }));
+    await waitFor(() => expect(store.getState().history.present.theme).toMatchObject({ preset: "activity", primaryColor: "#a18bfa" }));
   }, 20_000);
   it("applies the activity background and clears only built-in decoration when switching themes", async () => {
     const store = createEditorStore(dashboard);

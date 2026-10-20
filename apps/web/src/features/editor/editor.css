@@ -32,10 +32,11 @@
 .editor-tools__hint { margin-left: auto; color: #bfbfbf; font-size: 12px; }
 
 .editor-workbench { width: 100%; min-width: 1280px; height: calc(100vh - 96px); min-height: 544px; display: grid; grid-template-columns: 240px minmax(400px, 1fr) 520px; }
-.editor-workbench--page-settings { grid-template-columns: 240px minmax(400px, 1fr) 330px; }
 .editor-workbench--inspector-collapsed { grid-template-columns: 240px minmax(672px, 1fr) 248px; }
 .editor-workbench--data-panel-collapsed { grid-template-columns: 240px minmax(552px, 1fr) 368px; }
 .editor-workbench--inspector-collapsed.editor-workbench--data-panel-collapsed { grid-template-columns: 240px minmax(896px, 1fr) 96px; }
+.editor-workbench.editor-workbench--page-settings { grid-template-columns: 240px minmax(400px, 1fr) 330px; }
+.editor-workbench.editor-workbench--page-settings.editor-workbench--inspector-collapsed { grid-template-columns: 240px minmax(400px, 1fr) 48px; }
 .editor-palette, .editor-inspector { min-width: 0; background: #fff; }
 .editor-panel-scroll { min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; -ms-overflow-style: none; }
 .editor-panel-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }

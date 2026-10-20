@@ -19,6 +19,11 @@ export function migrateDashboard(input: unknown): Dashboard {
   const theme = typeof draft.theme === "object" && draft.theme !== null
     ? { ...(draft.theme as Record<string, unknown>) }
     : draft.theme;
+  // Saved dashboards may retain the flag from the removed theme-reset row.
+  // Drop it before strict validation without changing the persisted input.
+  if (theme && typeof theme === "object" && "presetAdjusted" in theme) {
+    delete theme.presetAdjusted;
+  }
   if (theme && typeof theme === "object" && "fontFamily" in theme) {
     const legacyFont = theme.fontFamily;
     if (legacyFont === "sans" || legacyFont === "serif") {

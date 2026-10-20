@@ -19,6 +19,14 @@ describe("migrateDashboard", () => {
     expect(migrateDashboard(dashboard)).toEqual(dashboard);
   });
 
+  it.each([true, false])("reads saved dashboards with the retired adjustment flag %s", (presetAdjusted) => {
+    const input = { ...dashboard, theme: { ...dashboard.theme, preset: "technology", presetAdjusted } };
+    const migrated = migrateDashboard(input);
+    expect(migrated.theme).toEqual({ ...dashboard.theme, preset: "technology" });
+    expect(input.theme.presetAdjusted).toBe(presetAdjusted);
+    expect(migrateDashboard(migrated)).toEqual(migrated);
+  });
+
   it("upgrades the retired progress indicator component", () => {
     const migrated = migrateDashboard({
       ...dashboard,

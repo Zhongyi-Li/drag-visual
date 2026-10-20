@@ -465,7 +465,6 @@ export const DashboardSchema = z
     theme: z
       .object({
         preset: DashboardThemePreset.optional(),
-        presetAdjusted: z.boolean().optional(),
         primaryColor: hexColor,
         backgroundColor: hexColor,
         mode: DashboardThemeMode.optional(),
