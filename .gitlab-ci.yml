@@ -1,0 +1,82 @@
+# Independent of .github/workflows: GitHub continues to use its existing workflows.
+workflow:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == "main"'
+
+stages:
+  - verify
+  - package
+
+frontend-release-gate:
+  stage: verify
+  # Requires a Linux Docker/Kubernetes runner that accepts untagged jobs.
+  image: node:24-bookworm
+  cache:
+    key:
+      prefix: linux-pnpm-10.28.0
+      files:
+        - pnpm-lock.yaml
+    paths:
+      - .pnpm-store/
+  before_script:
+    - npm install --global pnpm@10.28.0
+    - pnpm config set store-dir .pnpm-store
+    - pnpm install --frozen-lockfile
+  script:
+    - pnpm exec playwright install --with-deps chromium
+    - pnpm typecheck
+    - pnpm test
+    - pnpm build
+    - pnpm lint:openapi
+    - pnpm exec playwright test --repeat-each=2
+  artifacts:
+    when: always
+    expire_in: 14 days
+    paths:
+      - apps/web/dist/
+      - apps/api/dist/
+      - packages/*/dist/
+      - playwright-report/
+      - test-results/
+
+windows-deployment-package:
+  stage: package
+  # Windows shell executor using PowerShell Core, Node 24 and pnpm 10.28.0.
+  tags:
+    - windows
+  timeout: 30m
+  # Like workflow_dispatch on GitHub, packaging is explicitly started by a user.
+  # It can run independently of the Linux verification job.
+  needs: []
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "web"'
+      when: manual
+      allow_failure: true
+  variables:
+    VITE_PUBLIC_BASE: /ZHBI/
+    VITE_API_BASE_URL: /ZHBI
+  before_script:
+    - |
+      $ErrorActionPreference = "Stop"
+      $nodeMajor = node -p "process.versions.node.split('.')[0]"
+      if ($LASTEXITCODE -ne 0 -or $nodeMajor -ne "24") { throw "Windows runner requires Node.js 24." }
+      $pnpmVersion = pnpm --version
+      if ($LASTEXITCODE -ne 0 -or $pnpmVersion -ne "10.28.0") { throw "Windows runner requires pnpm 10.28.0." }
+  script:
+    - |
+      pnpm install --frozen-lockfile
+      if ($LASTEXITCODE -ne 0) { throw "Dependency installation failed." }
+      pnpm prisma:generate
+      if ($LASTEXITCODE -ne 0) { throw "Prisma generation failed." }
+      pnpm typecheck
+      if ($LASTEXITCODE -ne 0) { throw "Typecheck failed." }
+      pnpm build
+      if ($LASTEXITCODE -ne 0) { throw "Build failed." }
+    - '& ./.gitlab/scripts/package-windows.ps1'
+  artifacts:
+    name: zhbi-windows-x64
+    expire_in: 14 days
+    paths:
+      - release/zhbi-windows-x64.zip

@@ -12,6 +12,7 @@ Drag Visual is a dashboard MVP with a React editor/viewer, shared TypeScript con
 
 - 初始安装 IIS、Node.js、PostgreSQL 与 ZHBI：[Windows 内网初始部署说明](docs/deploy/windows-intranet-deployment.md)
 - 本地开发后构建和更新 Windows 前后端制品：[Windows 制品更新说明](docs/deploy/windows-artifact-update.md)
+- 使用 GitLab 执行检查与构建 Windows 离线包：[GitLab CI 构建说明](docs/deploy/gitlab-ci.md)
 
 ## Mock Development
 
