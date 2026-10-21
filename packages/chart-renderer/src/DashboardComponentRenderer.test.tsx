@@ -2013,7 +2013,7 @@ it("applies saved page table styles to rendered headers and cells", () => {
   expect(screen.getByText("示例商品").parentElement?.style.background).not.toBe(screen.getByText("空值商品").parentElement?.style.background);
 });
 
-it.each(["crosstab", "multidimensional", "heatmap"])("shares table typography with the %s surface", (type) => {
+it.each(["crosstab", "multidimensional", "heatmap"] as const)("shares table typography with the %s surface", (type) => {
   const slots = type === "multidimensional"
     ? { dateDimension: { fieldKey: "date" }, dimensions: [{ fieldKey: "region" }], measures: [{ fieldKey: "revenue" }] }
     : { rowDimension: { fieldKey: "region" }, columnDimension: { fieldKey: "date" }, measure: { fieldKey: "revenue" } };
