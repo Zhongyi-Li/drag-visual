@@ -10,7 +10,7 @@ import { listDatasetProcessingRecords, listDatasetProcessingTasks, listDatasets 
 import "./dataCenter.css";
 
 const platformDatasetIds = new Set(["retail-delivery-orders", "retail-delivery-orders-v2", "storage-turnover", "storage-turnover-v1", "order-profit-report", "order-profit-report-v1", "sg-storage", "sg-storage-v1"]);
-const editableDatasets = (datasets: readonly DatasetSummary[]): readonly DatasetSummary[] => datasets.filter((dataset) => !platformDatasetIds.has(dataset.id));
+const editableDatasets = (datasets: readonly DatasetSummary[]): readonly DatasetSummary[] => datasets.filter((dataset) => !platformDatasetIds.has(dataset.id) && !dataset.id.startsWith("database-"));
 const dateTime = (value: string | null): string => value ? new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value)) : "—";
 const combineLabel = (kind: DatasetProcessingTask["combineKind"]): string => kind === "join" ? "关联" : kind === "union" ? "合并" : kind === "pipeline" ? "多步整合" : "未整合";
 

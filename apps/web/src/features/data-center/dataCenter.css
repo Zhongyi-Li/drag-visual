@@ -283,3 +283,11 @@ html, body { overscroll-behavior-y: none; }
   .data-center__calculated-heading > .ant-btn { width: 100%; }
   .data-center__formula-editor { padding: 16px; }
 }
+
+.database-source__address { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 16px; }
+.database-source__address .ant-input-number { width: 100%; }
+.database-source__credentials { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.database-source__notice { margin-top: 16px; }
+.database-source__tables { display: grid; gap: 12px; margin-top: 20px; }
+.database-source__tables label { font-weight: 500; }
+@media (max-width: 480px) { .database-source__credentials { grid-template-columns: 1fr; gap: 0; } }

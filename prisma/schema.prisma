@@ -39,6 +39,22 @@ model UserRecord {
   dashboards   DashboardRecord[] @relation("DashboardOwner")
   uploadedDatasets UploadedDatasetRecord[]
   datasetProcessingRecords DatasetProcessingRecord[]
+  databaseDatasets DatabaseDatasetRecord[]
+}
+
+model DatabaseDatasetRecord {
+  id                  String   @id
+  ownerId             String
+  name                String
+  encryptedConnection String
+  tableSchema         String
+  tableName           String
+  schema              Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  owner               UserRecord @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, updatedAt])
 }
 
 model UploadedDatasetRecord {

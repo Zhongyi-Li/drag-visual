@@ -1,3 +1,6 @@
+import { DatabaseDriver } from "./database-driver.js";
+import { DatabaseDatasetRepository } from "./database-dataset.repository.js";
+import { DatabaseDatasetController } from "./database-dataset.controller.js";
 import { Module } from "@nestjs/common";
 
 import { AuthModule } from "../auth/auth.module.js";
@@ -18,9 +21,11 @@ import { UploadedDatasetRepository } from "./uploaded-dataset.repository.js";
 
 @Module({
   imports: [AuthModule],
-  controllers: [DatasetController, DatasetUploadController],
+  controllers: [DatasetController, DatasetUploadController, DatabaseDatasetController],
   providers: [
     PrismaService,
+    DatabaseDriver,
+    DatabaseDatasetRepository,
     RetailOrderDatasetRepository,
     StorageTurnoverDatasetRepository,
     OrderProfitReportDatasetRepository,

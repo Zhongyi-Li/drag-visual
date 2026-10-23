@@ -372,7 +372,80 @@ paths:
         '502': *datasetBadGateway
         '504': *datasetTimeout
 
+  /datasets/database/tables:
+    post:
+      tags: [Datasets]
+      operationId: listDatabaseTables
+      summary: Test a database connection and list readable base tables
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DatabaseConnection' }
+      responses:
+        '200':
+          description: Connected; table metadata only, no credentials are returned.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tables]
+                additionalProperties: false
+                properties:
+                  tables:
+                    type: array
+                    maxItems: 2000
+                    items: { $ref: '#/components/schemas/DatabaseTable' }
+        '400': { description: Invalid connection input or too many tables. }
+        '401': { description: Login required. }
+        '502': { description: Database connection or read permission failed. }
+  /datasets/database:
+    post:
+      tags: [Datasets]
+      operationId: createDatabaseDataset
+      summary: Save an encrypted user-owned live table data source
+      security: [{ SessionCookie: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [connection, table, name]
+              properties:
+                connection: { $ref: '#/components/schemas/DatabaseConnection' }
+                table: { $ref: '#/components/schemas/DatabaseTable' }
+                name: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '201':
+          description: Saved schema, available through the existing dataset query endpoints.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Dataset' }
+        '400': { description: Invalid input or table selection. }
+        '401': { description: Login required. }
+        '502': { description: Database connection or read permission failed. }
+  /datasets/database/sources/{datasetId}:
+    delete:
+      tags: [Datasets]
+      operationId: deleteDatabaseDataset
+      summary: Delete the owner's BI data source without modifying the remote table
+      security: [{ SessionCookie: [] }]
+      parameters:
+        - $ref: '#/components/parameters/DatasetId'
+      responses:
+        '204': { description: Connection record deleted. }
+        '401': { description: Login required. }
+        '404': { description: Source does not exist or belongs to another user. }
+
 components:
+  securitySchemes:
+    SessionCookie:
+      type: apiKey
+      in: cookie
+      name: zhbi_session
   parameters:
     DashboardId:
       name: dashboardId
@@ -389,6 +462,25 @@ components:
       schema: { type: string, minLength: 1 }
       example: sales
   schemas:
+    DatabaseConnection:
+      type: object
+      additionalProperties: false
+      required: [type, host, port, database, username, password]
+      properties:
+        type: { type: string, enum: [mysql, postgresql] }
+        host: { type: string, minLength: 1, maxLength: 253, description: "Hostname or IP only, without URL protocol or path." }
+        port: { type: integer, minimum: 1, maximum: 65535 }
+        database: { type: string, minLength: 1, maxLength: 128 }
+        username: { type: string, minLength: 1, maxLength: 128 }
+        password: { type: string, maxLength: 2048, format: password, writeOnly: true }
+        ssl: { type: boolean, default: false, description: Require TLS with server certificate validation. }
+    DatabaseTable:
+      type: object
+      additionalProperties: false
+      required: [schema, name]
+      properties:
+        schema: { type: string, minLength: 1, maxLength: 128 }
+        name: { type: string, minLength: 1, maxLength: 128 }
     JsonValue:
       description: A recursive JSON-only value.
       anyOf:

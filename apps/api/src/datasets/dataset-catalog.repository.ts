@@ -1,3 +1,4 @@
+import { DatabaseDatasetRepository } from "./database-dataset.repository.js";
 import type {
   Dataset,
   DatasetCalculatedField,
@@ -42,6 +43,8 @@ export class DatasetCatalogRepository implements DatasetRepository {
     private readonly sgStorage: SgStorageDatasetRepository,
     @Inject(UploadedDatasetRepository)
     private readonly uploadedDatasets: UploadedDatasetRepository,
+    @Inject(DatabaseDatasetRepository)
+    private readonly databaseDatasets: DatabaseDatasetRepository,
   ) {}
 
   async list(ownerId?: string): Promise<readonly DatasetSummary[]> {
@@ -50,6 +53,7 @@ export class DatasetCatalogRepository implements DatasetRepository {
       { name: "storage-turnover", load: () => this.storageTurnover.list() },
       { name: "order-profit-report", load: () => this.orderProfitReport.list() },
       { name: "sg-storage", load: () => this.sgStorage.list() },
+      { name: "database", load: () => this.databaseDatasets.list(ownerId) },
       { name: "uploaded", load: () => this.uploadedDatasets.list(ownerId) },
     ];
     const results = await Promise.allSettled(sources.map((source) => source.load()));
@@ -61,6 +65,7 @@ export class DatasetCatalogRepository implements DatasetRepository {
   }
 
   async getSchema(id: string, ownerId?: string): Promise<Dataset | null> {
+    if (id.startsWith("database-")) return this.databaseDatasets.getSchema(id, ownerId);
     return (await this.catalogRepository(id)?.getSchema(id)) ?? this.uploadedDatasets.getSchema(id, ownerId);
   }
 
@@ -69,10 +74,12 @@ export class DatasetCatalogRepository implements DatasetRepository {
     request: DatasetQueryRequest,
     ownerId?: string,
   ): Promise<DatasetQueryResult | null> {
+    if (id.startsWith("database-")) return this.databaseDatasets.query(id, request, ownerId);
     return (await this.catalogRepository(id)?.query(id, request)) ?? this.uploadedDatasets.query(id, request, ownerId);
   }
 
   async getFieldOptions(id: string, fieldKey: string, search: string | undefined, limit: number, ownerId?: string): Promise<DatasetFieldOptions | null> {
+    if (id.startsWith("database-")) return this.databaseDatasets.getFieldOptions(id, fieldKey, search, limit, ownerId);
     return (await this.catalogRepository(id)?.getFieldOptions(id, fieldKey, search, limit))
       ?? this.uploadedDatasets.getFieldOptions(id, fieldKey, search, limit, ownerId);
   }

@@ -882,7 +882,7 @@ export const ComponentBindingPanel = ({
     <Space className={`binding-panel${compact ? " binding-panel--compact" : ""}`} orientation="vertical" size="middle" style={{ width: "100%" }}>
       {!compact && showDatasetListError && <Alert type="error" showIcon title="加载数据集失败" description={errorMessage(datasets.error)} />}
       {!compact && <div className="binding-field binding-panel__dataset-source">
-        <BindingFieldLabel label="数据集" help="选择当前组件要使用的 Excel 或接口数据源，下面的字段选项会来自这个数据集。" />
+        <BindingFieldLabel label="数据集" help="选择当前组件要使用的文件、接口或数据库数据源，下面的字段选项会来自这个数据集。" />
         <Select
           aria-label="数据集"
           loading={datasets.isLoading && localDatasets.summaries.length === 0}

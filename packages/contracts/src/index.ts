@@ -1,5 +1,6 @@
 export * from "./dashboard.js";
 export * from "./migrateDashboard.js";
+export * from "./database-source.js";
 export {
   Dataset,
   DatasetCalculatedField,

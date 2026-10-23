@@ -1,4 +1,7 @@
 import {
+  DatabaseTablesResponse,
+  type DatabaseConnection,
+  type CreateDatabaseDatasetRequest,
   Dataset,
   DatasetCalculatedField,
   DatasetDraft,
@@ -149,4 +152,15 @@ export const deleteUploadedDataset = async (
   client: ApiClient = apiClient,
 ): Promise<void> => {
   await client.request(`datasets/uploads/${encodeURIComponent(id)}`, { method: "DELETE" });
+};
+
+
+export const listDatabaseTables = async (connection: DatabaseConnection, client: ApiClient = apiClient) =>
+  DatabaseTablesResponse.parse(await client.request("datasets/database/tables", { method: "POST", body: JSON.stringify(connection) }));
+
+export const createDatabaseDataset = async (request: CreateDatabaseDatasetRequest, client: ApiClient = apiClient): Promise<DatasetValue> =>
+  Dataset.parse(await client.request("datasets/database", { method: "POST", body: JSON.stringify(request) }));
+
+export const deleteDatabaseDataset = async (id: string, client: ApiClient = apiClient): Promise<void> => {
+  await client.request(`datasets/database/sources/${encodeURIComponent(id)}`, { method: "DELETE" });
 };
